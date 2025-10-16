@@ -444,6 +444,6 @@ class TestGetQueueForFunction:
 
         for function_name, expected_queue in function_queue_map.items():
             actual_queue = get_queue_for_function(function_name)
-            assert (
-                actual_queue == expected_queue
-            ), f"Function {function_name} should map to {expected_queue}, got {actual_queue}"
+            assert actual_queue == expected_queue, (
+                f"Function {function_name} should map to {expected_queue}, got {actual_queue}"
+            )

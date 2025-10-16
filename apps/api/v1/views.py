@@ -152,15 +152,15 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     @action(detail=False, methods=["post"])
     def update_config(self, request):
         """Update configuration settings and log changes."""
-        #Take a snapshot of current settings the change
+        # Take a snapshot of current settings the change
         old_settings = {}
-        for key in request.data.keys():
+        for key in request.data:
             old_settings[key] = DYNACONF.get(key)
 
-        #Make the change
+        # Make the change
         DYNACONF.merge(request.data)
 
-        #Log each change by calling the helper function
+        # Log each change by calling the helper function
         for key, new_value in request.data.items():
             old_value = old_settings.get(key)
             log_configuration_change(
@@ -183,14 +183,14 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     def reload(self, request):
         """Reload configuration from files and log changes."""
         try:
-            #Take a snapshot of current settings before reload
+            # Take a snapshot of current settings before reload
             old_settings = DYNACONF.as_dict()
-            #Reload the configuration
+            # Reload the configuration
             DYNACONF.reload()
             # Get new settings and find what changed
             new_settings = DYNACONF.as_dict()
             # each change by calling the diary robot
-            for key in new_settings.keys():
+            for key in new_settings:
                 old_value = old_settings.get(key)
                 new_value = new_settings.get(key)
 
@@ -205,23 +205,20 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
                         request=request,
                     )
 
-            return Response(
-                {"message": "Configuration reloaded successfully"},
-                status=status.HTTP_204_NO_CONTENT
-            )
+            return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
-          operation_id="config_rollback",
-          description="Rollback (undo) a configuration change",
-          responses={
-              200: {"message": "string", "setting_key": "string", "rolled_back_to": "any"},
-              400: {"error": "string"},
-              404: {"error": "string"}
-          }
-      )
-    @action(detail=False, methods=["post"], url_path='rollback/(?P<change_id>[0-9]+)')
+        operation_id="config_rollback",
+        description="Rollback (undo) a configuration change",
+        responses={
+            200: {"message": "string", "setting_key": "string", "rolled_back_to": "any"},
+            400: {"error": "string"},
+            404: {"error": "string"},
+        },
+    )
+    @action(detail=False, methods=["post"], url_path="rollback/(?P<change_id>[0-9]+)")
     def rollback(self, request, change_id=None):
         """
         Rollback a configuration change by ID.
@@ -230,20 +227,13 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         """
         from apps.core.utils import rollback_configuration_change
 
-        result = rollback_configuration_change(
-            change_id=change_id,
-            user=request.user,
-            request=request
-        )
+        result = rollback_configuration_change(change_id=change_id, user=request.user, request=request)
 
-        if result['success']:
+        if result["success"]:
             return Response(result, status=status.HTTP_200_OK)
         else:
-            status_code = (
-                status.HTTP_404_NOT_FOUND if 'not found' in result['error']
-                else status.HTTP_400_BAD_REQUEST
-            )
-            return Response({'error': result['error']}, status=status_code)
+            status_code = status.HTTP_404_NOT_FOUND if "not found" in result["error"] else status.HTTP_400_BAD_REQUEST
+            return Response({"error": result["error"]}, status=status_code)
 
     def config(self, request):
         if request.method == "GET":
@@ -251,5 +241,3 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         elif request.method == "POST":
             DYNACONF.merge(request.data)
             return Response(status=status.HTTP_204_NO_CONTENT)
-
-

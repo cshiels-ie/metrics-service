@@ -360,6 +360,7 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
         """
         return f"{self.organization.name} - {self.name}"
 
+
 class ConfigurationChange(models.Model):
     """
     Model that tracks configuration changes made to Dynaconf settings.
@@ -367,7 +368,7 @@ class ConfigurationChange(models.Model):
     This model serves as an audit log for all configuration changes, recording who changed what, when, and from where.
     """
 
-      # WHO changed it
+    # WHO changed it
     changed_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -377,7 +378,7 @@ class ConfigurationChange(models.Model):
         help_text="The user who made this configuration change. Null if changed via system process.",
     )
 
-      # WHAT was changed
+    # WHAT was changed
     setting_key = models.CharField(
         max_length=255,
         help_text="The name of the setting that was changed (e.g., 'DEBUG', 'SECRET_KEY')",
@@ -424,11 +425,10 @@ class ConfigurationChange(models.Model):
         ordering = ["-changed_at"]  # Show newest changes first
         indexes = [
             models.Index(fields=["setting_key", "-changed_at"]),  # Fast lookup by setting
-            models.Index(fields=["changed_by", "-changed_at"]),   # Fast lookup by user
+            models.Index(fields=["changed_by", "-changed_at"]),  # Fast lookup by user
         ]
 
     def __str__(self):
         """String representation showing who changed what and when."""
         user_name = self.changed_by.username if self.changed_by else "System"
         return f"{user_name} changed {self.setting_key} at {self.changed_at}"
-
