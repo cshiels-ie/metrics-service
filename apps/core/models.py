@@ -6,12 +6,7 @@ For full AAP/DAB features, install with: pip install -e ".[dev]"
 # Import DAB components - DAB is always available in this environment
 
 from ansible_base.activitystream.models import AuditableModel
-from ansible_base.lib.abstract_models import (
-    AbstractDABUser,
-    AbstractOrganization,
-    AbstractTeam,
-    CommonModel,
-)
+from ansible_base.lib.abstract_models import AbstractDABUser, AbstractOrganization, AbstractTeam, CommonModel
 from ansible_base.lib.utils.models import user_summary_fields
 from ansible_base.resource_registry.fields import AnsibleResourceField
 
@@ -87,7 +82,7 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     )
 
     # Example custom field - replace or remove as needed
-    extra_field = models.CharField(max_length=100, null=True, blank=True)
+    extra_field = models.CharField(max_length=100, blank=True, default="")
 
     @classmethod
     def access_qs(cls, user, queryset=None):
@@ -364,3 +359,76 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
             str: Organization name and team name
         """
         return f"{self.organization.name} - {self.name}"
+
+
+class ConfigurationChange(models.Model):
+    """
+    Model that tracks configuration changes made to Dynaconf settings.
+
+    This model serves as an audit log for all configuration changes, recording who changed what, when, and from where.
+    """
+
+    # WHO changed it
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="configuration_changes",
+        help_text="The user who made this configuration change. Null if changed via system process.",
+    )
+
+    # WHAT was changed
+    setting_key = models.CharField(
+        max_length=255,
+        help_text="The name of the setting that was changed (e.g., 'DEBUG', 'SECRET_KEY')",
+    )
+
+    old_value = models.TextField(
+        blank=True,
+        null=True,
+        help_text="The previous value of the setting (JSON serialized). May be redacted for sensitive settings.",
+    )
+
+    new_value = models.TextField(
+        blank=True,
+        null=True,
+        help_text="The new value of the setting (JSON serialized). May be redacted for sensitive settings.",
+    )
+
+    # WHEN it changed
+    changed_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the change was made",
+    )
+
+    # WHERE it came from
+    source = models.CharField(
+        max_length=50,
+        choices=[
+            ("api", "API Endpoint"),
+            ("management_command", "Management Command"),
+            ("reload", "Configuration Reload"),
+            ("system", "System Process"),
+        ],
+        help_text="The source of the configuration change",
+    )
+
+    # Extra info
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address of the requester (if available)",
+    )
+
+    class Meta:
+        ordering = ["-changed_at"]  # Show newest changes first
+        indexes = [
+            models.Index(fields=["setting_key", "-changed_at"]),  # Fast lookup by setting
+            models.Index(fields=["changed_by", "-changed_at"]),  # Fast lookup by user
+        ]
+
+    def __str__(self):
+        """String representation showing who changed what and when."""
+        user_name = self.changed_by.username if self.changed_by else "System"
+        return f"{user_name} changed {self.setting_key} at {self.changed_at}"

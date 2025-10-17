@@ -3,9 +3,30 @@ Development settings for metrics_service.
 These settings are optimized for local development with Docker.
 """
 
-import os
+from . import defaults
 
-from .defaults import *  # noqa: F403, F401
+# Import all settings from defaults module
+ALLOWED_HOSTS = defaults.ALLOWED_HOSTS
+INSTALLED_APPS = defaults.INSTALLED_APPS
+MIDDLEWARE = defaults.MIDDLEWARE
+TEMPLATES = defaults.TEMPLATES
+DATABASES = defaults.DATABASES
+LOGGING = defaults.LOGGING
+STATIC_URL = defaults.STATIC_URL
+STATICFILES_DIRS = defaults.STATICFILES_DIRS
+AUTH_USER_MODEL = defaults.AUTH_USER_MODEL
+REST_FRAMEWORK = defaults.REST_FRAMEWORK
+SPECTACULAR_SETTINGS = defaults.SPECTACULAR_SETTINGS
+
+# Import other commonly used settings
+SECRET_KEY = defaults.SECRET_KEY
+ROOT_URLCONF = defaults.ROOT_URLCONF
+WSGI_APPLICATION = defaults.WSGI_APPLICATION
+LANGUAGE_CODE = defaults.LANGUAGE_CODE
+TIME_ZONE = defaults.TIME_ZONE
+USE_I18N = defaults.USE_I18N
+USE_TZ = defaults.USE_TZ
+DEFAULT_AUTO_FIELD = defaults.DEFAULT_AUTO_FIELD
 
 # Override DEBUG setting
 DEBUG = True
@@ -51,16 +72,6 @@ CACHES = {
 
 # Email backend for development (console output)
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
-# Development-specific feature flags
-DISPATCHERD_ENABLED = True
-
-# Feature Flags
-FEATURE_FLAGS = {
-    "DISPATCHERD_ENABLED": True,
-    "ANONYMIZED_DATA_COLLECTION": os.environ.get("METRICS_SERVICE_ANONYMIZED_DATA", "true").lower() == "true",
-    "METRICS_COLLECTION_ENABLED": os.environ.get("METRICS_SERVICE_METRICS_COLLECTION", "false").lower() == "true",
-}
 
 
 # Static files serving in development

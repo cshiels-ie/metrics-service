@@ -24,7 +24,7 @@ class TestBaseViewSet(TestCase):
     def test_base_viewset_initialization(self):
         """Test BaseViewSet can be initialized."""
         viewset = BaseViewSet()
-        assert viewset is not None
+        assert viewset
 
     def test_get_queryset_with_none_queryset(self):
         """Test get_queryset handles None queryset."""
@@ -51,7 +51,7 @@ class TestUserManagementMixin(TestCase):
     def test_mixin_initialization(self):
         """Test UserManagementMixin can be initialized."""
         mixin = UserManagementMixin()
-        assert mixin is not None
+        assert mixin
 
     def test_get_queryset_with_none_queryset(self):
         """Test get_queryset in mixin handles None queryset."""
@@ -75,7 +75,7 @@ class TestBaseModelSerializer(TestCase):
                 fields = ["id", "username", "email"]
 
         serializer = TestSerializer()
-        assert serializer is not None
+        assert serializer
 
     def test_base_serializer_meta_not_implemented(self):
         """Test that Meta class is properly defined."""
@@ -113,7 +113,7 @@ class TestCountFieldMixin(TestCase):
     def test_count_field_mixin_initialization(self):
         """Test CountFieldMixin can be initialized."""
         mixin = CountFieldMixin()
-        assert mixin is not None
+        assert mixin
 
     def test_count_methods_exist(self):
         """Test count methods exist."""
@@ -209,7 +209,7 @@ class TestUserViewSet(TestCase):
     def test_viewset_initialization(self):
         """Test UserViewSet can be initialized."""
         viewset = UserViewSet()
-        assert viewset is not None
+        assert viewset
 
     def test_get_queryset(self):
         """Test get_queryset method."""
@@ -251,7 +251,7 @@ class TestOrganizationViewSet(TestCase):
     def test_viewset_initialization(self):
         """Test OrganizationViewSet can be initialized."""
         viewset = OrganizationViewSet()
-        assert viewset is not None
+        assert viewset
 
     def test_get_queryset(self):
         """Test get_queryset method."""
@@ -278,31 +278,31 @@ class TestAPIImports(TestCase):
         """Test base view imports work."""
         from apps.api.v1.base_views import BaseViewSet, UserManagementMixin
 
-        assert BaseViewSet is not None
-        assert UserManagementMixin is not None
+        assert BaseViewSet
+        assert UserManagementMixin
 
     def test_base_serializer_imports(self):
         """Test base serializer imports work."""
         from apps.api.v1.base_serializers import BaseModelSerializer, CountFieldMixin
 
-        assert BaseModelSerializer is not None
-        assert CountFieldMixin is not None
-        assert PasswordHandlingMixin is not None
+        assert BaseModelSerializer
+        assert CountFieldMixin
+        assert PasswordHandlingMixin
 
     def test_serializer_imports(self):
         """Test serializer imports work."""
         from apps.api.v1.serializers import OrganizationSerializer, TeamSerializer, UserSerializer
 
-        assert UserSerializer is not None
-        assert OrganizationSerializer is not None
-        assert TeamSerializer is not None
+        assert UserSerializer
+        assert OrganizationSerializer
+        assert TeamSerializer
 
     def test_view_imports(self):
         """Test view imports work."""
         from apps.api.v1.views import OrganizationViewSet, UserViewSet
 
-        assert UserViewSet is not None
-        assert OrganizationViewSet is not None
+        assert UserViewSet
+        assert OrganizationViewSet
 
 
 @pytest.mark.django_db

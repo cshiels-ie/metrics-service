@@ -116,7 +116,7 @@ class TestMainURLsImports(TestCase):
             # Multi-line imports may start with '(' but not end with ')'
             if line.endswith(("(", ")")):
                 # This is a multi-line import, which is valid
-                assert True
+                pass  # Valid multi-line import
             else:
                 # Single line import, should not have unmatched parentheses
                 assert not line.endswith("(") or line.endswith(")")

@@ -624,14 +624,14 @@
 				        const select = document.getElementById('task-function');
 				        select.innerHTML = '<option value="">Select a function...</option>';
 
-				        // Group functions by category
-				        const categories = {};
-				        data.functions.forEach(func => {
-				            if (!categories[func.category]) {
-				                categories[func.category] = [];
-				            }
-				            categories[func.category].push(func);
-				        });
+			        // Group functions by category
+			        const categories = {};
+			        for (const func of data.functions) {
+			            if (!categories[func.category]) {
+			                categories[func.category] = [];
+			            }
+			            categories[func.category].push(func);
+			        }
 
 			        // Add options grouped by category
 			        for (const category of Object.keys(categories).sort()) {
@@ -684,7 +684,7 @@
 			        parametersSection.classList.remove('hidden');
 				        parametersList.innerHTML = Object.entries(func.parameters).map(([name, param]) => {
 				            const required = param.required ? '<span class="text-red-500">*</span>' : '';
-				            const defaultValue = param.default !== undefined ? ` (default: ${JSON.stringify(param.default)})` : '';
+				            const defaultValue = param.default === undefined ? '' : ` (default: ${JSON.stringify(param.default)})`;
 				            const typeInfo = param.type ? `<span class="text-xs text-gray-500">${param.type}${defaultValue}</span>` : '';
 
 				            return `
@@ -732,82 +732,91 @@
 				function useExample() {
 				    // Use the first example by default
 				    copyExample(0);
-				}
+			}
 
-				async function handleAddTask(event) {
-				    event.preventDefault();
+			function validateTaskForm(formData, isRecurring) {
+			    if (isRecurring && !formData.get('cron_expression')) {
+			        return { valid: false, error: 'Please provide a cron expression for recurring tasks' };
+			    }
+			    return { valid: true };
+			}
 
-				    const formData = new FormData(event.target);
-				    const isRecurring = document.getElementById('is-recurring').checked;
+			function buildTaskData(formData, isRecurring) {
+			    const taskData = {
+			        name: formData.get('name'),
+			        function_name: formData.get('function_name'),
+			        priority: Number.parseInt(formData.get('priority'), 10),
+			        is_recurring: isRecurring,
+			    };
 
-				    const taskData = {
-				        name: formData.get('name'),
-				        function_name: formData.get('function_name'),
-				        priority: parseInt(formData.get('priority')),
-				        is_recurring: isRecurring,
-				    };
+			    if (isRecurring) {
+			        taskData.cron_expression = formData.get('cron_expression');
+			    } else {
+			        taskData.scheduled_time = formData.get('scheduled_time') || null;
+			    }
 
-				    // Handle scheduling vs recurring
-				    if (isRecurring) {
-				        const cronExpression = formData.get('cron_expression');
-				        if (!cronExpression) {
-				            alert('Please provide a cron expression for recurring tasks');
-				            return;
-				        }
-				        taskData.cron_expression = cronExpression;
-				        // Don't set scheduled_time for recurring tasks
-				    } else {
-				        taskData.scheduled_time = formData.get('scheduled_time') || null;
-				    }
+			    const taskDataJson = formData.get('task_data');
+			    if (taskDataJson) {
+			        taskData.task_data = JSON.parse(taskDataJson);
+			    }
 
-				    // Parse task data JSON if provided
-				    const taskDataJson = formData.get('task_data');
-				    if (taskDataJson) {
-				        try {
-				            taskData.task_data = JSON.parse(taskDataJson);
-				        } catch (error) {
-				            alert('Invalid JSON in task data field');
-				            return;
-				        }
-				    }
+			    return taskData;
+			}
 
-				                         try {
-				                             const response = await fetch(`${API_BASE_URL}tasks/`, {
-				                                 method: 'POST',
-				                                 headers: {
-				                                     'Content-Type': 'application/json',
-				                                     'X-CSRFToken': getCookie('csrftoken'),
-				                                 },
-				                                 body: JSON.stringify(taskData)
-				                             });
+			async function getErrorMessage(response) {
+			    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+			    try {
+			        const contentType = response.headers.get('content-type');
+			        if (contentType && contentType.includes('application/json')) {
+			            const errorData = await response.json();
+			            errorMessage = JSON.stringify(errorData, null, 2);
+			        } else {
+			            const errorText = await response.text();
+			            errorMessage = errorText || errorMessage;
+			        }
+			    } catch (parseError) {
+			        console.warn('Could not parse error response:', parseError);
+			    }
+			    return errorMessage;
+			}
 
-				        if (response.ok) {
-				            hideAddTaskModal();
-				            refreshData();
-				            alert('Task created successfully!');
-				        } else {
-				            // Handle error response safely
-				            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-				            try {
-				                const contentType = response.headers.get('content-type');
-				                if (contentType && contentType.includes('application/json')) {
-				                    const errorData = await response.json();
-				                    errorMessage = JSON.stringify(errorData, null, 2);
-				                } else {
-				                    const errorText = await response.text();
-				                    errorMessage = errorText || errorMessage;
-				                }
-				            } catch (parseError) {
-				                console.warn('Could not parse error response:', parseError);
-				                // Keep the default error message
-				            }
-				            alert('Error creating task:\n' + errorMessage);
-				        }
-				    } catch (error) {
-				        console.error('Error creating task:', error);
-				        alert('Error creating task: ' + error.message);
-				    }
-				}
+			async function handleAddTask(event) {
+			    event.preventDefault();
+
+			    const formData = new FormData(event.target);
+			    const isRecurring = document.getElementById('is-recurring').checked;
+
+			    const validation = validateTaskForm(formData, isRecurring);
+			    if (!validation.valid) {
+			        alert(validation.error);
+			        return;
+			    }
+
+			    try {
+			        const taskData = buildTaskData(formData, isRecurring);
+
+			        const response = await fetch(`${API_BASE_URL}tasks/`, {
+			            method: 'POST',
+			            headers: {
+			                'Content-Type': 'application/json',
+			                'X-CSRFToken': getCookie('csrftoken'),
+			            },
+			            body: JSON.stringify(taskData)
+			        });
+
+			        if (response.ok) {
+			            hideAddTaskModal();
+			            refreshData();
+			            alert('Task created successfully!');
+			        } else {
+			            const errorMessage = await getErrorMessage(response);
+			            alert('Error creating task:\n' + errorMessage);
+			        }
+			    } catch (error) {
+			        console.error('Error creating task:', error);
+			        alert('Error creating task: ' + error.message);
+			    }
+			}
 
 				async function refreshData() {
 				    await Promise.all([
@@ -860,15 +869,15 @@
 				    }
 				}
 
-				function countTasksByStatus(tasks) {
-				    const stats = { running: 0, pending: 0, completed: 0, failed: 0 };
-				    tasks.forEach(task => {
-				        if (stats.hasOwnProperty(task.status)) {
-				            stats[task.status]++;
-				        }
-				    });
-				    return stats;
-				}
+			function countTasksByStatus(tasks) {
+			    const stats = { running: 0, pending: 0, completed: 0, failed: 0 };
+			    for (const task of tasks) {
+			        if (stats.hasOwnProperty(task.status)) {
+			            stats[task.status]++;
+			        }
+			    }
+			    return stats;
+			}
 
 				function updateStatsDisplay(stats) {
 				    document.getElementById('running-count').textContent = stats.running;
@@ -1284,20 +1293,20 @@
 
 
 
-				function getCookie(name) {
-				    let cookieValue = null;
-				    if (document.cookie && document.cookie !== '') {
-				        const cookies = document.cookie.split(';');
-				        for (let i = 0; i < cookies.length; i++) {
-				            const cookie = cookies[i].trim();
-				            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-				                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-				                break;
-				            }
-				        }
-				    }
-				    return cookieValue;
-				}
+			function getCookie(name) {
+			    let cookieValue = null;
+			    if (document.cookie && document.cookie !== '') {
+			        const cookies = document.cookie.split(';');
+			        for (const cookieStr of cookies) {
+			            const cookie = cookieStr.trim();
+			            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+			                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+			                break;
+			            }
+			        }
+			    }
+			    return cookieValue;
+			}
 		</script>
 	</body>
 </html>

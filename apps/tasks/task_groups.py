@@ -288,6 +288,29 @@ def get_tasks_by_category(category: str) -> list[dict[str, Any]]:
     return [task for task in all_tasks.values() if task.get("category") == category]
 
 
+def _validate_task_id(task_id: str | None, group_name: str, all_task_ids: list[str]) -> list[str]:
+    """Validate a single task ID."""
+    errors = []
+    if not task_id:
+        errors.append(f"Task in group {group_name} missing task_id")
+        return errors
+
+    if task_id in all_task_ids:
+        errors.append(f"Duplicate task_id: {task_id}")
+
+    return errors
+
+
+def _validate_required_fields(task: dict, task_id: str) -> list[str]:
+    """Validate required fields for a task."""
+    errors = []
+    required_fields = ["function", "cron", "description"]
+    for field in required_fields:
+        if not task.get(field):
+            errors.append(f"Task {task_id} missing required field: {field}")
+    return errors
+
+
 def validate_task_groups() -> list[str]:
     """
     Validate all task groups and return any errors found.
@@ -296,25 +319,21 @@ def validate_task_groups() -> list[str]:
         List of error messages, empty if no errors
     """
     errors = []
-
-    # Check for duplicate task IDs across groups
     all_task_ids = []
+
     for group in TASK_GROUPS:
         for task in group.tasks:
             task_id = task.get("task_id")
-            if not task_id:
-                errors.append(f"Task in group {group.name} missing task_id")
-                continue
 
-            if task_id in all_task_ids:
-                errors.append(f"Duplicate task_id: {task_id}")
-            else:
+            # Validate task ID
+            id_errors = _validate_task_id(task_id, group.name, all_task_ids)
+            errors.extend(id_errors)
+
+            if task_id and task_id not in all_task_ids:
                 all_task_ids.append(task_id)
 
             # Validate required fields
-            required_fields = ["function", "cron", "description"]
-            for field in required_fields:
-                if not task.get(field):
-                    errors.append(f"Task {task_id} missing required field: {field}")
+            if task_id:
+                errors.extend(_validate_required_fields(task, task_id))
 
     return errors

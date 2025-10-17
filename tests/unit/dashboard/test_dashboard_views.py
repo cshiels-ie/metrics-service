@@ -178,10 +178,10 @@ class TestDashboardViews(TestCase):
         from django.views.decorators.http import require_safe
 
         # Verify imports are not None
-        assert HttpRequest is not None
-        assert HttpResponse is not None
-        assert render is not None
-        assert require_safe is not None
+        assert HttpRequest
+        assert HttpResponse
+        assert render
+        assert require_safe
 
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_with_different_request_methods(self, mock_task_functions):

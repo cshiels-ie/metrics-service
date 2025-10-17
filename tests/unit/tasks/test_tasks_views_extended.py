@@ -29,7 +29,7 @@ class TestTaskViewSet(TestCase):
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""
         viewset = TaskViewSet()
-        assert viewset is not None
+        assert viewset
 
     def test_get_queryset(self):
         """Test get_queryset method."""
@@ -104,7 +104,7 @@ class TestTaskSerializer(TestCase):
         serializer = TaskSerializer(data=data)
         is_valid = serializer.is_valid()
         if not is_valid:
-            pass
+            pass  # Intentionally ignoring validation errors in test
         # The exact validation depends on the serializer implementation
 
     def test_task_validation(self):
@@ -215,22 +215,22 @@ class TestTaskImports(TestCase):
         """Test task view imports work."""
         from apps.api.v1.tasks.views import TaskViewSet
 
-        assert TaskViewSet is not None
+        assert TaskViewSet
 
     def test_task_serializer_imports(self):
         """Test task serializer imports work."""
         from apps.api.v1.tasks.serializers import TaskExecutionSerializer, TaskSerializer
 
-        assert TaskSerializer is not None
-        assert TaskExecutionSerializer is not None
+        assert TaskSerializer
+        assert TaskExecutionSerializer
 
     def test_task_model_imports(self):
         """Test task model imports work."""
         from apps.tasks.models import Task, TaskExecution
 
-        assert Task is not None
-        assert TaskExecution is not None
-        assert TaskChain is not None
+        assert Task
+        assert TaskExecution
+        assert TaskChain
 
 
 @pytest.mark.django_db

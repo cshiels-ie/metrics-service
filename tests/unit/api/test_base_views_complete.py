@@ -29,7 +29,7 @@ class TestUserManagementMixinActions(TestCase):
             def get_object(self):
                 return self.organization
 
-            def _add_user_to_field(self, request, field_name, success_message):
+            def _add_user_to_field(self, request, field_name, success_message=""):
                 return Mock(status_code=200, data={"message": success_message})
 
         mixin = TestMixin()
@@ -45,7 +45,7 @@ class TestUserManagementMixinActions(TestCase):
             def get_object(self):
                 return self.organization
 
-            def _remove_user_from_field(self, request, field_name, success_message):
+            def _remove_user_from_field(self, request, field_name, success_message=""):
                 return Mock(status_code=200, data={"message": success_message})
 
         mixin = TestMixin()
@@ -61,7 +61,7 @@ class TestUserManagementMixinActions(TestCase):
             def get_object(self):
                 return self.organization
 
-            def _add_user_to_field(self, request, field_name, success_message):
+            def _add_user_to_field(self, request, field_name, success_message=""):
                 return Mock(status_code=200, data={"message": success_message})
 
         mixin = TestMixin()
@@ -77,7 +77,7 @@ class TestUserManagementMixinActions(TestCase):
             def get_object(self):
                 return self.organization
 
-            def _remove_user_from_field(self, request, field_name, success_message):
+            def _remove_user_from_field(self, request, field_name, success_message=""):
                 return Mock(status_code=200, data={"message": success_message})
 
         mixin = TestMixin()

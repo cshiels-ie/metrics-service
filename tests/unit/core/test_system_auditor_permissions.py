@@ -149,7 +149,7 @@ class SystemAuditorPermissionTests(APITestCase):
         # self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         # Test passes by documenting expected behavior
-        self.assertTrue(True, "System auditor should not be able to create organizations")
+        # System auditor should not be able to create organizations
 
     def test_system_auditor_api_cannot_update_organizations(self):
         """Test system auditor cannot update organizations via API."""
@@ -199,7 +199,7 @@ class SystemAuditorPermissionTests(APITestCase):
         # self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         # Test passes by documenting expected behavior
-        self.assertTrue(True, "System auditor should not be able to create users")
+        # System auditor should not be able to create users
 
         # Cannot update users
         url = reverse("api:v1:user-detail", kwargs={"pk": self.regular_user.pk})
