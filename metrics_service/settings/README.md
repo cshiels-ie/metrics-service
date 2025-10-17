@@ -42,6 +42,7 @@ Settings are loaded in the following order (lowest to highest priority):
 6. **Environment variables** with `METRICS_SERVICE_` prefix - **Highest priority**
 
 This precedence is implemented using DAB's (Django Ansible Base) manual loaders:
+
 ```python
 load_standard_settings_files(DYNACONF)  # Load system settings
 load_envvars(DYNACONF)                  # Load environment variables (highest priority)
@@ -54,11 +55,13 @@ The environment mode is controlled by the `METRICS_SERVICE_MODE` environment var
 ### Development Mode
 
 **Environment Variable:**
+
 ```bash
 export METRICS_SERVICE_MODE=development
 ```
 
 **Behavior:**
+
 - Uses defaults from `config/settings.yaml`
 - Validation **disabled** - allows default values for easy setup
 - DEBUG enabled
@@ -70,11 +73,13 @@ export METRICS_SERVICE_MODE=development
 ### Production Mode
 
 **Environment Variable:**
+
 ```bash
 export METRICS_SERVICE_MODE=production
 ```
 
 **Behavior:**
+
 - Validation **enforced** - requires explicit configuration
 - SECRET_KEY **must** be set via environment variable
 - Database credentials **must** be configured
@@ -84,6 +89,7 @@ export METRICS_SERVICE_MODE=production
 **Use Case:** Production deployments
 
 **Example Production Configuration:**
+
 ```bash
 export METRICS_SERVICE_MODE=production
 export METRICS_SERVICE_SECRET_KEY="your-secure-random-key-here"
@@ -117,6 +123,7 @@ export METRICS_SERVICE_DATABASES__default__PASSWORD=secure_password
 ```
 
 This is equivalent to:
+
 ```python
 DATABASES = {
     "default": {
@@ -131,16 +138,16 @@ DATABASES = {
 
 ### Common Environment Variables
 
-| Variable | Description | Required in Production |
-|----------|-------------|----------------------|
-| `METRICS_SERVICE_MODE` | Environment mode (development/production) | No (defaults to development) |
-| `METRICS_SERVICE_SECRET_KEY` | Django secret key | **Yes** |
-| `METRICS_SERVICE_DEBUG` | Enable debug mode | No |
-| `METRICS_SERVICE_DATABASES__default__HOST` | Database host | No (has default) |
-| `METRICS_SERVICE_DATABASES__default__NAME` | Database name | No (has default) |
-| `METRICS_SERVICE_DATABASES__default__USER` | Database user | No (has default) |
-| `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password | No (has default) |
-| `METRICS_SERVICE_ALLOWED_HOSTS` | Allowed hosts (comma-separated) | **Yes** (production) |
+| Variable                                       | Description                               | Required in Production       |
+| ---------------------------------------------- | ----------------------------------------- | ---------------------------- |
+| `METRICS_SERVICE_MODE`                         | Environment mode (development/production) | No (defaults to development) |
+| `METRICS_SERVICE_SECRET_KEY`                   | Django secret key                         | **Yes**                      |
+| `METRICS_SERVICE_DEBUG`                        | Enable debug mode                         | No                           |
+| `METRICS_SERVICE_DATABASES__default__HOST`     | Database host                             | No (has default)             |
+| `METRICS_SERVICE_DATABASES__default__NAME`     | Database name                             | No (has default)             |
+| `METRICS_SERVICE_DATABASES__default__USER`     | Database user                             | No (has default)             |
+| `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password                         | No (has default)             |
+| `METRICS_SERVICE_ALLOWED_HOSTS`                | Allowed hosts (comma-separated)           | **Yes** (production)         |
 
 ## Validators
 
@@ -149,6 +156,7 @@ Dynaconf validators enforce configuration requirements in production mode.
 ### SECRET_KEY Validators
 
 Prevents using default SECRET_KEY values:
+
 ```python
 Validator("SECRET_KEY", ne="dev-secret-key-change-in-production")
 Validator("SECRET_KEY", ne="your-secret-key-here-change-in-production")
@@ -156,6 +164,7 @@ Validator("SECRET_KEY", ne="PRODUCTION-SECRET-KEY-NOT-SET")
 ```
 
 **Error Message:**
+
 ```
 dynaconf.validator.ValidationError: SECRET_KEY must be set in production.
 Set METRICS_SERVICE_SECRET_KEY environment variable.
@@ -164,6 +173,7 @@ Set METRICS_SERVICE_SECRET_KEY environment variable.
 ### Database Validators
 
 Ensures critical database settings exist:
+
 ```python
 Validator("DATABASES.default.NAME", must_exist=True)
 Validator("DATABASES.default.HOST", must_exist=True)
@@ -225,6 +235,7 @@ cp .env.example .env
 ```
 
 Edit `.env` with your local settings:
+
 ```bash
 METRICS_SERVICE_MODE=development
 METRICS_SERVICE_DATABASES__default__HOST=127.0.0.1
@@ -236,12 +247,14 @@ METRICS_SERVICE_DATABASES__default__PORT=5432
 ### Running the Application
 
 **Development:**
+
 ```bash
 # Uses defaults - no env vars required
 python manage.py runserver
 ```
 
 **Production:**
+
 ```bash
 # Requires explicit configuration
 export METRICS_SERVICE_MODE=production
@@ -253,11 +266,13 @@ python manage.py runserver
 ### Checking Configuration
 
 Verify settings are loaded correctly:
+
 ```bash
 python manage.py check
 ```
 
 View current settings:
+
 ```bash
 python manage.py shell
 >>> from django.conf import settings
@@ -274,22 +289,26 @@ Comprehensive unit tests for the Dynaconf configuration are located at:
 **Test Coverage:**
 
 1. **TestDynaconfPrecedence** - Verifies settings precedence order
+
    - Environment variables are loaded correctly
    - Dynaconf can read environment variables
    - Database defaults load properly
    - CORS settings load correctly
 
 2. **TestDynaconfValidators** - Tests validator configuration
+
    - Validators are registered
    - SECRET_KEY validators configured correctly
    - Database validators configured
    - Settings pass validation
 
 3. **TestEnvironmentSwitching** - Tests environment mode switching
+
    - Current environment is set correctly
    - Development mode flag works
 
 4. **TestDynaconfFactory** - Tests DAB factory integration
+
    - Factory creates Dynaconf instance
    - Factory registers validators
    - Environment variable prefix configured
@@ -322,6 +341,7 @@ pytest tests/unit/test_dynaconf_settings.py::TestDynaconfValidators -v
 **1. ValidationError: SECRET_KEY must be set in production**
 
 **Solution:** Set the SECRET_KEY environment variable:
+
 ```bash
 export METRICS_SERVICE_SECRET_KEY="your-secure-key-here"
 ```
@@ -331,6 +351,7 @@ export METRICS_SERVICE_SECRET_KEY="your-secure-key-here"
 **Problem:** Set `METRICS_SERVICE_ENV` but it has no effect
 
 **Solution:** Use `METRICS_SERVICE_MODE` (not `_ENV`):
+
 ```bash
 export METRICS_SERVICE_MODE=production  # ✓ Correct
 export METRICS_SERVICE_ENV=production   # ✗ Wrong variable name
@@ -341,6 +362,7 @@ export METRICS_SERVICE_ENV=production   # ✗ Wrong variable name
 **Problem:** Set `SOME_VARIABLE=value` but Dynaconf doesn't see it
 
 **Solution:** Use the correct prefix:
+
 ```bash
 export METRICS_SERVICE_DEBUG=true  # ✓ Correct (has prefix)
 export DEBUG=true                  # ✗ Wrong (no prefix)
@@ -351,6 +373,7 @@ export DEBUG=true                  # ✗ Wrong (no prefix)
 **Problem:** `METRICS_SERVICE_DATABASES.default.HOST=localhost` doesn't work
 
 **Solution:** Use double underscores for nesting:
+
 ```bash
 export METRICS_SERVICE_DATABASES__default__HOST=localhost  # ✓ Correct (double underscore)
 export METRICS_SERVICE_DATABASES.default.HOST=localhost    # ✗ Wrong (dots)
@@ -359,6 +382,7 @@ export METRICS_SERVICE_DATABASES.default.HOST=localhost    # ✗ Wrong (dots)
 ### Debugging
 
 **Check what Dynaconf loaded:**
+
 ```python
 from metrics_service.settings import DYNACONF
 
@@ -374,6 +398,7 @@ print(DYNACONF.get('DATABASES'))
 ```
 
 **Check environment variable precedence:**
+
 ```bash
 # 1. Check if env var is set
 echo $METRICS_SERVICE_DEBUG
@@ -390,23 +415,58 @@ python -c "from metrics_service.settings import DYNACONF; print(DYNACONF.get('DE
 If migrating from the old split-settings approach:
 
 **Old way (settings/development.py):**
+
 ```python
 from .defaults import *
 DEBUG = True
 ```
 
 **New way (config/settings.yaml):**
+
 ```yaml
 development:
   DEBUG: true
 ```
 
 **Or via environment variable:**
+
 ```bash
 export METRICS_SERVICE_DEBUG=true
 ```
 
 The old `development.py` and `test.py` files still exist for backward compatibility but are not used when loading via the main settings module.
+
+## Phase 2: Dynamic Preferences
+
+**NEW!** Runtime configuration management is now available.
+
+Phase 2 adds the ability to change settings at runtime without restarting the service:
+
+- ✅ Database-backed storage with versioning
+- ✅ REST API endpoints for settings management
+- ✅ Management commands for CLI access
+- ✅ Full audit trail (who, what, when, where)
+- ✅ Database caching for performance
+- ✅ Automatic cache invalidation
+
+**See: [DYNAMIC_PREFERENCES.md](../../DYNAMIC_PREFERENCES.md)** for complete documentation.
+
+### Quick Example
+
+```bash
+# Change DEBUG mode at runtime (no restart needed)
+python manage.py manage_settings set DEBUG 'false'
+
+# Or via API
+curl -X POST http://localhost:8000/api/v1/settings/ \
+  -H "Authorization: Token YOUR_TOKEN" \
+  -d '{"key": "DEBUG", "value": false}'
+
+# Verify the change
+python manage.py shell
+>>> from django.conf import settings
+>>> settings.DEBUG  # Returns False immediately
+```
 
 ## Additional Resources
 
@@ -414,10 +474,12 @@ The old `development.py` and `test.py` files still exist for backward compatibil
 - [AAP Handbook Proposal 0014](https://handbook.eng.ansible.com/proposals/0014-Django-Settings)
 - [Django Settings Documentation](https://docs.djangoproject.com/en/stable/topics/settings/)
 - [Django Ansible Base](https://github.com/ansible/django-ansible-base)
+- [DYNAMIC_PREFERENCES.md](../../DYNAMIC_PREFERENCES.md) - Phase 2 Runtime Configuration
 
 ## Support
 
 For issues or questions about settings configuration:
+
 1. Check this README
 2. Review the unit tests in `tests/unit/test_dynaconf_settings.py`
 3. Check the Django check command output: `python manage.py check`

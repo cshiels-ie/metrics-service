@@ -6,6 +6,7 @@ from django.contrib import admin
 
 from .models import (
     Organization,
+    Setting,
     Team,
     User,
 )
@@ -37,3 +38,22 @@ class TeamAdmin(admin.ModelAdmin):
     list_filter = ("organization",)
     search_fields = ("name", "description", "organization__name")
     filter_horizontal = ("users", "admins", "team_parents")
+
+
+@admin.register(Setting)
+class SettingAdmin(admin.ModelAdmin):
+    """Admin for Setting model - Dynamic Preferences (Phase 2)."""
+
+    list_display = ("key", "version", "category", "changed_by", "changed_at", "source")
+    list_filter = ("category", "is_secret", "source", "changed_at")
+    search_fields = ("key", "value")
+    readonly_fields = ("version", "changed_at", "changed_by", "source", "ip_address")
+    ordering = ("-changed_at",)
+
+    def has_add_permission(self, request):
+        """Prevent manual adds - use create_or_update instead."""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Settings are immutable - prevent deletion via admin."""
+        return False

@@ -22,11 +22,14 @@ default:
       OPTIONS:
         sslmode: prefer
 
-  # Cache Configuration
+  # Cache Configuration - Database cache for Phase 2 dynamic preferences
   CACHES:
     default:
-      BACKEND: django.core.cache.backends.locmem.LocMemCache
-      LOCATION: default
+      BACKEND: django.core.cache.backends.db.DatabaseCache
+      LOCATION: cache_table
+      OPTIONS:
+        MAX_ENTRIES: 1000
+      TIMEOUT: null
 
   # CORS Configuration
   CORS_ALLOW_ALL_ORIGINS: false
@@ -70,6 +73,12 @@ development:
   DEBUG: true
   CORS_ALLOW_ALL_ORIGINS: true
   # Inherits SECRET_KEY and database settings from default - safe for local dev
+  # Use local memory cache in development if Redis not available
+  # Uncomment to use locmem cache instead of Redis:
+  # CACHES:
+  #   default:
+  #     BACKEND: django.core.cache.backends.locmem.LocMemCache
+  #     LOCATION: default
 
 # Production environment - NO sensitive defaults!
 # All sensitive values MUST be set via environment variables
@@ -77,5 +86,5 @@ production:
   DEBUG: false
   CORS_ALLOW_ALL_ORIGINS: false
   # Override inherited defaults with empty/invalid values to force explicit configuration
-  SECRET_KEY: 'PRODUCTION-SECRET-KEY-NOT-SET'  # Will fail validation - must be set via env var
-  ALLOWED_HOSTS: []  # Empty by default - must be explicitly set
+  SECRET_KEY: 'PRODUCTION-SECRET-KEY-NOT-SET' # Will fail validation - must be set via env var
+  ALLOWED_HOSTS: [] # Empty by default - must be explicitly set

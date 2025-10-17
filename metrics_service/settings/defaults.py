@@ -267,11 +267,16 @@ FEATURE_FLAGS = {
 }
 
 # Cache Configuration
-# Use local memory cache
+# Use database cache for Phase 2 dynamic preferences (simple and reliable)
+# Run: python manage.py createcachetable to create the cache table
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "default",
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_table",
+        "OPTIONS": {
+            "MAX_ENTRIES": 1000,
+        },
+        "TIMEOUT": None,  # Dynamic settings don't expire by default
     }
 }
 

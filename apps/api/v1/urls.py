@@ -5,6 +5,7 @@ URL configuration for API v1.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .settings.views import SettingViewSet
 from .views import ConfigView, OrganizationViewSet, UserViewSet
 
 app_name = "v1"
@@ -14,6 +15,7 @@ router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"organizations", OrganizationViewSet, basename="organization")
 router.register(r"config", ConfigView, basename="config")
+router.register(r"settings", SettingViewSet, basename="setting")
 
 urlpatterns = [
     # Nested API endpoints
