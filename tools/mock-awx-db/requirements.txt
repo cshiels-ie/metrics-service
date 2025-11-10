@@ -1,0 +1,9 @@
+# Python dependencies for AWX Mock Database tools
+# These are for local development and testing
+
+# Database driver
+psycopg2-binary>=2.9.9
+
+# Fake data generation
+Faker>=20.0.0
+
