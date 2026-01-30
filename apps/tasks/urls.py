@@ -17,5 +17,6 @@ from django.urls import include, path
 app_name = "tasks"
 
 urlpatterns = [
+    # Task management endpoints at /api/v1/tasks/
     path("api/v1/tasks/", include("apps.tasks.v1.urls", namespace="v1")),
 ]

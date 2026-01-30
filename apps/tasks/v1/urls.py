@@ -9,6 +9,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    DashboardReportViewSet,
     TaskExecutionViewSet,
     TaskViewSet,
 )
@@ -33,7 +34,7 @@ router.register(r"", TaskViewSet, basename="task")
 router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")
 
 urlpatterns = [
-    # Include all router URLs
+    # Include all task router URLs at /api/v1/tasks/
     path("", include(router.urls)),
 ]
 

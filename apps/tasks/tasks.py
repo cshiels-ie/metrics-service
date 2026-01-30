@@ -9,6 +9,9 @@ specialized modules for backward compatibility:
 
 import logging
 
+# Import dashboard task from new app
+from apps.dashboard_reports.tasks import collect_dashboard_reports
+
 # Import all collector tasks
 from .tasks_collector import (
     METRICS_UTILITY_AVAILABLE,
@@ -78,6 +81,8 @@ TASK_FUNCTIONS = {
     "send_to_segment": send_to_segment_task,
     "full_process": full_process,
     "full_process_anonymize": full_process_anonymize,
+    # Dashboard Collection Tasks (automation-reports integration)
+    "collect_dashboard_reports": collect_dashboard_reports,
 }
 
 # Enhanced task metadata for dashboard display
@@ -328,6 +333,28 @@ TASK_METADATA = {
             {"name": "Test mode (no Segment)", "data": {"send_to_segment": False}},
         ],
     },
+    "collect_dashboard_reports": {
+        "category": "Dashboard Reports",
+        "description": "Collect and cache dashboard report data for automation-reports frontend (SQL-based collection)",
+        "parameters": {
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "start_date": {
+                "type": "string",
+                "description": "Start date for collection (ISO format, defaults to 30 days ago)",
+                "pattern": "datetime",
+            },
+            "end_date": {
+                "type": "string",
+                "description": "End date for collection (ISO format, defaults to now)",
+                "pattern": "datetime",
+            },
+        },
+        "examples": [
+            {"name": "Default collection (last 30 days)", "data": {}},
+            {"name": "Custom date range", "data": {"start_date": EXAMPLE_START_DATE, "end_date": "2024-01-31T23:59:59Z"}},
+            {"name": "Last 7 days", "data": {"start_date": "2024-01-24T00:00:00Z", "end_date": "2024-01-31T00:00:00Z"}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -350,6 +377,8 @@ __all__ = [
     "full_process",
     "full_process_anonymize",
     "METRICS_UTILITY_AVAILABLE",
+    # Dashboard Collection tasks
+    "collect_dashboard_reports",
     # Configuration
     "TASK_FUNCTIONS",
     "TASK_METADATA",

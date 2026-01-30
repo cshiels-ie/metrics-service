@@ -40,6 +40,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from django.utils import timezone
+
 from .utils import (
     create_task_result,
     csv_to_json,
@@ -1451,3 +1453,7 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in send_anonymized_to_segment: {str(e)}")
         return create_task_result("error", error=f"Send task failed: {str(e)}")
+
+
+# NOTE: collect_dashboard_reports has been moved to apps.dashboard_reports.tasks
+# It is imported in apps.tasks.tasks for backward compatibility

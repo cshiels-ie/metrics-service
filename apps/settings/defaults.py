@@ -32,6 +32,7 @@ project_applications = [
     "apps.dynamic_settings",
     "apps.tasks",
     "apps.dashboard",
+    "apps.dashboard_reports",  # Dashboard data for automation-reports integration
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
@@ -121,6 +122,7 @@ DATABASES = {
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,
     "METRICS_COLLECTION_ENABLED": False,
+    "ENABLE_DASHBOARD_COLLECTION": False,  # automation-reports integration (customer opt-in)
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
