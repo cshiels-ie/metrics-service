@@ -115,3 +115,224 @@ class DashboardDetailsSerializer(serializers.Serializer):
     date_range = serializers.DictField(
         help_text="Date range of the data (start and end ISO timestamps)"
     )
+
+
+# =============================================================================
+# New Serializers for Template Options and Settings Endpoints
+# =============================================================================
+
+
+class CurrencySerializer(serializers.Serializer):
+    """
+    Serializer for currency options.
+
+    Matches TypeScript interface: {id: number; name: string; symbol: string;}
+
+    Used in filter options response to provide currency selection dropdown.
+    """
+
+    id = serializers.IntegerField(help_text="Currency ID")
+    name = serializers.CharField(help_text="Currency full name (e.g., 'US Dollar')")
+    symbol = serializers.CharField(help_text="Currency symbol (e.g., '$')")
+
+
+class FilterSetSerializer(serializers.Serializer):
+    """
+    Serializer for saved filter sets (saved views).
+
+    Matches TypeScript interface: {id: number; name: string; filters: any;}
+
+    Allows users to save and recall commonly-used filter combinations.
+    """
+
+    id = serializers.IntegerField(help_text="Filter set ID")
+    name = serializers.CharField(help_text="User-defined name for this saved view")
+    filters = serializers.JSONField(
+        help_text="Filter configuration: {organizations: [], projects: [], labels: [], date_range: {}}"
+    )
+
+
+class FilterOptionSerializer(serializers.Serializer):
+    """
+    Generic filter option serializer.
+
+    Matches TypeScript interface: {id: number; name: string; key?: string;}
+
+    Used for organizations, projects, date ranges, and other simple filter options.
+    """
+
+    id = serializers.IntegerField(help_text="Option ID")
+    name = serializers.CharField(help_text="Option display name")
+    key = serializers.CharField(required=False, help_text="Option key for date ranges")
+
+
+class ClusterOptionSerializer(serializers.Serializer):
+    """
+    Serializer for cluster/execution environment options.
+
+    Matches TypeScript interface: {id: number; name: string; type: string;}
+
+    Provides cluster selection with type information (e.g., 'execution_environment').
+    """
+
+    id = serializers.IntegerField(help_text="Cluster/execution environment ID")
+    name = serializers.CharField(help_text="Cluster/execution environment name")
+    type = serializers.CharField(help_text="Type identifier (e.g., 'execution_environment')")
+
+
+class FilterOptionResponseSerializer(serializers.Serializer):
+    """
+    Master aggregation serializer for template options endpoint.
+
+    Matches TypeScript FilterOptionResponse interface exactly.
+
+    This is the CRITICAL endpoint that provides all filter dropdowns,
+    settings, currencies, and saved views in a single response.
+
+    TypeScript interface (from automation-reports):
+        interface FilterOptionResponse {
+            automated_process_cost_per_minute: number | string;
+            clusters: ClusterOption[];
+            date_ranges: FilterOption[];
+            labels: FilterOptionWithId[];
+            manual_cost_automation_per_hour: number | string;
+            organizations: FilterOption[];
+            instances: FilterOptionWithId[];
+            currencies: Currency[];
+            projects: FilterOptionWithId[];
+            currency: number;
+            enable_template_creation_time: boolean;
+            filter_sets: FilterSet[];
+            max_pdf_job_templates: number;
+        }
+    """
+
+    # Global cost settings (from Setting model)
+    automated_process_cost_per_minute = serializers.CharField(
+        help_text="Cost per minute for automated processes (from settings)"
+    )
+    manual_cost_automation_per_hour = serializers.CharField(
+        help_text="Hourly cost for manual task execution (from settings)"
+    )
+    enable_template_creation_time = serializers.BooleanField(
+        help_text="Whether to include template creation time in cost calculations"
+    )
+    max_pdf_job_templates = serializers.IntegerField(
+        help_text="Maximum number of templates to include in PDF exports"
+    )
+
+    # User's current currency preference
+    currency = serializers.IntegerField(
+        help_text="Current user's selected currency ID"
+    )
+
+    # Arrays of filter options
+    currencies = CurrencySerializer(
+        many=True,
+        help_text="Available currencies for cost display"
+    )
+    filter_sets = FilterSetSerializer(
+        many=True,
+        help_text="User's saved filter configurations"
+    )
+    organizations = FilterOptionSerializer(
+        many=True,
+        help_text="Available organizations for filtering (from AWX database)"
+    )
+    projects = FilterOptionSerializer(
+        many=True,
+        help_text="Available projects for filtering (from AWX database)"
+    )
+    labels = FilterOptionSerializer(
+        many=True,
+        help_text="Available labels for filtering (from AWX database)"
+    )
+    instances = FilterOptionSerializer(
+        many=True,
+        help_text="Available instances for filtering (from AWX database)"
+    )
+    clusters = ClusterOptionSerializer(
+        many=True,
+        help_text="Available clusters/execution environments (from AWX database)"
+    )
+    date_ranges = FilterOptionSerializer(
+        many=True,
+        help_text="Predefined date range options (Last 7/30/90 days, Custom)"
+    )
+
+
+class TemplateMetadataSerializer(serializers.Serializer):
+    """
+    Serializer for job template metadata overrides.
+
+    Used by PUT /api/v1/templates/{id}/ endpoint to allow users
+    to override auto-calculated time estimates and costs.
+
+    Example:
+        {
+            "template_id": 42,
+            "template_name": "Deploy Production",
+            "time_taken_manually_execute_minutes": 120,
+            "time_taken_create_automation_minutes": 240,
+            "custom_cost_per_minute": "1.50",
+            "notes": "Complex multi-step deployment"
+        }
+    """
+
+    template_id = serializers.IntegerField(
+        read_only=True,
+        help_text="AWX job template ID (read-only, set via URL)"
+    )
+    template_name = serializers.CharField(
+        help_text="Cached template name for display"
+    )
+    time_taken_manually_execute_minutes = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="User override: Estimated manual execution time (minutes)"
+    )
+    time_taken_create_automation_minutes = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="User override: Time spent creating automation (minutes)"
+    )
+    custom_cost_per_minute = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        help_text="User override: Custom cost per minute for this template"
+    )
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="User notes about this template"
+    )
+
+
+class UserPreferenceSerializer(serializers.Serializer):
+    """
+    Serializer for user dashboard preferences.
+
+    Used by POST /api/v1/common/settings/ endpoint to save
+    user-specific preferences like currency selection.
+
+    Example:
+        {
+            "currency": 1,
+            "preferences": {
+                "theme": "dark",
+                "default_date_range": "last_30_days"
+            }
+        }
+    """
+
+    currency = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Currency ID for cost display (FK to Currency model)"
+    )
+    preferences_data = serializers.JSONField(
+        required=False,
+        help_text="Additional user preferences (extensible JSON structure)"
+    )

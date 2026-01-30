@@ -9,6 +9,7 @@ from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
 extra_applications = [
+    "corsheaders",  # CORS support for frontend integration
     "django_prometheus",
     "django_extensions",
 ]
@@ -89,6 +90,25 @@ CACHES = {
 }
 CSRF_TRUSTED_ORIGINS = []
 
+# CORS configuration for frontend integration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:9000",  # automation-reports frontend
+    "http://127.0.0.1:9000",
+]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-xsrf-token",
+]
+
 # Databases settings, using PostgreSQL by default
 DATABASES = {
     "default": {
@@ -141,3 +161,24 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
         "django_prometheus.middleware.PrometheusAfterMiddleware",
     ]
     return {"MIDDLEWARE": new}
+
+
+@post_hook
+def load_cors_middleware(settings: Dynaconf) -> dict:
+    """Add CORS middleware at the correct position (before CommonMiddleware)."""
+    middleware = list(settings.get("MIDDLEWARE", []))
+    cors_middleware = "corsheaders.middleware.CorsMiddleware"
+
+    # Don't add if already present
+    if cors_middleware in middleware:
+        return {}
+
+    # Insert CORS middleware before CommonMiddleware
+    try:
+        common_index = middleware.index("django.middleware.common.CommonMiddleware")
+        middleware.insert(common_index, cors_middleware)
+    except ValueError:
+        # If CommonMiddleware not found, add near the beginning
+        middleware.insert(1, cors_middleware)
+
+    return {"MIDDLEWARE": middleware}

@@ -5,6 +5,7 @@ This module contains models for caching dashboard metrics data to enable
 fast API responses without expensive real-time SQL queries.
 """
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -147,3 +148,224 @@ class DashboardReportCache(CommonModel):
             return {'top_users': [], 'count': 0, 'timestamp': None}
         else:
             return {}
+
+
+class Currency(CommonModel):
+    """
+    Currency options for dashboard cost calculations.
+
+    Stores available currencies that users can select for displaying
+    costs in the automation-reports dashboard. Currencies are used
+    to format monetary values in the appropriate symbol and denomination.
+
+    Example:
+        usd = Currency.objects.get(code='USD')
+        print(f"{usd.symbol}100")  # Output: $100
+    """
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Full currency name (e.g., 'US Dollar', 'Euro')"
+    )
+
+    symbol = models.CharField(
+        max_length=10,
+        help_text="Currency symbol (e.g., '$', '€', '£')"
+    )
+
+    code = models.CharField(
+        max_length=3,
+        unique=True,
+        db_index=True,
+        help_text="ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this currency is available for selection"
+    )
+
+    class Meta:
+        db_table = 'dashboard_currency'
+        ordering = ['name']
+        verbose_name = "Currency"
+        verbose_name_plural = "Currencies"
+
+    def __str__(self):
+        """Return string representation of the currency."""
+        return f"{self.name} ({self.symbol})"
+
+
+class UserPreference(CommonModel):
+    """
+    User-specific dashboard preferences.
+
+    Stores per-user settings for the automation-reports dashboard including
+    currency preference and other UI preferences. Each user has exactly one
+    preference record (OneToOneField relationship).
+
+    Example:
+        pref = UserPreference.objects.get(user=request.user)
+        print(f"User prefers {pref.currency.code}")
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='dashboard_preferences',
+        help_text="User who owns these preferences"
+    )
+
+    currency = models.ForeignKey(
+        Currency,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User's preferred currency for cost display"
+    )
+
+    preferences_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional user preferences (extensible JSON structure)"
+    )
+
+    class Meta:
+        db_table = 'dashboard_user_preference'
+        verbose_name = "User Preference"
+        verbose_name_plural = "User Preferences"
+        indexes = [
+            models.Index(fields=['user'], name='dashboard_up_user_idx'),
+        ]
+
+    def __str__(self):
+        """Return string representation of the preference."""
+        return f"Preferences for {self.user.username}"
+
+
+class FilterSet(CommonModel):
+    """
+    Saved filter configurations (saved views) for dashboard filtering.
+
+    Allows users to save commonly-used filter combinations for quick access.
+    Users can have multiple filter sets, but only one can be marked as default.
+
+    Example:
+        filter_set = FilterSet.objects.create(
+            user=request.user,
+            name="Last 30 days - Production",
+            filters={'organizations': [1, 2], 'date_range': 'last_30_days'}
+        )
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='filter_sets',
+        help_text="User who created this filter set"
+    )
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Display name for this saved filter set"
+    )
+
+    filters = models.JSONField(
+        help_text="Filter configuration: {organizations: [], projects: [], labels: [], date_range: {}}"
+    )
+
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Whether this is the user's default filter set (only one allowed per user)"
+    )
+
+    class Meta:
+        db_table = 'dashboard_filter_set'
+        ordering = ['-modified']
+        verbose_name = "Filter Set"
+        verbose_name_plural = "Filter Sets"
+        indexes = [
+            models.Index(fields=['user', 'is_default'], name='dashboard_fs_user_default_idx'),
+            models.Index(fields=['user', '-modified'], name='dashboard_fs_user_mod_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'is_default'],
+                condition=models.Q(is_default=True),
+                name='one_default_per_user',
+                violation_error_message="User can only have one default filter set"
+            )
+        ]
+
+    def __str__(self):
+        """Return string representation of the filter set."""
+        default_marker = " (default)" if self.is_default else ""
+        return f"{self.name}{default_marker} - {self.user.username}"
+
+
+class TemplateMetadata(CommonModel):
+    """
+    Override metadata for AWX job templates.
+
+    Stores user-defined overrides for job template metadata such as
+    time estimates and custom costs. This allows users to provide more
+    accurate data than auto-calculated values from job execution history.
+
+    Example:
+        metadata = TemplateMetadata.objects.create(
+            template_id=42,
+            template_name="Deploy Production",
+            time_taken_manually_execute_minutes=120,
+            time_taken_create_automation_minutes=240
+        )
+    """
+
+    template_id = models.IntegerField(
+        unique=True,
+        db_index=True,
+        help_text="AWX job template ID (from AWX database main_jobtemplate table)"
+    )
+
+    template_name = models.CharField(
+        max_length=512,
+        help_text="Cached template name for display (from AWX)"
+    )
+
+    time_taken_manually_execute_minutes = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User override: Estimated time to perform this task manually (minutes)"
+    )
+
+    time_taken_create_automation_minutes = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="User override: Estimated time spent creating this automation (minutes)"
+    )
+
+    custom_cost_per_minute = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="User override: Custom cost per minute for this specific template"
+    )
+
+    notes = models.TextField(
+        blank=True,
+        help_text="User notes about this template"
+    )
+
+    class Meta:
+        db_table = 'dashboard_template_metadata'
+        ordering = ['template_name']
+        verbose_name = "Template Metadata"
+        verbose_name_plural = "Template Metadata"
+        indexes = [
+            models.Index(fields=['template_id'], name='dashboard_tm_template_idx'),
+        ]
+
+    def __str__(self):
+        """Return string representation of the template metadata."""
+        return f"Metadata for {self.template_name} (ID: {self.template_id})"
