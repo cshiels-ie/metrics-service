@@ -27,9 +27,9 @@ class ReportSerializer(serializers.Serializer):
             time_taken_create_automation_minutes: number;
             successful_runs: number;
             failed_runs: number;
-            automated_costs: string;
-            manual_costs: string;
-            savings: string;
+            automated_costs: number;  // Frontend formats with currency symbol
+            manual_costs: number;      // Frontend formats with currency symbol
+            savings: number;           // Frontend formats with currency symbol
         }
     """
 
@@ -47,9 +47,9 @@ class ReportSerializer(serializers.Serializer):
     )
     successful_runs = serializers.IntegerField(help_text="Number of successful runs")
     failed_runs = serializers.IntegerField(help_text="Number of failed runs")
-    automated_costs = serializers.CharField(help_text="Automation costs (formatted currency)")
-    manual_costs = serializers.CharField(help_text="Manual execution costs (formatted currency)")
-    savings = serializers.CharField(help_text="Cost savings from automation (formatted currency)")
+    automated_costs = serializers.FloatField(help_text="Automation costs (numeric, frontend will format)")
+    manual_costs = serializers.FloatField(help_text="Manual execution costs (numeric, frontend will format)")
+    savings = serializers.FloatField(help_text="Cost savings from automation (numeric, frontend will format)")
 
 
 class ReportResponseSerializer(serializers.Serializer):

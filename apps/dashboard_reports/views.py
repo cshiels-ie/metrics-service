@@ -13,7 +13,8 @@ from typing import Any
 from django.http import HttpRequest
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import action
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action, api_view, permission_classes as permission_classes_decorator
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet, ViewSet
 
@@ -33,6 +34,17 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    """
+    SessionAuthentication without CSRF enforcement for development mode.
+
+    This allows the automation-reports frontend to make POST requests
+    without CSRF tokens during development. DO NOT use in production!
+    """
+    def enforce_csrf(self, request):
+        return  # Skip CSRF check
 
 
 class AapAuthSettingsViewSet(ViewSet):
@@ -127,8 +139,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         end_date = timezone.now()
         start_date = end_date - timedelta(days=30)
 
-        start_param = request.query_params.get('start')
-        end_param = request.query_params.get('end')
+        # Accept both 'start'/'end' and 'start_date'/'end_date' parameter names
+        start_param = request.query_params.get('start') or request.query_params.get('start_date')
+        end_param = request.query_params.get('end') or request.query_params.get('end_date')
 
         if start_param:
             try:
@@ -235,8 +248,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         end_date = timezone.now()
         start_date = end_date - timedelta(days=30)
 
-        start_param = request.query_params.get('start')
-        end_param = request.query_params.get('end')
+        # Accept both 'start'/'end' and 'start_date'/'end_date' parameter names
+        start_param = request.query_params.get('start') or request.query_params.get('start_date')
+        end_param = request.query_params.get('end') or request.query_params.get('end_date')
 
         if start_param:
             try:
@@ -289,6 +303,7 @@ class CostsViewSet(ViewSet):
         POST /api/v1/costs/ - Update cost settings
     """
 
+    authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [DeveloperModeRequired]
     versioning_class = None  # Disable versioning for this viewset
 
@@ -558,6 +573,7 @@ class CommonSettingsViewSet(ViewSet):
         POST /api/v1/common/settings/ - Save user preferences
     """
 
+    authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [DeveloperModeRequired]
     versioning_class = None  # Disable versioning for this viewset
 
@@ -624,6 +640,7 @@ class TemplateMetadataViewSet(ModelViewSet):
         DELETE /api/v1/templates/{template_id}/ - Delete template metadata
     """
 
+    authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [DeveloperModeRequired]
     queryset = TemplateMetadata.objects.all()
     serializer_class = TemplateMetadataSerializer
@@ -649,6 +666,7 @@ class FilterSetViewSet(ModelViewSet):
         DELETE /api/v1/common/filter_set/{id}/ - Delete filter set
     """
 
+    authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [DeveloperModeRequired]
     serializer_class = FilterSetSerializer
     versioning_class = None  # Disable versioning for this viewset
@@ -830,6 +848,19 @@ class ExportViewSet(ViewSet):
 
     permission_classes = [DeveloperModeRequired]
     versioning_class = None  # Disable versioning for this viewset
+    filter_backends = []  # Disable automatic filtering
+    pagination_class = None  # Disable pagination
+    filterset_fields = []  # Disable filterset
+    search_fields = []  # Disable search
+    ordering_fields = []  # Disable ordering
+
+    def get_queryset(self):
+        """Return empty queryset - export methods handle data retrieval directly."""
+        return DashboardReportCache.objects.none()
+
+    def filter_queryset(self, queryset):
+        """Override to prevent any filtering on export endpoints."""
+        return queryset
 
     @action(detail=False, methods=['get'], url_path='csv')
     def export_csv(self, request: HttpRequest) -> Response:
@@ -854,8 +885,9 @@ class ExportViewSet(ViewSet):
             end_date = timezone.now()
             start_date = end_date - timedelta(days=30)
 
-            start_param = request.query_params.get('start')
-            end_param = request.query_params.get('end')
+            # Accept both 'start'/'end' and 'start_date'/'end_date' parameter names
+            start_param = request.query_params.get('start') or request.query_params.get('start_date')
+            end_param = request.query_params.get('end') or request.query_params.get('end_date')
 
             if start_param:
                 try:
@@ -951,8 +983,11 @@ class ExportViewSet(ViewSet):
             end_date = timezone.now()
             start_date = end_date - timedelta(days=30)
 
-            start_param = request.data.get('start') or request.query_params.get('start')
-            end_param = request.data.get('end') or request.query_params.get('end')
+            # Accept both 'start'/'end' and 'start_date'/'end_date' parameter names
+            start_param = (request.data.get('start') or request.query_params.get('start') or
+                          request.data.get('start_date') or request.query_params.get('start_date'))
+            end_param = (request.data.get('end') or request.query_params.get('end') or
+                        request.data.get('end_date') or request.query_params.get('end_date'))
 
             if start_param:
                 try:
@@ -1052,3 +1087,30 @@ class ExportViewSet(ViewSet):
             logger.error(f"Error exporting to PDF: {str(e)}")
             error_response = build_error_response(f"Failed to export PDF: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+# Function-based export views to avoid DRF filter issues
+
+from rest_framework.decorators import api_view, permission_classes as permission_classes_decorator
+
+
+@api_view(['GET'])
+@permission_classes_decorator([DeveloperModeRequired])
+def export_csv_view(request):
+    """CSV export function-based view to avoid DRF filtering issues."""
+    # Delegate to the ViewSet method
+    viewset = ExportViewSet()
+    viewset.request = request
+    return viewset.export_csv(request)
+
+
+@api_view(['POST'])
+@permission_classes_decorator([DeveloperModeRequired])
+def export_pdf_view(request):
+    """PDF export function-based view to avoid DRF filtering issues."""
+    # Delegate to the ViewSet method
+    viewset = ExportViewSet()
+    viewset.request = request
+    return viewset.export_pdf(request)
+

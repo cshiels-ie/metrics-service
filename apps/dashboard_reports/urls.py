@@ -21,6 +21,8 @@ from .views import (
     ProjectsViewSet,
     TemplateMetadataViewSet,
     TemplateOptionsViewSet,
+    export_csv_view,
+    export_pdf_view,
 )
 
 app_name = "dashboard_reports"
@@ -56,15 +58,15 @@ urlpatterns = [
     path("api/v1/common/", include(common_router.urls)),
     # AAP auth endpoints at /api/v1/aap_auth/
     path("api/v1/aap_auth/", include(aap_auth_router.urls)),
-    # Export endpoints (custom actions)
+    # Export endpoints (function-based views to avoid filter issues)
     path(
         "api/v1/report/csv/",
-        ExportViewSet.as_view({'get': 'export_csv'}),
+        export_csv_view,
         name='report-csv-export',
     ),
     path(
         "api/v1/report/pdf/",
-        ExportViewSet.as_view({'post': 'export_pdf'}),
+        export_pdf_view,
         name='report-pdf-export',
     ),
     # Costs update endpoint
