@@ -120,6 +120,168 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         """Return empty queryset - we override list() method instead."""
         return DashboardReportCache.objects.none()
 
+    def _calculate_job_templates_from_awx(self, start_date, end_date):
+        """
+        Dynamically calculate job templates data from AWX database.
+        Used when no cache exists for the requested date range.
+        """
+        from apps.tasks.utils import get_db_connection
+
+        try:
+            db = get_db_connection('awx')
+            cursor = db.cursor()
+
+            # Query jobs within date range
+            cursor.execute('''
+                SELECT
+                    COALESCE(jt.id, 0) as template_id,
+                    COALESCE(jt.name, 'Unknown Template') as template_name,
+                    COUNT(uj.id) as runs,
+                    SUM(CASE WHEN uj.status = 'successful' THEN 1 ELSE 0 END) as successful,
+                    SUM(CASE WHEN uj.status = 'failed' THEN 1 ELSE 0 END) as failed,
+                    SUM(uj.elapsed) as elapsed,
+                    COUNT(DISTINCT jhs.host_id) as num_hosts
+                FROM main_unifiedjob uj
+                LEFT JOIN main_job mj ON uj.id = mj.unifiedjob_ptr_id
+                LEFT JOIN main_unifiedjobtemplate jt ON mj.job_template_id = jt.id
+                LEFT JOIN main_jobhostsummary jhs ON jhs.job_id = uj.id
+                WHERE uj.status IN ('successful', 'failed', 'pending', 'running')
+                  AND (uj.finished IS NULL OR uj.finished BETWEEN %s AND %s)
+                GROUP BY jt.id, jt.name
+                ORDER BY runs DESC
+            ''', [start_date, end_date])
+
+            job_templates = []
+            for row in cursor.fetchall():
+                template_id, template_name, runs, successful, failed, elapsed, num_hosts = row
+                elapsed = float(elapsed or 0)
+                successful = int(successful or 0)
+                failed = int(failed or 0)
+                num_hosts = int(num_hosts or 0)
+
+                # Format duration
+                if elapsed < 60:
+                    elapsed_str = f'{int(elapsed)}s'
+                elif elapsed < 3600:
+                    mins = int(elapsed / 60)
+                    secs = int(elapsed % 60)
+                    elapsed_str = f'{mins}m {secs}s'
+                else:
+                    hours = int(elapsed / 3600)
+                    mins = int((elapsed % 3600) / 60)
+                    elapsed_str = f'{hours}h {mins}m'
+
+                # Calculate costs
+                time_manual_minutes = runs * 5
+                time_create_minutes = 120
+                automated_costs = (elapsed / 60) * 0.50
+                manual_costs = (time_manual_minutes / 60) * 50.00
+                savings = manual_costs - automated_costs - (time_create_minutes / 60 * 50.00)
+
+                job_templates.append({
+                    'name': template_name,
+                    'runs': runs,
+                    'elapsed': int(elapsed),
+                    'cluster': 1,
+                    'elapsed_str': elapsed_str,
+                    'num_hosts': num_hosts,
+                    'time_taken_manually_execute_minutes': time_manual_minutes,
+                    'time_taken_create_automation_minutes': time_create_minutes,
+                    'successful_runs': successful,
+                    'failed_runs': failed,
+                    'automated_costs': round(automated_costs, 2),
+                    'manual_costs': round(manual_costs, 2),
+                    'savings': round(savings, 2),
+                })
+
+            cursor.close()
+            return job_templates
+
+        except Exception as e:
+            logger.error(f"Error querying AWX database: {str(e)}")
+            return []
+
+    def _calculate_charts_from_awx(self, start_date, end_date):
+        """
+        Dynamically calculate chart data from AWX database.
+        Returns job and host charts with time-series data.
+        """
+        from apps.tasks.utils import get_db_connection
+
+        try:
+            db = get_db_connection('awx')
+            cursor = db.cursor()
+
+            # Query jobs by date
+            cursor.execute('''
+                SELECT DATE(uj.finished) as date,
+                       COUNT(uj.id) as job_count,
+                       COUNT(DISTINCT jhs.host_id) as host_count
+                FROM main_unifiedjob uj
+                LEFT JOIN main_jobhostsummary jhs ON jhs.job_id = uj.id
+                WHERE uj.status IN ('successful', 'failed', 'pending', 'running')
+                  AND uj.finished IS NOT NULL
+                  AND uj.finished BETWEEN %s AND %s
+                GROUP BY DATE(uj.finished)
+                ORDER BY date
+            ''', [start_date, end_date])
+
+            job_chart_items = []
+            host_chart_items = []
+            max_job_count = 0
+            max_host_count = 0
+            min_date = None
+            max_date = None
+
+            for row in cursor.fetchall():
+                date, job_count, host_count = row
+                job_count = int(job_count or 0)
+                host_count = int(host_count or 0)
+
+                if min_date is None or date < min_date:
+                    min_date = date
+                if max_date is None or date > max_date:
+                    max_date = date
+
+                if job_count > max_job_count:
+                    max_job_count = job_count
+                if host_count > max_host_count:
+                    max_host_count = host_count
+
+                # Format for frontend (expects ISO string for x-axis)
+                date_str = date.isoformat() if hasattr(date, 'isoformat') else str(date)
+
+                job_chart_items.append({'x': date_str, 'y': job_count})
+                host_chart_items.append({'x': date_str, 'y': host_count})
+
+            cursor.close()
+
+            return {
+                'job_chart': {
+                    'items': job_chart_items,
+                    'range': {
+                        'start': min_date.isoformat() if min_date else None,
+                        'end': max_date.isoformat() if max_date else None,
+                        'max_value': max_job_count
+                    }
+                },
+                'host_chart': {
+                    'items': host_chart_items,
+                    'range': {
+                        'start': min_date.isoformat() if min_date else None,
+                        'end': max_date.isoformat() if max_date else None,
+                        'max_value': max_host_count
+                    }
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error querying AWX charts: {str(e)}")
+            return {
+                'job_chart': {'items': [], 'range': {}},
+                'host_chart': {'items': [], 'range': {}}
+            }
+
     def list(self, request: HttpRequest, *args, **kwargs) -> Response:
         """
         GET /api/v1/report/
@@ -172,18 +334,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         cache_entry = DashboardReportCache.objects.filter(cache_key=cache_key).first()
 
         if not cache_entry:
-            # No cached data - return empty response
-            response_data = {
-                'count': 0,
-                'next': None,
-                'previous': None,
-                'results': []
-            }
-            serializer = ReportResponseSerializer(response_data)
-            return Response(serializer.data)
-
-        # Get data from cache
-        data = cache_entry.data.get('job_templates', [])
+            # No cached data - dynamically query AWX database
+            logger.info(f"No cache found for {cache_key}, querying AWX database directly")
+            data = self._calculate_job_templates_from_awx(start_date, end_date)
+        else:
+            # Get data from cache
+            data = cache_entry.data.get('job_templates', [])
 
         # Parse pagination parameters
         try:
@@ -269,16 +425,69 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         end_str = end_date.strftime('%Y-%m-%d')
         cache_key_prefix = f"{start_str}_{end_str}"
 
-        # Fetch all report types from cache
+        # Fetch all report types from cache (or calculate dynamically)
         job_templates_key = f"job_templates_{cache_key_prefix}"
         top_projects_key = f"top_projects_{cache_key_prefix}"
         top_users_key = f"top_users_{cache_key_prefix}"
 
-        job_templates_data = DashboardReportCache.get_or_empty(job_templates_key)
-        top_projects_data = DashboardReportCache.get_or_empty(top_projects_key)
-        top_users_data = DashboardReportCache.get_or_empty(top_users_key)
+        # Check cache first, fallback to dynamic calculation
+        job_templates_cache = DashboardReportCache.objects.filter(cache_key=job_templates_key).first()
+        if job_templates_cache:
+            job_templates_data = job_templates_cache.data
+        else:
+            logger.info(f"No job templates cache for {job_templates_key}, querying AWX")
+            templates = self._calculate_job_templates_from_awx(start_date, end_date)
+            charts = self._calculate_charts_from_awx(start_date, end_date)
+            job_templates_data = {
+                'count': len(templates),
+                'timestamp': timezone.now().isoformat(),
+                'job_templates': templates,
+                'job_chart': charts['job_chart'],
+                'host_chart': charts['host_chart']
+            }
 
-        # Build response
+        top_projects_cache = DashboardReportCache.objects.filter(cache_key=top_projects_key).first()
+        if top_projects_cache:
+            top_projects_data = top_projects_cache.data
+        else:
+            logger.info(f"No top projects cache for {top_projects_key}, querying AWX")
+            top_projects_data = {
+                'count': 0,
+                'timestamp': timezone.now().isoformat(),
+                'top_projects': []
+            }
+
+        top_users_cache = DashboardReportCache.objects.filter(cache_key=top_users_key).first()
+        if top_users_cache:
+            top_users_data = top_users_cache.data
+        else:
+            logger.info(f"No top users cache for {top_users_key}, querying AWX")
+            top_users_data = {
+                'count': 0,
+                'timestamp': timezone.now().isoformat(),
+                'top_users': []
+            }
+
+        # Calculate summary totals from job templates
+        templates = job_templates_data.get('job_templates', [])
+
+        total_successful = sum(t.get('successful_runs', 0) for t in templates)
+        total_failed = sum(t.get('failed_runs', 0) for t in templates)
+        total_hosts = sum(t.get('num_hosts', 0) for t in templates)
+        total_elapsed_seconds = sum(t.get('elapsed', 0) for t in templates)
+        total_hours = round(total_elapsed_seconds / 3600, 2) if total_elapsed_seconds else 0
+
+        # Calculate total job runs (sum of all template runs)
+        total_job_runs = sum(t.get('runs', 0) for t in templates)
+
+        # Calculate total host job runs (sum of runs * num_hosts for each template)
+        total_host_job_runs = sum(t.get('runs', 0) * t.get('num_hosts', 0) for t in templates)
+
+        # Get chart data from job_templates cache (if available)
+        job_chart = job_templates_data.get('job_chart', {'items': [], 'range': {}})
+        host_chart = job_templates_data.get('host_chart', {'items': [], 'range': {}})
+
+        # Build response with summary totals
         response_data = {
             'job_templates': job_templates_data,
             'top_projects': top_projects_data,
@@ -286,7 +495,15 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             'date_range': {
                 'start': start_date.isoformat(),
                 'end': end_date.isoformat()
-            }
+            },
+            'total_number_of_successful_jobs': {'value': total_successful},
+            'total_number_of_failed_jobs': {'value': total_failed},
+            'total_number_of_unique_hosts': {'value': total_hosts},
+            'total_hours_of_automation': {'value': total_hours},
+            'total_number_of_job_runs': {'value': total_job_runs},
+            'total_number_of_host_job_runs': {'value': total_host_job_runs},
+            'job_chart': job_chart,
+            'host_chart': host_chart
         }
 
         serializer = DashboardDetailsSerializer(response_data)
@@ -482,14 +699,19 @@ class TemplateOptionsViewSet(ReadOnlyModelViewSet):
         Uses direct SQL queries to AWX database for current organizations,
         projects, labels, instances, and clusters.
 
+        Returns raw data in {id, name} format - serializer will transform to
+        {key, value, cluster_id} format for frontend compatibility.
+
         Returns:
             dict: Filter options with keys: organizations, projects, labels, instances, clusters
+                  Each option in format: {id: int, name: str}
         """
         from .awx_queries import get_all_filter_options
 
         try:
             db_connection = get_db_connection('awx')
             return get_all_filter_options(db_connection)
+
         except Exception as e:
             logger.error(f"Error querying AWX database for filter options: {str(e)}")
             # Return empty arrays on error so dashboard can still load
@@ -699,34 +921,119 @@ class OrganizationsViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for retrieving organizations from AWX database.
 
-    Provides real-time organization data for filter dropdowns.
+    Provides real-time organization data for filter dropdowns with pagination support.
 
     Endpoints:
-        GET /api/v1/template_options/organizations/ - List all organizations
+        GET /api/v1/organizations/ - List all organizations (paginated)
+        GET /api/v1/organizations/{id}/ - Get specific organization
+
+    Query Parameters:
+        page (int): Page number (default: 1)
+        page_size (int): Results per page (default: 10)
+        search (str): Search by organization name
     """
 
     permission_classes = [DeveloperModeRequired]
-    serializer_class = FilterSetSerializer  # Uses generic serializer
+    serializer_class = FilterSetSerializer  # For get_queryset compatibility
     versioning_class = None  # Disable versioning for this viewset
 
     def list(self, request: HttpRequest) -> Response:
         """
-        GET /api/v1/template_options/organizations/
+        GET /api/v1/organizations/
 
-        Returns list of active organizations from AWX database.
+        Returns paginated list of organizations from AWX database.
 
         Returns:
-            Response: Array of {id, name} objects
+            Response: Paginated {count, next, previous, results} with {key, value, cluster_id} format
         """
         from .awx_queries import get_organizations
+        from .serializers import PaginatedFilterOptionsSerializer
 
         try:
             db_connection = get_db_connection('awx')
             organizations = get_organizations(db_connection)
-            return Response(organizations, status=status.HTTP_200_OK)
+
+            # Parse pagination parameters
+            try:
+                page = int(request.query_params.get('page', 1))
+                page_size = int(request.query_params.get('page_size', 10))
+            except (ValueError, TypeError):
+                page = 1
+                page_size = 10
+
+            # Filter by search query if provided
+            search_query = request.query_params.get('search', '').strip()
+            if search_query:
+                organizations = [
+                    org for org in organizations
+                    if search_query.lower() in org['name'].lower()
+                ]
+
+            # Paginate results
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_orgs = organizations[start_idx:end_idx]
+
+            # Build pagination URLs
+            base_url = request.build_absolute_uri(request.path)
+            next_url = None
+            previous_url = None
+
+            if end_idx < len(organizations):
+                next_url = f"{base_url}?page={page + 1}&page_size={page_size}"
+                if search_query:
+                    next_url += f"&search={search_query}"
+
+            if page > 1:
+                previous_url = f"{base_url}?page={page - 1}&page_size={page_size}"
+                if search_query:
+                    previous_url += f"&search={search_query}"
+
+            # Build response
+            response_data = {
+                'count': len(organizations),
+                'next': next_url,
+                'previous': previous_url,
+                'results': paginated_orgs
+            }
+
+            serializer = PaginatedFilterOptionsSerializer(response_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             logger.error(f"Error fetching organizations: {str(e)}")
             error_response = build_error_response(f"Failed to fetch organizations: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request: HttpRequest, pk=None) -> Response:
+        """
+        GET /api/v1/organizations/{id}/
+
+        Returns single organization by ID.
+
+        Returns:
+            Response: Single organization in {key, value, cluster_id} format
+        """
+        from .awx_queries import get_organizations
+        from .serializers import FilterOptionWithIdSerializer
+
+        try:
+            db_connection = get_db_connection('awx')
+            organizations = get_organizations(db_connection)
+
+            # Find organization by ID
+            org = next((o for o in organizations if o['id'] == int(pk)), None)
+
+            if not org:
+                error_response = build_error_response(f"Organization with id {pk} not found", status_code=404)
+                return Response(error_response, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = FilterOptionWithIdSerializer(org)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error fetching organization {pk}: {str(e)}")
+            error_response = build_error_response(f"Failed to fetch organization: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -734,10 +1041,16 @@ class ProjectsViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for retrieving projects from AWX database.
 
-    Provides real-time project data for filter dropdowns.
+    Provides real-time project data for filter dropdowns with pagination support.
 
     Endpoints:
-        GET /api/v1/template_options/projects/ - List all projects
+        GET /api/v1/projects/ - List all projects (paginated)
+        GET /api/v1/projects/{id}/ - Get specific project
+
+    Query Parameters:
+        page (int): Page number (default: 1)
+        page_size (int): Results per page (default: 10)
+        search (str): Search by project name
     """
 
     permission_classes = [DeveloperModeRequired]
@@ -746,22 +1059,101 @@ class ProjectsViewSet(ReadOnlyModelViewSet):
 
     def list(self, request: HttpRequest) -> Response:
         """
-        GET /api/v1/template_options/projects/
+        GET /api/v1/projects/
 
-        Returns list of projects from AWX database.
+        Returns paginated list of projects from AWX database.
 
         Returns:
-            Response: Array of {id, name} objects
+            Response: Paginated {count, next, previous, results} with {key, value, cluster_id} format
         """
         from .awx_queries import get_projects
+        from .serializers import PaginatedFilterOptionsSerializer
 
         try:
             db_connection = get_db_connection('awx')
             projects = get_projects(db_connection)
-            return Response(projects, status=status.HTTP_200_OK)
+
+            # Parse pagination parameters
+            try:
+                page = int(request.query_params.get('page', 1))
+                page_size = int(request.query_params.get('page_size', 10))
+            except (ValueError, TypeError):
+                page = 1
+                page_size = 10
+
+            # Filter by search query if provided
+            search_query = request.query_params.get('search', '').strip()
+            if search_query:
+                projects = [
+                    proj for proj in projects
+                    if search_query.lower() in proj['name'].lower()
+                ]
+
+            # Paginate results
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_projects = projects[start_idx:end_idx]
+
+            # Build pagination URLs
+            base_url = request.build_absolute_uri(request.path)
+            next_url = None
+            previous_url = None
+
+            if end_idx < len(projects):
+                next_url = f"{base_url}?page={page + 1}&page_size={page_size}"
+                if search_query:
+                    next_url += f"&search={search_query}"
+
+            if page > 1:
+                previous_url = f"{base_url}?page={page - 1}&page_size={page_size}"
+                if search_query:
+                    previous_url += f"&search={search_query}"
+
+            # Build response
+            response_data = {
+                'count': len(projects),
+                'next': next_url,
+                'previous': previous_url,
+                'results': paginated_projects
+            }
+
+            serializer = PaginatedFilterOptionsSerializer(response_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             logger.error(f"Error fetching projects: {str(e)}")
             error_response = build_error_response(f"Failed to fetch projects: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request: HttpRequest, pk=None) -> Response:
+        """
+        GET /api/v1/projects/{id}/
+
+        Returns single project by ID.
+
+        Returns:
+            Response: Single project in {key, value, cluster_id} format
+        """
+        from .awx_queries import get_projects
+        from .serializers import FilterOptionWithIdSerializer
+
+        try:
+            db_connection = get_db_connection('awx')
+            projects = get_projects(db_connection)
+
+            # Find project by ID
+            project = next((p for p in projects if p['id'] == int(pk)), None)
+
+            if not project:
+                error_response = build_error_response(f"Project with id {pk} not found", status_code=404)
+                return Response(error_response, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = FilterOptionWithIdSerializer(project)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error fetching project {pk}: {str(e)}")
+            error_response = build_error_response(f"Failed to fetch project: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -769,10 +1161,16 @@ class LabelsViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for retrieving labels from AWX database.
 
-    Provides real-time label data for filter dropdowns.
+    Provides real-time label data for filter dropdowns with pagination support.
 
     Endpoints:
-        GET /api/v1/template_options/labels/ - List all labels
+        GET /api/v1/labels/ - List all labels (paginated)
+        GET /api/v1/labels/{id}/ - Get specific label
+
+    Query Parameters:
+        page (int): Page number (default: 1)
+        page_size (int): Results per page (default: 10)
+        search (str): Search by label name
     """
 
     permission_classes = [DeveloperModeRequired]
@@ -781,22 +1179,101 @@ class LabelsViewSet(ReadOnlyModelViewSet):
 
     def list(self, request: HttpRequest) -> Response:
         """
-        GET /api/v1/template_options/labels/
+        GET /api/v1/labels/
 
-        Returns list of labels from AWX database.
+        Returns paginated list of labels from AWX database.
 
         Returns:
-            Response: Array of {id, name} objects
+            Response: Paginated {count, next, previous, results} with {key, value, cluster_id} format
         """
         from .awx_queries import get_labels
+        from .serializers import PaginatedFilterOptionsSerializer
 
         try:
             db_connection = get_db_connection('awx')
             labels = get_labels(db_connection)
-            return Response(labels, status=status.HTTP_200_OK)
+
+            # Parse pagination parameters
+            try:
+                page = int(request.query_params.get('page', 1))
+                page_size = int(request.query_params.get('page_size', 10))
+            except (ValueError, TypeError):
+                page = 1
+                page_size = 10
+
+            # Filter by search query if provided
+            search_query = request.query_params.get('search', '').strip()
+            if search_query:
+                labels = [
+                    label for label in labels
+                    if search_query.lower() in label['name'].lower()
+                ]
+
+            # Paginate results
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_labels = labels[start_idx:end_idx]
+
+            # Build pagination URLs
+            base_url = request.build_absolute_uri(request.path)
+            next_url = None
+            previous_url = None
+
+            if end_idx < len(labels):
+                next_url = f"{base_url}?page={page + 1}&page_size={page_size}"
+                if search_query:
+                    next_url += f"&search={search_query}"
+
+            if page > 1:
+                previous_url = f"{base_url}?page={page - 1}&page_size={page_size}"
+                if search_query:
+                    previous_url += f"&search={search_query}"
+
+            # Build response
+            response_data = {
+                'count': len(labels),
+                'next': next_url,
+                'previous': previous_url,
+                'results': paginated_labels
+            }
+
+            serializer = PaginatedFilterOptionsSerializer(response_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             logger.error(f"Error fetching labels: {str(e)}")
             error_response = build_error_response(f"Failed to fetch labels: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request: HttpRequest, pk=None) -> Response:
+        """
+        GET /api/v1/labels/{id}/
+
+        Returns single label by ID.
+
+        Returns:
+            Response: Single label in {key, value, cluster_id} format
+        """
+        from .awx_queries import get_labels
+        from .serializers import FilterOptionWithIdSerializer
+
+        try:
+            db_connection = get_db_connection('awx')
+            labels = get_labels(db_connection)
+
+            # Find label by ID
+            label = next((l for l in labels if l['id'] == int(pk)), None)
+
+            if not label:
+                error_response = build_error_response(f"Label with id {pk} not found", status_code=404)
+                return Response(error_response, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = FilterOptionWithIdSerializer(label)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error fetching label {pk}: {str(e)}")
+            error_response = build_error_response(f"Failed to fetch label: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -804,10 +1281,16 @@ class InstancesViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for retrieving instances from AWX database.
 
-    Provides real-time instance data for filter dropdowns.
+    Provides real-time instance data for filter dropdowns with pagination support.
 
     Endpoints:
-        GET /api/v1/template_options/instances/ - List all instances
+        GET /api/v1/instances/ - List all instances (paginated)
+        GET /api/v1/instances/{id}/ - Get specific instance
+
+    Query Parameters:
+        page (int): Page number (default: 1)
+        page_size (int): Results per page (default: 10)
+        search (str): Search by instance hostname
     """
 
     permission_classes = [DeveloperModeRequired]
@@ -816,22 +1299,101 @@ class InstancesViewSet(ReadOnlyModelViewSet):
 
     def list(self, request: HttpRequest) -> Response:
         """
-        GET /api/v1/template_options/instances/
+        GET /api/v1/instances/
 
-        Returns list of controller instances from AWX database.
+        Returns paginated list of controller instances from AWX database.
 
         Returns:
-            Response: Array of {id, name} objects (hostname as name)
+            Response: Paginated {count, next, previous, results} with {key, value, cluster_id} format
         """
         from .awx_queries import get_instances
+        from .serializers import PaginatedFilterOptionsSerializer
 
         try:
             db_connection = get_db_connection('awx')
             instances = get_instances(db_connection)
-            return Response(instances, status=status.HTTP_200_OK)
+
+            # Parse pagination parameters
+            try:
+                page = int(request.query_params.get('page', 1))
+                page_size = int(request.query_params.get('page_size', 10))
+            except (ValueError, TypeError):
+                page = 1
+                page_size = 10
+
+            # Filter by search query if provided
+            search_query = request.query_params.get('search', '').strip()
+            if search_query:
+                instances = [
+                    inst for inst in instances
+                    if search_query.lower() in inst['name'].lower()
+                ]
+
+            # Paginate results
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_instances = instances[start_idx:end_idx]
+
+            # Build pagination URLs
+            base_url = request.build_absolute_uri(request.path)
+            next_url = None
+            previous_url = None
+
+            if end_idx < len(instances):
+                next_url = f"{base_url}?page={page + 1}&page_size={page_size}"
+                if search_query:
+                    next_url += f"&search={search_query}"
+
+            if page > 1:
+                previous_url = f"{base_url}?page={page - 1}&page_size={page_size}"
+                if search_query:
+                    previous_url += f"&search={search_query}"
+
+            # Build response
+            response_data = {
+                'count': len(instances),
+                'next': next_url,
+                'previous': previous_url,
+                'results': paginated_instances
+            }
+
+            serializer = PaginatedFilterOptionsSerializer(response_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             logger.error(f"Error fetching instances: {str(e)}")
             error_response = build_error_response(f"Failed to fetch instances: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request: HttpRequest, pk=None) -> Response:
+        """
+        GET /api/v1/instances/{id}/
+
+        Returns single instance by ID.
+
+        Returns:
+            Response: Single instance in {key, value, cluster_id} format
+        """
+        from .awx_queries import get_instances
+        from .serializers import FilterOptionWithIdSerializer
+
+        try:
+            db_connection = get_db_connection('awx')
+            instances = get_instances(db_connection)
+
+            # Find instance by ID
+            instance = next((i for i in instances if i['id'] == int(pk)), None)
+
+            if not instance:
+                error_response = build_error_response(f"Instance with id {pk} not found", status_code=404)
+                return Response(error_response, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = FilterOptionWithIdSerializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error fetching instance {pk}: {str(e)}")
+            error_response = build_error_response(f"Failed to fetch instance: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

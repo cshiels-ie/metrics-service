@@ -76,11 +76,18 @@ class ProjectSummarySerializer(serializers.Serializer):
     Serializer for top projects summary.
 
     Used by the dashboard details endpoint to show top projects by job count.
+
+    Matches the automation-reports TopProject TypeScript interface:
+        interface TopProject {
+            project_id: number;
+            project_name: string;
+            count: string;
+        }
     """
 
     project_id = serializers.IntegerField(help_text="Project ID")
     project_name = serializers.CharField(help_text="Project name")
-    job_count = serializers.IntegerField(help_text="Number of jobs executed")
+    count = serializers.CharField(help_text="Number of jobs executed (as string)")
 
 
 class UserSummarySerializer(serializers.Serializer):
@@ -88,18 +95,26 @@ class UserSummarySerializer(serializers.Serializer):
     Serializer for top users summary.
 
     Used by the dashboard details endpoint to show top users by execution count.
+
+    Matches the automation-reports TopUser TypeScript interface:
+        interface TopUser {
+            user_id: number;
+            user_name: string;
+            count: string;
+        }
     """
 
     user_id = serializers.IntegerField(help_text="User ID")
-    username = serializers.CharField(help_text="Username")
-    job_count = serializers.IntegerField(help_text="Number of jobs executed")
+    user_name = serializers.CharField(help_text="Username")
+    count = serializers.CharField(help_text="Number of jobs executed (as string)")
 
 
 class DashboardDetailsSerializer(serializers.Serializer):
     """
     Comprehensive dashboard details serializer.
 
-    Returns all dashboard data including job templates, top projects, and top users.
+    Returns all dashboard data including job templates, top projects, top users,
+    summary totals for the dashboard statistics cards, and chart data.
     Used by the /api/v1/report/details/ endpoint.
     """
 
@@ -114,6 +129,30 @@ class DashboardDetailsSerializer(serializers.Serializer):
     )
     date_range = serializers.DictField(
         help_text="Date range of the data (start and end ISO timestamps)"
+    )
+    total_number_of_successful_jobs = serializers.DictField(
+        help_text="Total successful jobs: {value: number}"
+    )
+    total_number_of_failed_jobs = serializers.DictField(
+        help_text="Total failed jobs: {value: number}"
+    )
+    total_number_of_unique_hosts = serializers.DictField(
+        help_text="Total unique hosts automated: {value: number}"
+    )
+    total_hours_of_automation = serializers.DictField(
+        help_text="Total automation hours: {value: number}"
+    )
+    total_number_of_job_runs = serializers.DictField(
+        help_text="Total number of job executions: {value: number}"
+    )
+    total_number_of_host_job_runs = serializers.DictField(
+        help_text="Total host job runs (runs * hosts): {value: number}"
+    )
+    job_chart = serializers.DictField(
+        help_text="Job runs chart data: {items: [], range: {}}"
+    )
+    host_chart = serializers.DictField(
+        help_text="Host jobs chart data: {items: [], range: {}}"
     )
 
 
@@ -170,14 +209,65 @@ class ClusterOptionSerializer(serializers.Serializer):
     """
     Serializer for cluster/execution environment options.
 
-    Matches TypeScript interface: {id: number; name: string; type: string;}
+    Transforms AWX database query results {id, name, type} to match the
+    frontend interface {key, value, type, cluster_id}.
 
-    Provides cluster selection with type information (e.g., 'execution_environment').
+    TypeScript interface (from automation-reports):
+        interface ClusterOption {
+            key: string | number;
+            value: string;
+            type: string;
+            cluster_id: string | number;
+        }
     """
 
-    id = serializers.IntegerField(help_text="Cluster/execution environment ID")
-    name = serializers.CharField(help_text="Cluster/execution environment name")
-    type = serializers.CharField(help_text="Type identifier (e.g., 'execution_environment')")
+    key = serializers.IntegerField(
+        source='id',
+        help_text="Cluster/execution environment ID (maps from 'id' field)"
+    )
+    value = serializers.CharField(
+        source='name',
+        help_text="Cluster/execution environment name (maps from 'name' field)"
+    )
+    type = serializers.CharField(
+        help_text="Type identifier (e.g., 'execution_environment')"
+    )
+    cluster_id = serializers.IntegerField(
+        default=1,
+        help_text="Cluster ID (defaults to 1 for single-cluster deployments)"
+    )
+
+
+class FilterOptionWithIdSerializer(serializers.Serializer):
+    """
+    Serializer for filter options with automation-reports compatibility.
+
+    Transforms AWX database query results {id, name} to match the
+    frontend FilterOptionWithId interface {key, value, cluster_id}.
+
+    This is used for organizations, projects, labels, and instances endpoints
+    to ensure compatibility with the automation-reports dropdown components.
+
+    TypeScript interface (from automation-reports):
+        interface FilterOptionWithId {
+            key: string | number;
+            value: string;
+            cluster_id: string | number;
+        }
+    """
+
+    key = serializers.IntegerField(
+        source='id',
+        help_text="Option ID (maps from 'id' field)"
+    )
+    value = serializers.CharField(
+        source='name',
+        help_text="Option display name (maps from 'name' field)"
+    )
+    cluster_id = serializers.IntegerField(
+        default=1,
+        help_text="Cluster ID (defaults to 1 for single-cluster deployments)"
+    )
 
 
 class FilterOptionResponseSerializer(serializers.Serializer):
@@ -235,19 +325,19 @@ class FilterOptionResponseSerializer(serializers.Serializer):
         many=True,
         help_text="User's saved filter configurations"
     )
-    organizations = FilterOptionSerializer(
+    organizations = FilterOptionWithIdSerializer(
         many=True,
         help_text="Available organizations for filtering (from AWX database)"
     )
-    projects = FilterOptionSerializer(
+    projects = FilterOptionWithIdSerializer(
         many=True,
         help_text="Available projects for filtering (from AWX database)"
     )
-    labels = FilterOptionSerializer(
+    labels = FilterOptionWithIdSerializer(
         many=True,
         help_text="Available labels for filtering (from AWX database)"
     )
-    instances = FilterOptionSerializer(
+    instances = FilterOptionWithIdSerializer(
         many=True,
         help_text="Available instances for filtering (from AWX database)"
     )
@@ -335,4 +425,34 @@ class UserPreferenceSerializer(serializers.Serializer):
     preferences_data = serializers.JSONField(
         required=False,
         help_text="Additional user preferences (extensible JSON structure)"
+    )
+
+
+class PaginatedFilterOptionsSerializer(serializers.Serializer):
+    """
+    Paginated response serializer for filter options.
+
+    Matches the OptionsResponse TypeScript interface from automation-reports:
+        interface OptionsResponse {
+            count: number;
+            next: string | null;
+            previous: string | null;
+            results: FilterOptionWithId[];
+        }
+    """
+
+    count = serializers.IntegerField(
+        help_text="Total number of options available"
+    )
+    next = serializers.CharField(
+        allow_null=True,
+        help_text="URL to next page (null if last page)"
+    )
+    previous = serializers.CharField(
+        allow_null=True,
+        help_text="URL to previous page (null if first page)"
+    )
+    results = FilterOptionWithIdSerializer(
+        many=True,
+        help_text="Array of filter options in {key, value, cluster_id} format"
     )

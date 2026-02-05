@@ -44,7 +44,6 @@ def get_organizations(db_connection) -> list[dict[str, Any]]:
         cursor.execute("""
             SELECT id, name
             FROM main_organization
-            WHERE active = true
             ORDER BY name
         """)
 
@@ -82,9 +81,10 @@ def get_projects(db_connection) -> list[dict[str, Any]]:
     try:
         cursor = db_connection.cursor()
         cursor.execute("""
-            SELECT id, name
-            FROM main_project
-            ORDER BY name
+            SELECT p.unifiedjobtemplate_ptr_id, u.name
+            FROM main_project p
+            JOIN main_unifiedjobtemplate u ON p.unifiedjobtemplate_ptr_id = u.id
+            ORDER BY u.name
         """)
 
         results = [
