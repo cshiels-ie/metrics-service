@@ -96,21 +96,53 @@ from apps.core.views import APIRootView
 
 urlpatterns = []
 
-# Django Ansible Base URLs
-urlpatterns += [
-    path("api/v1/", include(api_version_urls)),
-    path("api/v1/", include(resource_api_urls)),
-    path("api/v1/", include(rbac_service_urls)),
-    path("api/", include(api_urls)),
-    path("", include(root_urls)),
-]
+# Determine URL structure based on URL_PREFIX setting
+# If URL_PREFIX="/api/metrics", we mount patterns at that prefix for Gateway deployment
+# If URL_PREFIX is None (default), we use traditional /api/ prefix for standalone mode
+url_prefix = getattr(settings, 'URL_PREFIX', None)
 
-# Override empty router views from DAB with dynamic API root
-urlpatterns += [
-    path("api/v1/", APIRootView.as_view(view_name="v1"), name="api-v1-index"),
-    path("api/", APIRootView.as_view(view_name="api"), name="api-index"),
-    path("", APIRootView.as_view(view_name="root"), name="root-index"),
-]
+if url_prefix:
+    # Gateway mode: URL_PREFIX="/api/metrics"
+    # Patterns mount at prefix path (e.g., /api/metrics/v1/, not /api/metrics/api/v1/)
+    # This allows the service to handle Gateway-forwarded requests like /api/metrics/v1/
+    prefix = url_prefix.strip('/')
+
+    # Django Ansible Base URLs under prefix
+    urlpatterns += [
+        path(f"{prefix}/v1/", include(api_version_urls)),
+        path(f"{prefix}/v1/", include(resource_api_urls)),
+        path(f"{prefix}/v1/", include(rbac_service_urls)),
+        path(f"{prefix}/", include(api_urls)),
+        path(f"{prefix}/", include(root_urls)),
+    ]
+
+    # Override empty router views from DAB with dynamic API root
+    urlpatterns += [
+        path(f"{prefix}/v1/", APIRootView.as_view(view_name="v1"), name="api-v1-index"),
+        path(f"{prefix}/", APIRootView.as_view(view_name="api"), name="api-index"),
+    ]
+
+    # Root index always accessible at / (service info, regardless of URL_PREFIX)
+    urlpatterns += [
+        path("", APIRootView.as_view(view_name="root"), name="root-index"),
+    ]
+else:
+    # Standalone mode: Traditional /api/ prefix (backward compatible)
+    # Django Ansible Base URLs
+    urlpatterns += [
+        path("api/v1/", include(api_version_urls)),
+        path("api/v1/", include(resource_api_urls)),
+        path("api/v1/", include(rbac_service_urls)),
+        path("api/", include(api_urls)),
+        path("", include(root_urls)),
+    ]
+
+    # Override empty router views from DAB with dynamic API root
+    urlpatterns += [
+        path("api/v1/", APIRootView.as_view(view_name="v1"), name="api-v1-index"),
+        path("api/", APIRootView.as_view(view_name="api"), name="api-index"),
+        path("", APIRootView.as_view(view_name="root"), name="root-index"),
+    ]
 
 # Extend URL patterns from apps/urls.py
 urlpatterns += [path("", include("apps.urls"))]

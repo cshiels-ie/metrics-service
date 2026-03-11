@@ -124,7 +124,17 @@ FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,  # Controls all metrics collection, rollup, anonymization, and sending
 }
 
-# Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
+# URL_PREFIX: Controls both URL routing AND URL generation
+# - When None (default): Traditional standalone mode
+#   * Routes work at /api/v1/, /api/, /health/, etc.
+#   * URLs generated with /api/ prefix
+# - When set (e.g., "/api/metrics"): Gateway deployment mode
+#   * Routes work at /<prefix>/v1/, /<prefix>/, etc.
+#   * URLs generated with /<prefix>/ prefix
+#   * Example: /api/metrics/v1/ instead of /api/v1/
+# - Used in production AAP deployments where Gateway routes /api/metrics/* to this service
+# - Health and Prometheus endpoints (/health/, /metrics/) stay at root for monitoring
+# Set via environment: METRICS_SERVICE_URL_PREFIX="/api/metrics"
 URL_PREFIX = None
 
 

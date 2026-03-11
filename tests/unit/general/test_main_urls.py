@@ -277,3 +277,62 @@ class TestMainURLsIntegration(TestCase):
             compile(content, urls_file_path, "exec")
         except SyntaxError as e:
             pytest.fail(f"URLs file has syntax error: {e}")
+
+
+@pytest.mark.unit
+class TestURLPrefixRouting(TestCase):
+    """Test URL_PREFIX routing for Gateway integration."""
+
+    @override_settings(URL_PREFIX=None)
+    def test_default_routing_no_prefix(self):
+        """Without URL_PREFIX, routes work at /api/ level (standalone mode)."""
+        response = self.client.get('/api/v1/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_routing_with_prefix(self):
+        """With URL_PREFIX, routes work at /api/metrics/ level (Gateway mode)."""
+        response = self.client.get('/api/metrics/v1/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_old_api_paths_return_404_with_prefix(self):
+        """With URL_PREFIX set, old /api/ paths should not work."""
+        response = self.client.get('/api/v1/')
+        self.assertEqual(response.status_code, 404)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_service_root_with_prefix(self):
+        """Service root accessible at prefix path."""
+        response = self.client.get('/api/metrics/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_root_index_always_accessible(self):
+        """Root index (/) always accessible regardless of URL_PREFIX."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_health_check_at_root(self):
+        """Health check stays at root level for monitoring."""
+        response = self.client.get('/health/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_prometheus_metrics_at_root(self):
+        """Prometheus /metrics endpoint stays at root for scraping."""
+        response = self.client.get('/metrics/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics")
+    def test_url_prefix_with_trailing_slash(self):
+        """URL_PREFIX works correctly with trailing slash."""
+        response = self.client.get('/api/metrics/v1/')
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(URL_PREFIX="/api/metrics/")
+    def test_url_prefix_strips_trailing_slash(self):
+        """URL_PREFIX strips trailing slashes correctly."""
+        response = self.client.get('/api/metrics/v1/')
+        self.assertEqual(response.status_code, 200)

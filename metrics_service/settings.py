@@ -280,6 +280,9 @@ os.environ.setdefault("METRICS_SERVICE_MODE", _mode or "development")
 environment = (os.environ.get("METRICS_SERVICE_MODE") or "development").lower()
 """The current environment, by default development"""
 
+# Alias for compatibility with dashboard views
+MODE = environment
+
 DYNACONF = factory(__name__, app_prefix, add_dab_settings=False, **default_variables)
 """Dynaconf instance that comes with settings injected by DAB"""
 
