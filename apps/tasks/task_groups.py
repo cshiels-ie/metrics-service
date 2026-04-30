@@ -12,13 +12,22 @@ then DAB AAPFlag FEATURE_<name>_ENABLED, then the function default.
 run `manage.py metrics_utility init-system-tasks` to update the DB from `TASK_GROUPS`
 """
 
+import contextlib
 import json
 import logging
 from typing import Any
 
 from django.conf import settings
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+_FEATURE_FLAG_CACHE_PREFIX = "feature_flag:"
+
+
+def _feature_flag_cache_key(setting_name: str) -> str:
+    """Return the cache key used for a feature flag setting."""
+    return f"{_FEATURE_FLAG_CACHE_PREFIX}{setting_name}"
 
 
 def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> bool:
@@ -32,6 +41,8 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     Feature keys omitted from ``FEATURE_ENABLED`` in defaults (e.g. ``DASHBOARD_COLLECTION``)
     use the AAPFlag / default path so platform toggles work without a duplicate static default.
 
+    Results are cached for 60 seconds. Cache is invalidated when the Setting row is saved.
+
     Args:
         setting_name: Name of the feature enabled setting
         default: Default value if not found in database
@@ -39,6 +50,12 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     Returns:
         bool: Feature enabled value from database or default
     """
+    cache_key = _feature_flag_cache_key(setting_name)
+    with contextlib.suppress(Exception):
+        cached_value = cache.get(cache_key)
+        if cached_value is not None:
+            return cached_value
+
     try:
         # Avoid circular import by importing here
         from apps.dynamic_settings.models import Setting
@@ -50,23 +67,27 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
             except (json.JSONDecodeError, ValueError):
                 # If not valid JSON, treat as string boolean
                 value = setting.current_value.lower() in ("true", "1", "yes", "on")
-            return bool(value)
+            result = bool(value)
+        else:
+            feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
+            if setting_name in feature_enabled:
+                result = bool(feature_enabled[setting_name])
+            else:
+                # Platform default from DAB (YAML-seeded), when not overridden above
+                result = default
+                try:
+                    from ansible_base.feature_flags.models import AAPFlag
 
-        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        if setting_name in feature_enabled:
-            return bool(feature_enabled[setting_name])
+                    flag = AAPFlag.objects.filter(name=f"FEATURE_{setting_name}_ENABLED", condition="boolean").first()
+                    if flag is not None:
+                        result = flag.value.lower() in ("true", "1", "yes", "on")
+                except Exception as e:
+                    logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
 
-        # Platform default from DAB (YAML-seeded), when not overridden above
-        try:
-            from ansible_base.feature_flags.models import AAPFlag
+        with contextlib.suppress(Exception):
+            cache.set(cache_key, result, timeout=60)
 
-            flag = AAPFlag.objects.filter(name=f"FEATURE_{setting_name}_ENABLED", condition="boolean").first()
-            if flag is not None:
-                return flag.value.lower() in ("true", "1", "yes", "on")
-        except Exception as e:
-            logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
-
-        return default
+        return result
 
     except Exception as e:
         logger.warning(f"Error reading feature enabled setting {setting_name} from database: {e}")
