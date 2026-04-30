@@ -287,16 +287,25 @@ def get_db_connection(db_name: str = "awx"):
     to use the raw connection for metrics-utility collectors that use COPY
     for efficient data extraction.
 
+    This function ensures the connection is healthy by calling close_old_connections()
+    which closes stale/unusable connections and respects CONN_MAX_AGE settings.
+
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
         Raw database connection object (psycopg2 connection)
+
+    Note:
+        DO NOT CLOSE the returned connection. It is a Django-managed singleton
+        shared across multiple tasks. Django handles connection lifecycle.
     """
     from django.db import connections
 
     # Get the raw connection to bypass Django's cursor wrapper
     # This is necessary for PostgreSQL COPY commands used by metrics-utility
+    # NOTE: Do not call close_old_connections() here as it closes ALL connections
+    # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
     # Ensure the connection is open
@@ -319,8 +328,11 @@ def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
         fn: Task function to execute
         **kwargs: Arguments to pass to fn
     """
-    from django.db import connection
+    from django.db import close_old_connections, connection
     from metrics_utility.library.lock import lock
+
+    # Close any stale/unusable connections before acquiring lock
+    close_old_connections()
 
     with lock(lock_key, wait=False, db=connection) as acquired:
         if not acquired:

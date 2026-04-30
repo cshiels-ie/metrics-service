@@ -93,7 +93,6 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
     db_name = kwargs.get("database", DEFAULT_DB_NAME)
-    db_connection = None
     until = _parse_dt(kwargs.get("until"))
     since = _parse_dt(kwargs.get("since"))
 
@@ -131,12 +130,6 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         result["error"] = True
         result["message"] = f"Collecting jobs failed: {str(e)}"
         return result
-    finally:
-        if db_connection is not None:
-            try:
-                db_connection.close()
-            except Exception:
-                logger.warning("Failed to close AWX DB connection in _collect_data()")
 
     failed_jobs = _sync_jobs_atomically(jobs["results"])
 

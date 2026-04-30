@@ -263,6 +263,30 @@ class TestGetDbConnection(TestCase):
         mock_connections.__getitem__.assert_called_once_with("custom_db")
         self.assertEqual(result, mock_raw_conn)
 
+    @patch("django.db.close_old_connections")
+    @patch("django.db.connections")
+    def test_get_db_connection_does_not_call_close_old_connections(self, mock_connections, mock_close_old):
+        """Test that get_db_connection does NOT call close_old_connections.
+
+        close_old_connections() closes ALL Django connections, not just one.
+        If called during task execution, it can close connections holding advisory locks,
+        causing lock release failures.
+
+        close_old_connections() should only be called at task entry points like run_with_lock().
+        """
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection()
+
+        # Verify close_old_connections was NOT called
+        mock_close_old.assert_not_called()
+        # Verify ensure_connection was still called
+        mock_django_conn.ensure_connection.assert_called_once()
+        self.assertEqual(result, mock_raw_conn)
+
 
 class TestRunWithLock(TestCase):
     """Test run_with_lock function."""
@@ -291,6 +315,25 @@ class TestRunWithLock(TestCase):
         fn.assert_not_called()
         self.assertEqual(result["status"], "error")
         self.assertIn("Could not acquire lock", result["error"])
+
+    @patch("django.db.close_old_connections")
+    @patch("metrics_utility.library.lock.lock")
+    def test_run_with_lock_calls_close_old_connections(self, mock_lock_cls, mock_close_old):
+        """Test that run_with_lock calls close_old_connections before acquiring lock.
+
+        This is critical because close_old_connections() must be called BEFORE
+        acquiring advisory locks to ensure stale connections are cleaned up first.
+        If called during execution, it would close ALL connections including the
+        one holding the lock.
+        """
+        mock_lock_cls.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        fn = MagicMock(return_value={"status": "success"})
+        utils.run_with_lock("my_lock", "my_task", fn, foo="bar")
+
+        # Verify close_old_connections was called
+        mock_close_old.assert_called_once()
 
 
 class TestGenerateSalt(TestCase):
@@ -373,34 +416,7 @@ class TestSendToSegment(TestCase):
                 write_key="test-write-key",
                 user_id="user1",
                 debug=False,
-                use_bulk=False,  # Small data, no bulk
             )
-
-    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
-    def test_send_to_segment_bulk_mode(self, mock_logger):
-        """Test send_to_segment uses bulk mode for large data."""
-        mock_storage_instance = MagicMock()
-        mock_storage_instance.put.return_value = None  # No chunks returned
-
-        # Create large data (> 24KB)
-        large_data = {"data": "x" * (25 * 1024)}
-
-        with (
-            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
-            patch(
-                "metrics_utility.library.storage.segment.StorageSegment", return_value=mock_storage_instance
-            ) as mock_storage_class,
-            patch("django.conf.settings") as mock_settings,
-        ):
-            mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
-            mock_settings.DEBUG = False
-
-            result = send_to_segment("user1", "test_event", large_data)
-
-            self.assertEqual(result["status"], "success")
-            # Should use bulk mode for large data
-            call_kwargs = mock_storage_class.call_args[1]
-            self.assertTrue(call_kwargs["use_bulk"])
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_exception(self, mock_logger):

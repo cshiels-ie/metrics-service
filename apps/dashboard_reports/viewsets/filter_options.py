@@ -67,9 +67,7 @@ class FilterOptionsViewSet(GenericViewSet):
         and forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also
         runs a COUNT(*) query.  The paginator is then initialised with a range() of the total
         count so that next/previous links are built correctly without slicing an in-memory list.
-        Ensures DB connection is closed after use.
         """
-        db_connection = None
         try:
             db_connection = get_db_connection("awx")
             page_size = self.paginator.get_page_size(request)
@@ -93,17 +91,10 @@ class FilterOptionsViewSet(GenericViewSet):
             logger.exception(self.list_error_msg)
             error_response = build_error_response(self.list_error_msg, status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        finally:
-            if db_connection:
-                try:
-                    db_connection.close()
-                except Exception:
-                    logger.warning("Failed to close AWX DB connection in list()")
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         Returns a single filter dropdown item by ID from AWX database.
-        Ensures DB connection is closed after use.
         """
         try:
             pk = int(kwargs.get("pk"))
@@ -116,7 +107,6 @@ class FilterOptionsViewSet(GenericViewSet):
             error_response = build_error_response(self.not_found_msg(pk), status_code=404)
             return Response(error_response, status=status.HTTP_404_NOT_FOUND)
 
-        db_connection = None
         try:
             db_connection = get_db_connection("awx")
             data, _ = self.awx_query_function(db_connection=db_connection, pk=pk)
@@ -125,9 +115,3 @@ class FilterOptionsViewSet(GenericViewSet):
             logger.exception(self.retrieve_error_msg)
             error_response = build_error_response(self.retrieve_error_msg, status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        finally:
-            if db_connection:
-                try:
-                    db_connection.close()
-                except Exception:
-                    logger.warning("Failed to close AWX DB connection in retrieve()")

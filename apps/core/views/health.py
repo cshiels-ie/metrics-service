@@ -1,5 +1,5 @@
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
-from django.db import connection
+from django.db import close_old_connections, connection
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -20,6 +20,8 @@ class HealthView(AnsibleBaseView):
 
         # Database check
         try:
+            # Close any stale connections before health check
+            close_old_connections()
             connection.ensure_connection()
             health_status["checks"]["database"] = "ok"
         except Exception as e:

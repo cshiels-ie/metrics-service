@@ -39,7 +39,8 @@ class TestHealthEndpoint:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.django_db
-    def test_health_check_fails_when_segment_payloads_failed(self, client):
+    @patch("apps.core.views.health.close_old_connections")
+    def test_health_check_fails_when_segment_payloads_failed(self, mock_close, client):
         """Test that health endpoint reports segment check failed when single failed segment payload exist."""
         from datetime import timedelta
 
@@ -61,7 +62,8 @@ class TestHealthEndpoint:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.django_db
-    def test_health_check_fails_when_multiple_segment_payloads_failed(self, client):
+    @patch("apps.core.views.health.close_old_connections")
+    def test_health_check_fails_when_multiple_segment_payloads_failed(self, mock_close, client):
         """Test that health endpoint reports segment check failed status when many failed segment payloads exist."""
         from datetime import timedelta
 
@@ -96,7 +98,8 @@ class TestHealthEndpoint:
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.django_db
-    def test_health_check_passes_when_multiple_segment_payloads_send(self, client):
+    @patch("apps.core.views.health.close_old_connections")
+    def test_health_check_passes_when_multiple_segment_payloads_send(self, mock_close, client):
         """Test that health endpoint reports segment ok when many failed segment payloads exist."""
         from datetime import timedelta
 

@@ -232,7 +232,6 @@ class TestFilterOptionsViewSet:
         request = MagicMock()
         response = viewset.retrieve(request, pk=1)
 
-        assert mock_db.close.called, "close() was never called — db_connection may be falsy"
         assert response.status_code == 200
 
     @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
@@ -248,7 +247,6 @@ class TestFilterOptionsViewSet:
         response = viewset.list(request)
 
         assert response.status_code == 200
-        assert mock_db.close.called
 
     @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
     def test_list_db_connection_close_failure_on_success(self, mock_conn, viewset):

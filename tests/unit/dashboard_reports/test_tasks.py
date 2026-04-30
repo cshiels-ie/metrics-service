@@ -433,3 +433,39 @@ class TestDashboardReportsTasks:
         assert old_job2.id not in remaining_ids
         assert new_job1.id in remaining_ids
         assert new_job2.id in remaining_ids
+
+
+@pytest.mark.unit
+class TestCollectDataConnectionHandling:
+    """Regression tests for shared AWX DB connection lifecycle in _collect_data.
+
+    get_db_connection() returns Django's singleton raw psycopg connection object
+    (connections["awx"].connection). If _collect_data were to close that object
+    directly, any concurrent task holding the same reference would receive
+    'psycopg.OperationalError: the connection is closed'.  These tests pin the
+    invariant: _collect_data must never call .close() on the connection it receives,
+    regardless of whether collection succeeds or fails.
+    """
+
+    def test_does_not_close_connection_on_success(self, mock_dependencies):
+        """Connection is left open after a successful collection."""
+        mock_db_conn, mock_job_data, mock_dashboard_jobs, _ = mock_dependencies
+        mock_connection = MagicMock()
+        mock_db_conn.return_value = mock_connection
+        setup_collect_data_mocks(mock_job_data, mock_dashboard_jobs, jobs_result={"results": [{"id": 1}], "count": 1})
+
+        with patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[]):
+            _collect_data("test_task")
+
+        mock_connection.close.assert_not_called()
+
+    def test_does_not_close_connection_on_gather_error(self, mock_dependencies):
+        """Connection is left open even when the collect step raises an exception."""
+        mock_db_conn, mock_job_data, mock_dashboard_jobs, _ = mock_dependencies
+        mock_connection = MagicMock()
+        mock_db_conn.return_value = mock_connection
+        setup_collect_data_mocks(mock_job_data, mock_dashboard_jobs, gather_exc=Exception("gather failed"))
+
+        _collect_data("test_task")
+
+        mock_connection.close.assert_not_called()
