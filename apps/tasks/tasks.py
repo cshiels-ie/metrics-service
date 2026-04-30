@@ -27,6 +27,7 @@ from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
 from .collectors.collect_daily_metrics import collect_daily_metrics
+from .collectors.collect_events import collect_job_events
 from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
@@ -62,6 +63,8 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    # Events collection (requires Unit 1 JobEvent model and Unit 5 JobEventExtractor)
+    "collect_job_events": collect_job_events,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -76,6 +79,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "collect_job_events",
 }
 
 
@@ -407,6 +411,19 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    # Events collection
+    "collect_job_events": {
+        "queue": "metrics",
+        "category": "Events Collection",
+        "description": (
+            "Collect AWX job events from main_jobevent into metrics-service using keyset pagination. "
+            "Requires Unit 1 (JobEvent model) and Unit 5 (JobEventExtractor) PRs to be merged."
+        ),
+        "parameters": {},
+        "examples": [
+            {"name": "Default collection", "data": {}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -435,4 +452,6 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    # Events collection
+    "collect_job_events",
 ]

@@ -27,3 +27,17 @@
   toggle_type: run-time
   labels:
     - metrics
+- name: FEATURE_EVENTS_COLLECTION_ENABLED
+  ui_name: Events Collection
+  visibility: true
+  condition: boolean
+  value: 'False'
+  support_level: TECHNOLOGY_PREVIEW
+  description: >-
+    Enable collection of AWX job event data into metrics-service.
+    When enabled, job events are collected from the AWX main_jobevent table
+    using keyset pagination and stored locally for analysis.
+  support_url: ''
+  toggle_type: run-time
+  labels:
+    - metrics
