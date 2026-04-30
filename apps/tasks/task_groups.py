@@ -340,12 +340,32 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# TODO (Unit 2): Move cleanup_job_events into EVENTS_COLLECTION_GROUP once that group is
+# defined in the Unit 2 PR.  For now it lives in its own minimal group so that
+# init-system-tasks can register the task and the scheduler can execute it.
+EVENTS_COLLECTION_GROUP = TaskGroup(
+    name="events_collection",
+    description="AWX job event collection and raw-row cleanup (EVENTS_COLLECTION feature flag, Unit 2)",
+    # feature_flag will be added in Unit 2 — no flag here so the cleanup always runs
+    tasks=[
+        {
+            "task_id": "cleanup_job_events",
+            "function": "cleanup_job_events",
+            "cron": "30 4 * * *",  # Daily at 4:30 AM
+            "args": {},
+            "enabled": True,
+            "description": "Delete raw JobEvent rows older than EVENTS_RAW_RETENTION_DAYS (default: 30 days)",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    EVENTS_COLLECTION_GROUP,
 ]
 
 
