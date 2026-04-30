@@ -2,8 +2,11 @@
 Setting model for storing configuration with rollback capability.
 """
 
+import contextlib
+
 from ansible_base.activitystream.models import AuditableModel
 from ansible_base.lib.abstract_models import CommonModel
+from django.core.cache import cache
 from django.db import models
 
 from apps.core.models import User
@@ -48,6 +51,15 @@ class Setting(CommonModel, AuditableModel):
         null=True,
         help_text="The new value of the setting (JSON serialized). May be redacted for sensitive settings.",
     )
+
+    def save(self, *args, **kwargs):
+        """Save the setting and invalidate the feature flag cache entry."""
+        super().save(*args, **kwargs)
+        with contextlib.suppress(Exception):
+            # Lazy import avoids a circular dependency with apps.tasks
+            from apps.tasks.task_groups import _feature_flag_cache_key
+
+            cache.delete(_feature_flag_cache_key(self.setting_key))
 
     def __str__(self):
         """String representation showing who changed what and when."""

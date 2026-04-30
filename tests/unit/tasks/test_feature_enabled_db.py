@@ -8,10 +8,12 @@ with fallback to Django settings and defaults.
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from apps.tasks.task_groups import (
+    _feature_flag_cache_key,
     get_feature_enabled_from_db,
 )
 from tests.test_utils import get_test_password
@@ -237,3 +239,110 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
             result = get_feature_enabled_from_db("ERR_FLAG", default=True)
 
         assert result is True
+
+
+@pytest.mark.unit
+class TestFeatureEnabledCaching(SimpleTestCase):
+    """Tests for the Redis/cache layer in get_feature_enabled_from_db.
+
+    These tests are pure-mock; no database access is needed.
+    """
+
+    # ------------------------------------------------------------------
+    # Cache hit — no DB queries
+    # ------------------------------------------------------------------
+
+    def test_cache_hit_true_skips_db(self):
+        """When cache returns True, no DB query is made."""
+        with (
+            patch("apps.tasks.task_groups.cache") as mock_cache,
+            # Ensure no DB call is made by patching at the model's real import path
+            patch("apps.dynamic_settings.models.Setting.objects.filter") as mock_filter,
+        ):
+            mock_cache.get.return_value = True
+
+            result = get_feature_enabled_from_db("CACHED_FLAG", default=False)
+
+        assert result is True
+        mock_cache.get.assert_called_once_with(_feature_flag_cache_key("CACHED_FLAG"))
+        mock_filter.assert_not_called()
+
+    def test_cache_false_value_skips_db(self):
+        """When cache returns False (not None), function returns False without DB query.
+
+        Verifies that a cached False is not confused with a cache miss (None).
+        """
+        with (
+            patch("apps.tasks.task_groups.cache") as mock_cache,
+            patch("apps.dynamic_settings.models.Setting.objects.filter") as mock_filter,
+        ):
+            # Simulate a cached False — must NOT be treated as cache miss
+            mock_cache.get.return_value = False
+
+            result = get_feature_enabled_from_db("CACHED_FALSE_FLAG", default=True)
+
+        assert result is False
+        mock_filter.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Cache miss — result is cached after DB resolution
+    # ------------------------------------------------------------------
+
+    def test_cache_miss_queries_db_and_caches_result(self):
+        """On a cache miss, the resolved value is stored in cache with a 60s TTL."""
+        mock_setting_qs = MagicMock()
+        mock_setting_qs.first.return_value = None  # no DB row → fall through to FEATURE_ENABLED
+
+        with (
+            patch("apps.tasks.task_groups.cache") as mock_cache,
+            # Setting is imported inside the function; patch at its real home
+            patch("apps.dynamic_settings.models.Setting.objects.filter", return_value=mock_setting_qs),
+            override_settings(FEATURE_ENABLED={"MISS_FLAG": True}),
+        ):
+            mock_cache.get.return_value = None  # cache miss
+
+            result = get_feature_enabled_from_db("MISS_FLAG", default=False)
+
+        assert result is True
+        mock_cache.set.assert_called_once_with(_feature_flag_cache_key("MISS_FLAG"), True, timeout=60)
+
+    # ------------------------------------------------------------------
+    # Cache unavailable — falls through gracefully
+    # ------------------------------------------------------------------
+
+    def test_cache_get_exception_falls_through_to_db(self):
+        """If cache.get() raises an exception, the function falls through to DB lookup."""
+        with (
+            patch("apps.tasks.task_groups.cache") as mock_cache,
+            override_settings(FEATURE_ENABLED={"NOCACHE_FLAG": True}),
+        ):
+            mock_cache.get.side_effect = Exception("Redis unavailable")
+
+            result = get_feature_enabled_from_db("NOCACHE_FLAG", default=False)
+
+        assert result is True
+
+
+@pytest.mark.unit
+class TestFeatureFlagCacheInvalidation(SimpleTestCase):
+    """Tests for cache invalidation when a Setting row is saved."""
+
+    def test_setting_save_invalidates_cache(self):
+        """Saving a Setting row deletes the matching feature_flag cache key.
+
+        The Setting.save() override is tested in isolation by calling it with a
+        mock instance and a patched parent save chain, so no DB access is required.
+        """
+        from apps.dynamic_settings.models import Setting
+
+        mock_instance = MagicMock(spec=Setting)
+        mock_instance.setting_key = "INV_FLAG"
+
+        # Patch the entire parent MRO save chain so only Setting.save() body runs
+        with (
+            patch("apps.dynamic_settings.models.cache") as mock_cache,
+            patch("ansible_base.lib.abstract_models.CommonModel.save"),
+        ):
+            Setting.save(mock_instance)
+
+        mock_cache.delete.assert_called_once_with(_feature_flag_cache_key("INV_FLAG"))
