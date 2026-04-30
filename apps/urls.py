@@ -25,9 +25,19 @@ This file loads at step 3 in the URL loading order, before individual apps
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+# BI Connector URL patterns assembled here (step 3) before the LOADED_APPS loop
+# (step 4) to guarantee the bi_connector namespace is always registered. The inner
+# URL confs are imported directly; bi_connector/urls.py has urlpatterns=[] so the
+# LOADED_APPS loop skips it and avoids a duplicate namespace registration warning.
+_bi_urlpatterns = [
+    path("events/", include("apps.bi_connector.v1.events_urls", namespace="events")),
+]
+
 urlpatterns = [
     # Prometheus metrics endpoint
     path("", include("django_prometheus.urls")),
     # Redirect bare feature_flags/ to the canonical states list
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
+    # BI Connector — /api/v1/bi/events/, /api/v1/bi/events/daily-summary/
+    path("api/v1/bi/", include((_bi_urlpatterns, "bi_connector"), namespace="bi_connector")),
 ]

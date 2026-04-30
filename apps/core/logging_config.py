@@ -24,9 +24,7 @@ class DispatcherdReconnectFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.name == "asyncio" and "CallbackHolder.done_callback" in record.getMessage():
-            return False
-        return True
+        return not (record.name == "asyncio" and "CallbackHolder.done_callback" in record.getMessage())
 
 
 class JsonFormatter(logging.Formatter):
