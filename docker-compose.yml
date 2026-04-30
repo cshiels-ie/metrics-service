@@ -46,6 +46,21 @@ services:
     networks:
       - metrics-service
 
+  redis:
+    image: redis:7-alpine
+    container_name: metrics-service-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - metrics-service
+
   metrics-service-web:
     build:
       context: .
@@ -65,6 +80,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       metrics-service-init:
         condition: service_completed_successfully
     environment:
@@ -72,6 +89,7 @@ services:
       # Development-only password. In production, override with secrets management.
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
     networks:
       - metrics-service
 
@@ -92,6 +110,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       metrics-service-init:
         condition: service_completed_successfully
     environment:
@@ -101,6 +121,7 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       # Required: collect_dashboard_reports_initial_data reads DASHBOARD_COLLECTION_GROUP.tasks
       # at runtime to create the follow-up task — the cron is evaluated from settings at import
       # time, so without this var it falls back to the default "0 */6 * * *" instead of 5-min.
@@ -128,12 +149,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       metrics-service-init:
         condition: service_completed_successfully
     environment:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       # Required: get_feature_enabled_from_db falls back to settings.FEATURE_ENABLED when the
       # DB setting is absent; without this the flag defaults to False and tasks are skipped.
       # (Cron is not needed here — the scheduler reads cron_expression from the DB Task record.)
@@ -144,6 +168,8 @@ services:
 volumes:
   metrics_service_db:
     name: metrics_service_app_db
+  redis_data:
+    name: metrics_service_redis_data
 
 networks:
   metrics-service:

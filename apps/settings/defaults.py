@@ -5,6 +5,8 @@ The settings here overrides any setting previously loaded
 from the `metrics_service.settings`.
 """
 
+import os
+
 from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
@@ -82,10 +84,15 @@ SPECTACULAR_SETTINGS__VERSION = "v1"
 # Split components into request and response for generating clients
 SPECTACULAR_SETTINGS__COMPONENT_SPLIT_REQUEST = True
 
+REDIS_URL = os.environ.get("METRICS_SERVICE_REDIS_URL", "redis://localhost:6379/0")
+
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "default",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
     },
 }
 CSRF_TRUSTED_ORIGINS = []
