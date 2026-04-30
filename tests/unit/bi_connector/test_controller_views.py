@@ -34,6 +34,7 @@ _SNAPSHOT_PATCH = "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_
 _DB_PATCH = "apps.bi_connector.v1.controller_views.get_db_connection"
 _FLAG_PATCH = "apps.tasks.task_groups.get_feature_enabled_from_db"
 _SUBMIT_PATCH = "apps.tasks.tasks_system.submit_task_to_dispatcher"
+_CACHE_PATCH = "apps.bi_connector.v1.controller_views.cache"
 
 
 def _make_mock_collector(data=None):
@@ -180,6 +181,94 @@ class TestControllerJobsView(APITestCase):
             self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
 
         mock_submit.assert_called_once()
+
+    # --- Redis cache fast path ---
+
+    def test_cache_hit_returns_202_without_db_filter(self):
+        """Cache hit path: mock cache.get() returns existing task_id, DB filter not called."""
+        self.client.force_authenticate(user=self.user)
+
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="bi_collect_unified_jobs",
+            function_name="collect_bi_controller_data",
+            task_data={"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL_7},
+        )
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = task.id
+
+        with patch(_CACHE_PATCH, mock_cache), patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.data["task_id"] == task.id
+        mock_cache.get.assert_called_once()
+        mock_cache.set.assert_not_called()
+
+    def test_stale_cache_entry_evicted_and_falls_through_to_db(self):
+        """Stale cache entry: cache.get returns an ID but Task.DoesNotExist → evict and create new task."""
+        self.client.force_authenticate(user=self.user)
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = 99999  # non-existent task ID
+
+        with patch(_CACHE_PATCH, mock_cache), patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        # cache.delete was called to evict the stale entry
+        mock_cache.delete.assert_called_once()
+        # cache.set was called to seed the new task into the cache
+        mock_cache.set.assert_called_once()
+
+    def test_db_filter_hit_populates_cache(self):
+        """After a DB-filter hit (cache miss), verify cache.set is called with the task_id."""
+        self.client.force_authenticate(user=self.user)
+
+        from apps.tasks.models import Task
+        from apps.tasks.utils import parse_datetime_string
+
+        # Pre-create an in-flight task so the DB filter hits.
+        existing = Task.objects.create(
+            name="bi_collect_unified_jobs",
+            function_name="collect_bi_controller_data",
+            task_data={"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL_7},
+        )
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        with patch(_CACHE_PATCH, mock_cache), patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        # Build the expected key the same way the view does (parse → isoformat).
+        since_iso = parse_datetime_string(VALID_SINCE).isoformat()
+        until_iso = parse_datetime_string(VALID_UNTIL_7).isoformat()
+        expected_key = f"bi_dedup:unified_jobs:{since_iso}:{until_iso}"
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.data["task_id"] == existing.id
+        mock_cache.set.assert_called_once_with(expected_key, existing.id, timeout=600)
+
+    def test_new_task_creation_seeds_cache(self):
+        """After creating a new task, verify cache.set is called with the new task_id."""
+        self.client.force_authenticate(user=self.user)
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = None
+
+        with patch(_CACHE_PATCH, mock_cache), patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        task_id = response.data["task_id"]
+        # cache.set must have been called once with the new task's id
+        mock_cache.set.assert_called_once()
+        set_args = mock_cache.set.call_args
+        assert set_args[0][1] == task_id
+        assert set_args[1].get("timeout") == 600 or set_args[0][2] == 600
 
 
 @pytest.mark.unit

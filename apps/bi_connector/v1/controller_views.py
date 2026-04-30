@@ -21,6 +21,7 @@ from breaking the module in environments where it is not installed.
 import logging
 from typing import Any
 
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -93,6 +94,19 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
     permission_classes = [IsAuthenticated]
     versioning_class = None
     COLLECTOR_KEY: str = ""
+    _DEDUP_CACHE_TTL: int = 600  # seconds; covers the max task window (7 days of data << 10 minutes to complete)
+
+    def _task_202_response(self, task: Any) -> Response:
+        """Build the standard 202 body for an in-flight or newly-created task."""
+        return Response(
+            {
+                "task_id": task.id,
+                "status": task.status,
+                "collector_type": self.COLLECTOR_KEY,
+                "results_url": reverse("tasks:v1:task-detail", args=[task.id]),
+            },
+            status=202,
+        )
 
     def get(self, request: Any) -> Response:
         since, until = self.validate_date_range(request)
@@ -103,7 +117,19 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
         since_iso = since.isoformat()
         until_iso = until.isoformat()
 
-        # Return the existing task if an identical collection is already in flight.
+        dedup_key = f"bi_dedup:{self.COLLECTOR_KEY}:{since_iso}:{until_iso}"
+
+        # Fast path: cache hit avoids DB query for the common case.
+        cached_task_id = cache.get(dedup_key)
+        if cached_task_id is not None:
+            try:
+                existing = Task.objects.get(pk=cached_task_id, status__in=["pending", "running"])
+                return self._task_202_response(existing)
+            except Task.DoesNotExist:
+                # Stale entry (task completed or deleted) — evict and fall through to DB.
+                cache.delete(dedup_key)
+
+        # Safety net: DB check handles races and the DummyCache-in-tests path.
         existing = Task.objects.filter(
             function_name="collect_bi_controller_data",
             status__in=["pending", "running"],
@@ -113,16 +139,10 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
         ).first()
 
         if existing:
-            return Response(
-                {
-                    "task_id": existing.id,
-                    "status": existing.status,
-                    "collector_type": self.COLLECTOR_KEY,
-                    "results_url": reverse("tasks:v1:task-detail", args=[existing.id]),
-                },
-                status=202,
-            )
+            cache.set(dedup_key, existing.id, timeout=self._DEDUP_CACHE_TTL)
+            return self._task_202_response(existing)
 
+        # No in-flight task — create one and seed the cache.
         task = Task.objects.create(
             name=f"bi_collect_{self.COLLECTOR_KEY}",
             function_name="collect_bi_controller_data",
@@ -133,16 +153,9 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
             },
         )
         submit_task_to_dispatcher(task)
+        cache.set(dedup_key, task.id, timeout=self._DEDUP_CACHE_TTL)
 
-        return Response(
-            {
-                "task_id": task.id,
-                "status": "pending",
-                "collector_type": self.COLLECTOR_KEY,
-                "results_url": reverse("tasks:v1:task-detail", args=[task.id]),
-            },
-            status=202,
-        )
+        return self._task_202_response(task)
 
 
 class ControllerJobsView(ControllerTimeSeriesView):

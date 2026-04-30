@@ -11,9 +11,17 @@ via GET /api/v1/tasks/<task_id>/ once status == "completed".
 
 import logging
 
+from django.core.cache import cache
+
 from apps.tasks.utils import get_db_connection, parse_datetime_string
 
 logger = logging.getLogger(__name__)
+
+
+def _clear_dedup_cache(collector_key: str, since_str: str, until_str: str) -> None:
+    """Remove the Redis dedup cache entry so the same date window can be re-queried."""
+    dedup_key = f"bi_dedup:{collector_key}:{since_str}:{until_str}"
+    cache.delete(dedup_key)
 
 
 def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
@@ -45,6 +53,7 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
         conn = get_db_connection()
     except Exception as e:
         logger.error("AWX DB unavailable for bi_collect %s: %s", collector_key, e)
+        _clear_dedup_cache(collector_key, since_str, until_str)
         return {"status": "error", "error": f"AWX database unavailable: {e}"}
 
     try:
@@ -53,15 +62,18 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
         collectors = _get_hourly_collectors()
 
         if collector_key not in collectors:
+            _clear_dedup_cache(collector_key, since_str, until_str)
             return {"status": "error", "error": f"Unknown collector_key: {collector_key!r}"}
 
         collector = collectors[collector_key]["collector_func"](db=conn, since=since, until=until)
         data = collector.gather()
     except Exception as e:
         logger.error("Collection failed for bi_collect %s: %s", collector_key, e)
+        _clear_dedup_cache(collector_key, since_str, until_str)
         return {"status": "error", "error": f"Collection failed: {e}"}
 
     logger.info("bi_collect %s completed: %d records", collector_key, len(data) if isinstance(data, list) else 1)
+    _clear_dedup_cache(collector_key, since_str, until_str)
     return {
         "status": "success",
         "collector_type": collector_key,
