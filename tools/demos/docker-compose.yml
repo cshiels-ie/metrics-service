@@ -1,0 +1,165 @@
+---
+# Demo environment for metrics-service.
+#
+# Services:
+#   demo-postgres          — single PostgreSQL instance hosting both the
+#                            metrics_service DB and the AWX controller DB.
+#                            Seeded with the full AWX schema + sample data
+#                            from tools/demos/awx-db/.
+#   demo-metrics-*         — metrics-service web + dispatcher + scheduler,
+#                            built from Dockerfile.demo (python:3.12-slim base).
+#   demo-grafana           — Grafana with pre-provisioned datasources
+#                            (Metrics Service DB + AWX DB) and a demo dashboard.
+#
+# Quick start:
+#   cd tools/demos
+#   docker compose up --build
+#
+# After boot the demo-init service prints the BI connector token to stdout.
+# Access:
+#   Metrics Service API   http://localhost:8000/api/v1/
+#   API docs              http://localhost:8000/api/docs/
+#   Grafana               http://localhost:3000  (admin / admin)
+#   AWX DB (direct)       localhost:5432  database=awx     user=awx        password=awx
+#   Metrics DB (direct)   localhost:5432  database=metrics_service user=metrics_service password=metrics_service
+#
+# Database layout (single PostgreSQL instance):
+#   awx              — AWX controller schema + seeded job/host data
+#   metrics_service  — metrics-service application database
+
+x-ms-common: &ms-common
+  build:
+    context: ../..
+    dockerfile: tools/demos/Dockerfile.demo
+  volumes:
+    - "../../:/app:z"
+    - "/app/.venv"
+    - type: tmpfs
+      target: /app/metrics_service.egg-info
+      tmpfs: { mode: 0o01777 }
+  networks:
+    - demo
+  environment: &ms-env
+    METRICS_SERVICE_MODE: development
+
+    # Metrics-service database (metrics_service DB on demo-postgres)
+    METRICS_SERVICE_DATABASES__default__HOST: demo-postgres
+    METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+    METRICS_SERVICE_DATABASES__default__USER: metrics_service
+    METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+
+    # AWX controller database (awx DB on demo-postgres)
+    METRICS_SERVICE_DATABASES__awx__HOST: demo-postgres
+    METRICS_SERVICE_DATABASES__awx__NAME: awx
+    METRICS_SERVICE_DATABASES__awx__USER: awx
+    METRICS_SERVICE_DATABASES__awx__PASSWORD: awx
+
+    # Enable dashboard collection and BI connector for the demo
+    METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+    METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR: "true"
+    METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — hosts both awx and metrics_service databases
+  # ---------------------------------------------------------------------------
+  demo-postgres:
+    image: "mirror.gcr.io/postgres:15"
+    container_name: demo-postgres
+    environment:
+      # postgres superuser used to run the init scripts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Initial database (AWX schema is loaded here)
+      POSTGRES_DB: awx
+    healthcheck:
+      # Wait until both databases are ready (metrics_service is created by init-0-roles.sql)
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U postgres && psql -U postgres -d metrics_service -c 'SELECT 1' -q --no-align --tuples-only"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    ports:
+      - "${DEMO_POSTGRES_PORT:-5432}:5432"
+    networks:
+      - demo
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+      # AWX schema + seed data — loaded in numbered order at first boot
+      - ./awx-db/init-0-roles.sql:/docker-entrypoint-initdb.d/init-0-roles.sql:ro
+      - ./awx-db/init-1-schema.sql:/docker-entrypoint-initdb.d/init-1-schema.sql:ro
+      - ./awx-db/init-2-functions.sql:/docker-entrypoint-initdb.d/init-2-functions.sql:ro
+      - ./awx-db/init-3-conf_setting.sql:/docker-entrypoint-initdb.d/init-3-conf_setting.sql:ro
+      - ./awx-db/init-4-main_hostmetric.sql:/docker-entrypoint-initdb.d/init-4-main_hostmetric.sql:ro
+      - ./awx-db/init-5-main_instance.sql:/docker-entrypoint-initdb.d/init-5-main_instance.sql:ro
+      - ./awx-db/init-6-main_jobhostsummary.sql:/docker-entrypoint-initdb.d/init-6-main_jobhostsummary.sql:ro
+      - ./awx-db/init-7-dab_feature_flags.sql:/docker-entrypoint-initdb.d/init-7-dab_feature_flags.sql:ro
+
+  # ---------------------------------------------------------------------------
+  # Metrics Service — one-time initialisation (migrations, seed, demo user)
+  # ---------------------------------------------------------------------------
+  demo-metrics-init:
+    <<: *ms-common
+    container_name: demo-metrics-init
+    entrypoint: ["/app/tools/demos/scripts/demo-init.sh"]
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Metrics Service — all-in-one (web + dispatcher + scheduler via `run`)
+  # ---------------------------------------------------------------------------
+  demo-metrics-web:
+    <<: *ms-common
+    container_name: demo-metrics-web
+    entrypoint:
+      - sh
+      - -c
+      - exec /app/.venv/bin/python manage.py metrics_service run --host 0.0.0.0 --port 8000
+    ports:
+      - "${DEMO_WEB_PORT:-8000}:8000"
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-metrics-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # Grafana — pre-provisioned with Metrics Service & AWX datasources
+  # ---------------------------------------------------------------------------
+  demo-grafana:
+    image: "mirror.gcr.io/grafana/grafana-oss:latest"
+    container_name: demo-grafana
+    # Run as root so Podman rootless UID mapping doesn't block writes to the
+    # data/log/plugin directories. Acceptable for a local demo; not for production.
+    user: "0"
+    ports:
+      - "${DEMO_GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Install Infinity plugin for BI connector REST API access
+      GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - demo_grafana_data:/var/lib/grafana
+    networks:
+      - demo
+    restart: unless-stopped
+
+volumes:
+  demo_postgres_data:
+    name: demo_metrics_service_postgres
+  demo_grafana_data:
+    name: demo_metrics_service_grafana
+
+networks:
+  demo:
+    name: demo-metrics-service

@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Infinity datasource for the BI Connector REST API.
+# Requires: METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true (already set in docker-compose)
+#
+# To add your token after first boot:
+#   docker exec demo-metrics-service-init python manage.py drf_create_token demo_admin
+# Then update the Authorization header below and run:
+#   docker compose restart grafana
+
+datasources:
+  - name: Metrics Service BI Connector
+    type: yesoreyeram-infinity-datasource
+    uid: metrics-bi-connector
+    jsonData:
+      auth_type: "none"
+      allowed_hosts:
+        - "http://demo-metrics-service-web:8000"
+    # Uncomment and populate after running: docker exec demo-metrics-service-init python manage.py drf_create_token demo_admin
+    # secureJsonData:
+    #   httpHeaderValue1: "Token <your-token-here>"
+    # jsonData:
+    #   httpHeaderName1: "Authorization"

@@ -48,3 +48,7 @@ logs/
 *.db
 *.sqlite3
 db.sqlite3
+
+# Runtime socket files (gunicorn.ctl etc.)
+*.ctl
+*.sock

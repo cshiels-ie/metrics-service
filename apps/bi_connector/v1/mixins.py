@@ -32,6 +32,7 @@ class BiConnectorEnabledMixin:
     The endpoint appears to not exist when the feature is off — this avoids
     revealing the API surface to unauthenticated users or misconfigured tools.
     Enable via: METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true
+    or toggle the FEATURE_BI_CONNECTOR_ENABLED AAPFlag at runtime.
 
     Also applies BiConnectorThrottle (30 req/hour per user) to all BI endpoints.
     This throttle is scoped exclusively to BI connector views and does not affect

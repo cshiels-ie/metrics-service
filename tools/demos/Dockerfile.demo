@@ -1,0 +1,40 @@
+# Demo Dockerfile — uses python:3.12-slim instead of UBI9 so the demo works
+# without Red Hat registry access. Not for production use.
+#
+# Build context: repo root (../../ relative to this file)
+# Referenced in tools/demos/docker-compose.yml as:
+#   build:
+#     context: ../..
+#     dockerfile: tools/demos/Dockerfile.demo
+
+FROM mirror.gcr.io/python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+# libpq5 = psycopg runtime dependency (no -dev needed; uv uses binary wheels).
+# uv installed as root so it lands in /usr/local/bin (available to all users).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git libpq5 && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir uv && \
+    groupadd -g 1001 appuser && \
+    useradd -u 1001 -g 1001 -m appuser && \
+    chown -R 1001:1001 /app
+
+COPY --chown=1001:1001 . /app/
+
+USER 1001
+
+# Build the venv so it is baked into the image layer.
+# At runtime the source tree is volume-mounted over /app, and /app/.venv
+# is preserved by an anonymous volume — so code is always live/editable.
+RUN uv venv --python python3.12 /app/.venv && \
+    uv pip install --python /app/.venv/bin/python --no-cache .
+
+EXPOSE 8000

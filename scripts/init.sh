@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+export PATH="/app/.venv/bin:$PATH"
+
 echo "Running database migrations..."
 python manage.py migrate --noinput
 

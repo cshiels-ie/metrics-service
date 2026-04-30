@@ -1,0 +1,25 @@
+# Local override — replaces the inaccessible timestamped UBI9 base image in
+# Dockerfile.dev with the publicly pullable python:3.12-slim image used by the
+# demo environment. docker-compose merges this automatically with docker-compose.yml.
+#
+# Do not commit this file if the upstream UBI9 registry access is restored.
+services:
+  metrics-service-init:
+    build:
+      context: .
+      dockerfile: tools/demos/Dockerfile.demo
+
+  metrics-service-web:
+    build:
+      context: .
+      dockerfile: tools/demos/Dockerfile.demo
+
+  metrics-service-dispatcher:
+    build:
+      context: .
+      dockerfile: tools/demos/Dockerfile.demo
+
+  metrics-service-scheduler:
+    build:
+      context: .
+      dockerfile: tools/demos/Dockerfile.demo

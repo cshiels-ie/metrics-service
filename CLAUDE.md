@@ -85,13 +85,15 @@ python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(li
 
 ```
 apps/
-  core/           # Custom User/Organization/Team models, DAB integration, RBAC
-  tasks/          # Background task system (models, scheduling, execution)
-  dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
-  settings/       # Dynaconf settings layering (see below)
-  dashboard/      # Web UI for task monitoring at /dashboard/
+  core/              # Custom User/Organization/Team models, DAB integration, RBAC
+  tasks/             # Background task system (models, scheduling, execution)
+  dynamic_settings/  # Runtime DB-backed feature flags (Setting model)
+  settings/          # Dynaconf settings layering (see below)
+  dashboard/         # Web UI for task monitoring at /dashboard/
+  dashboard_reports/ # AWX job data collection + REST API for automation-reports UI
+  bi_connector/      # Read-only REST API for BI tools (Tableau, Power BI, Grafana)
 metrics_service/
-  settings/       # Split Django settings (development, production, test)
+  settings/          # Split Django settings (development, production, test)
 ```
 
 ### Settings Loading Order (Dynaconf)
@@ -130,17 +132,20 @@ The task system has several layers:
 
 ### Task Groups and Feature Flags
 
-`task_groups.py` defines three groups:
+`task_groups.py` defines four groups:
 
 - **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 5 AM) and `hello_world` (hourly).
 - **`METRICS_COLLECTION_GROUP`** — Always enabled (no feature flag). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`. Local metrics are collected regardless of the opt-out flag to prevent data gaps.
 - **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains only `daily_anonymize_and_prepare` and `send_anonymized_to_segment` — the tasks that transmit data to Red Hat.
+- **`DASHBOARD_COLLECTION_GROUP`** — Controlled by `DASHBOARD_COLLECTION` feature flag (default: disabled). Runs `collect_dashboard_reports_data` every 6 hours (configurable) and `cleanup_dashboard_reports_old_data` daily. Powers the `dashboard_reports` API.
 
-Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE_ENABLED` in Django settings if not in DB.
+Feature flags are defined in per-app `feature_flags.yaml` files (e.g., `apps/tasks/feature_flags.yaml`, `apps/bi_connector/feature_flags.yaml`). Values are seeded into the DB via `init-default-settings` and can be overridden at runtime without restart.
 
 ```bash
 # Toggle at runtime without restart
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true
 ```
 
 ### API Structure
@@ -149,8 +154,31 @@ Each app exposes its own versioned API under a `v1/` subdirectory:
 - `apps/tasks/v1/` — Task management endpoints (`/api/v1/tasks/`)
 - `apps/core/v1/` — Core resource endpoints
 - `apps/dynamic_settings/v1/` — Settings API
+- `apps/dashboard_reports/` — Reporting endpoints for automation-reports UI
+- `apps/bi_connector/v1/` — Read-only BI tool endpoints (disabled by default, token auth)
 
 All viewsets use `BaseViewSet` / `UserManagementMixin` base classes. OpenAPI docs at `/api/docs/`.
+
+### BI Connector (`apps/bi_connector/`)
+
+Disabled by default — enable via `FEATURE_ENABLED__BI_CONNECTOR`. When disabled, all endpoints return 404 (`BiConnectorEnabledMixin` hides the surface entirely).
+
+Uses token auth (`rest_framework.authtoken`) for long-lived service account tokens. Generate with:
+```bash
+python manage.py drf_create_token <username>
+```
+
+Two endpoint layers:
+- **Layer 1** (`metrics_views.py`, `dashboard_views.py`) — pre-aggregated data from metrics-service DB (synchronous, fast)
+- **Layer 2** (`controller_views.py`) — live queries direct to AWX DB (asynchronous for time-series)
+
+The async pattern: `GET ?since=&until=` → `202 Accepted + {"task_id": N, "status_url": "/api/v1/tasks/N/"}`. Poll the task until `status == "completed"`, then read `result_data.data`. A second identical in-flight request returns the existing `task_id` (deduplication). Snapshot endpoints remain synchronous.
+
+Date windows are enforced via `DateRangeRequiredMixin` to protect the AWX DB:
+- `BI_CONNECTOR_MAX_DAYS_DEFAULT` (default: 7) — most endpoints
+- `BI_CONNECTOR_MAX_DAYS_EVENTS` (default: 3) — events endpoint (largest AWX table)
+
+Per-user throttle: 30 req/hour (`bi_connector` scope), overridable via `METRICS_SERVICE_REST_FRAMEWORK__DEFAULT_THROTTLE_RATES__BI_CONNECTOR`.
 
 ### Dynamic Settings (`apps/dynamic_settings/`)
 

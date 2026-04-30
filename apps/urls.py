@@ -30,6 +30,9 @@ from django.views.generic import RedirectView
 # URL confs are imported directly; bi_connector/urls.py has urlpatterns=[] so the
 # LOADED_APPS loop skips it and avoids a duplicate namespace registration warning.
 _bi_urlpatterns = [
+    path("metrics/", include("apps.bi_connector.v1.metrics_urls", namespace="metrics")),
+    path("controller/", include("apps.bi_connector.v1.controller_urls", namespace="controller")),
+    path("dashboard/", include("apps.bi_connector.v1.dashboard_urls", namespace="dashboard")),
     path("events/", include("apps.bi_connector.v1.events_urls", namespace="events")),
 ]
 
@@ -38,6 +41,6 @@ urlpatterns = [
     path("", include("django_prometheus.urls")),
     # Redirect bare feature_flags/ to the canonical states list
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
-    # BI Connector — /api/v1/bi/events/, /api/v1/bi/events/daily-summary/
+    # BI Connector — /api/v1/bi/metrics/, /api/v1/bi/controller/, /api/v1/bi/dashboard/, /api/v1/bi/events/
     path("api/v1/bi/", include((_bi_urlpatterns, "bi_connector"), namespace="bi_connector")),
 ]

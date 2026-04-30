@@ -1,0 +1,29 @@
+apiVersion: 1
+
+datasources:
+  - name: Metrics Service DB
+    type: postgres
+    uid: metrics-service-pg
+    url: demo-postgres:5432
+    database: metrics_service
+    user: metrics_service
+    secureJsonData:
+      password: metrics_service
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+    isDefault: true
+
+  - name: AWX Controller DB
+    type: postgres
+    uid: awx-pg
+    url: demo-postgres:5432
+    database: awx
+    user: awx
+    secureJsonData:
+      password: awx
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false

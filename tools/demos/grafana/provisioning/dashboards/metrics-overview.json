@@ -1,0 +1,329 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "piechart", "name": "Pie chart", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Metrics Service — task health and collection status",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT COUNT(*) AS \"Tasks (total)\" FROM tasks_task",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Tasks",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT COUNT(*) AS \"Running\" FROM tasks_task WHERE status = 'running'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Running Tasks",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT COUNT(*) AS \"Failed\" FROM tasks_task WHERE status = 'failed'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Tasks",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT COUNT(*) AS \"Daily Summaries\" FROM tasks_dailymetricssummary",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Summaries",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT COUNT(*) AS \"Hourly Collections\" FROM tasks_hourlymetricscollection",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Hourly Collections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+      "id": 6,
+      "options": { "displayLabels": ["percent"], "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "pieType": "pie", "tooltip": { "mode": "single", "sort": "none" } },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT status, COUNT(*) AS count FROM tasks_task GROUP BY status ORDER BY count DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Task Status Distribution",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 4 },
+      "id": 7,
+      "options": { "displayLabels": ["percent"], "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "pieType": "pie", "tooltip": { "mode": "single", "sort": "none" } },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT collector_type, COUNT(*) AS count FROM tasks_hourlymetricscollection GROUP BY collector_type ORDER BY count DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Hourly Collections by Collector Type",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.width", "value": 100 }] },
+          { "matcher": { "id": "byName", "options": "summary_date" }, "properties": [{ "id": "custom.width", "value": 120 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "id": 8,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "summary_date" }] },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT summary_date, status, hourly_collections_count, error_message, aggregation_completed_at FROM tasks_dailymetricssummary ORDER BY summary_date DESC LIMIT 30",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Metrics Summaries (last 30 days)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 9,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "created" }] },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "metrics-service-pg" },
+          "rawSql": "SELECT t.name, t.status, t.function_name, t.created, t.started_at, t.completed_at, EXTRACT(EPOCH FROM (t.completed_at - t.started_at))::int AS duration_secs FROM tasks_task t ORDER BY t.created DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Tasks",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "awx-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 10,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "awx-pg" },
+          "rawSql": "SELECT j.id, j.status, j.created, j.started, j.finished, j.elapsed FROM main_unifiedjob j ORDER BY j.created DESC LIMIT 20",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "AWX — Recent Unified Jobs",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "awx-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 11,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "awx-pg" },
+          "rawSql": "SELECT hostname, version, node_type, node_state, enabled, last_seen FROM main_instance ORDER BY last_seen DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "AWX — Controller Instances",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["metrics-service", "demo"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Metrics Service — Overview",
+  "uid": "metrics-service-overview",
+  "version": 1
+}

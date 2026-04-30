@@ -31,10 +31,10 @@ project_applications = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
+    "apps.bi_connector",
     "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
     "apps.events",  # AWX job event collection and daily summaries
-    "apps.bi_connector",  # BI tool REST API endpoints (token auth, read-only)
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
@@ -73,6 +73,11 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
+    # Scoped throttle rates — each key corresponds to a throttle class scope.
+    # Override via METRICS_SERVICE_REST_FRAMEWORK__DEFAULT_THROTTLE_RATES__<SCOPE>=<rate>
+    "DEFAULT_THROTTLE_RATES": {
+        "bi_connector": "30/hour",
+    },
 }
 
 # Title of Swagger the API documentation
