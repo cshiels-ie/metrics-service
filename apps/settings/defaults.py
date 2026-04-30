@@ -33,6 +33,7 @@ project_applications = [
     "apps.tasks",
     "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
+    "apps.events",  # AWX job event collection and daily summaries
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
