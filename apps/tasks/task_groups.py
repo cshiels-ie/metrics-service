@@ -342,8 +342,6 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
 
 # Events Collection Group — high-scale AWX job event pipeline.
 # Feature flag: EVENTS_COLLECTION (default: False — customer opt-in).
-# Requires Unit 1 (JobEvent model) and Unit 5 (JobEventExtractor from metrics-utility) PRs.
-# TODO (Unit 3): add cleanup_job_events_old_data task once the cleanup function is implemented.
 EVENTS_COLLECTION_GROUP = TaskGroup(
     name="events_collection",
     description="AWX job event collection into metrics-service using keyset pagination (opt-in)",
@@ -357,7 +355,14 @@ EVENTS_COLLECTION_GROUP = TaskGroup(
             "enabled": True,
             "description": "Collect AWX job events from main_jobevent using keyset pagination (every 2 hours)",
         },
-        # TODO (Unit 3): add cleanup_job_events_old_data here once implemented.
+        {
+            "task_id": "cleanup_job_events",
+            "function": "cleanup_job_events",
+            "cron": "30 4 * * *",  # Daily at 4:30 AM
+            "args": {},
+            "enabled": True,
+            "description": "Delete raw JobEvent rows older than EVENTS_RAW_RETENTION_DAYS (default: 30 days)",
+        },
     ],
 )
 

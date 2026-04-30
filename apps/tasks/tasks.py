@@ -26,6 +26,7 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
+from .collectors.cleanup_events import cleanup_job_events
 from .collectors.collect_daily_metrics import collect_daily_metrics
 from .collectors.collect_events import collect_job_events
 from .collectors.collect_hourly_metrics import collect_hourly_metrics
@@ -59,6 +60,7 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
+    "cleanup_job_events": cleanup_job_events,
     # Dashboard reports
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
@@ -199,6 +201,13 @@ TASK_METADATA = {
             },
             {"name": "Dry run", "data": {"dry_run": True}},
         ],
+    },
+    "cleanup_job_events": {
+        "queue": "maintenance",
+        "category": "Maintenance",  # raw JobEvent rows
+        "description": "Delete raw JobEvent rows older than the configured retention window (default: 30 days)",
+        "parameters": {},
+        "examples": [{"name": "Default (30 days retention)", "data": {}}],
     },
     # Metrics Collection (Hourly and Snapshot)
     "collect_hourly_metrics": {
@@ -435,6 +444,8 @@ __all__ = [
     "cleanup_metrics_data",
     "submit_task_to_dispatcher",
     "create_system_tasks",
+    # Events collection cleanup
+    "cleanup_job_events",
     # Metrics collection (hourly, snapshot, and daily time-range)
     "collect_hourly_metrics",
     "collect_snapshot_metrics",
