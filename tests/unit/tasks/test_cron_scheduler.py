@@ -2,6 +2,7 @@
 Enhanced unit tests for cron_scheduler.py to improve coverage.
 
 Tests cover:
+- _periodic_database_sync stuck task detection
 - _periodic_database_sync task discovery and routing
 - Error handling in _add_database_scheduled_task
 - Error handling in _add_database_recurring_task
@@ -14,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 
-from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
+from apps.tasks.cron_scheduler import STUCK_TASK_TIMEOUT_SECONDS, UnifiedTaskScheduler, _inject_dispatch_timestamps
 
 
 @pytest.mark.unit
@@ -514,3 +515,92 @@ class TestInjectDispatchTimestamps:
             {"collector_type": "task_executions_service", "hour_timestamp": fixed_ts},
         )
         assert result["hour_timestamp"] == fixed_ts
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestStuckTaskDetection:
+    """Test stuck task detection in _periodic_database_sync."""
+
+    def _run_sync(self, scheduler):
+        """Run _periodic_database_sync with scheduling methods and connection teardown stubbed out."""
+        from apps.tasks.models import Task
+
+        with (
+            patch("apps.tasks.cron_scheduler.close_old_connections"),
+            patch.object(Task, "immediate_tasks", return_value=[]),
+            patch.object(Task, "scheduled_tasks", return_value=[]),
+            patch.object(Task, "recurring_tasks", return_value=[]),
+        ):
+            scheduler._periodic_database_sync()
+
+    def test_fails_task_stuck_beyond_timeout(self, user):
+        """Task running longer than its timeout_seconds is marked failed."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Stuck Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="running",
+        )
+        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "failed"
+        assert task.completed_at is not None
+        assert task.error_message != ""
+
+    def test_ignores_task_within_timeout(self, user):
+        """Task running less than its timeout_seconds is left alone."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Running Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="running",
+        )
+        Task.objects.filter(id=task.id).update(
+            started_at=timezone.now() - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS // 2)
+        )
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        assert Task.objects.get(id=task.id).status == "running"
+
+    def test_ignores_task_with_no_started_at(self, running_task):
+        """Task with no started_at is not touched."""
+        from apps.tasks.models import Task
+
+        Task.objects.filter(id=running_task.id).update(started_at=None)
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        assert Task.objects.get(id=running_task.id).status == "running"
+
+    def test_fails_associated_task_execution(self, user):
+        """TaskExecution record for a stuck task is also marked failed."""
+        from apps.tasks.models import Task, TaskExecution
+
+        task = Task.objects.create(
+            name="Stuck Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="running",
+        )
+        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
+        task.refresh_from_db()
+
+        execution = TaskExecution.objects.create(task=task, status="running")
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        execution.refresh_from_db()
+        assert execution.status == "failed"
+        assert execution.completed_at is not None
