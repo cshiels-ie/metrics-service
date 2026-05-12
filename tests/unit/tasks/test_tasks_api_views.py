@@ -974,7 +974,7 @@ class TestTaskPermissions(APITestCase):
 
     @override_settings(MODE="development")
     def test_authenticated_user_can_list_tasks(self):
-        """Test authenticated users can list tasks."""
+        """Test authenticated users can list tasks in development mode."""
         self.client.force_authenticate(user=self.regular_user)
 
         url = reverse("tasks:v1:task-list")

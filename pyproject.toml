@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metrics-service"
-description = "AAP Metrics Service Technical Preview"
+description = "AAP Metrics Service"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "MIT"
@@ -19,7 +19,7 @@ classifiers = [
     "Framework :: Django",
     "Framework :: Django :: 5.2.7",
 ]
-version = "0.0.1"
+version = "1.0.0"
 
 dependencies = [
     "Django==5.2.7",
@@ -80,6 +80,7 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 "apps.settings" = ["*.yaml"]
+"apps.tasks" = ["feature_flags.yaml"]
 
 
 [dependency-groups]
@@ -253,14 +254,19 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["metrics_service", "apps"]
+source = ["."]
+relative_files = true
 omit = [
     "*/migrations/*",
     "*/tests/*",
+    "tests/*",
     "*/venv/*",
+    ".venv/*",
     "manage.py",
     "*/settings/*",
     "*/__pycache__/*",
+    "scripts/*",
+    "conftest.py",
 ]
 
 [tool.coverage.report]

@@ -349,4 +349,5 @@ __all__ = [
     "TASK_FUNCTIONS",
     "TASK_LOCKS",
     "TASK_METADATA",
+    "get_queue_for_function",
 ]

@@ -5,8 +5,10 @@ This module defines task groups with feature enabled controls and provides
 a centralized way to manage different categories of tasks.
 
 Feature enabled settings are stored in the database using the Setting model, allowing
-runtime configuration without code changes. Values fall back to Django
-settings if not found in the database.
+runtime configuration without code changes. Values resolve in order: Setting row,
+then settings.FEATURE_ENABLED when the key is present (including env overrides),
+then the direct top-level settings attribute FEATURE_<name>_ENABLED (set by the installer
+via settings.yaml), then DAB AAPFlag FEATURE_<name>_ENABLED, then the function default.
 
 run `manage.py metrics_utility init-system-tasks` to update the DB from `TASK_GROUPS`
 """
@@ -23,6 +25,15 @@ logger = logging.getLogger(__name__)
 def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> bool:
     """
     Get a feature enabled value from database settings.
+
+    Order: ``Setting`` row → ``FEATURE_ENABLED[setting_name]`` if that key exists
+    (Dynaconf merges ``METRICS_SERVICE_FEATURE_ENABLED__*``) → top-level
+    ``FEATURE_<setting_name>_ENABLED`` settings attribute (set directly in settings.yaml
+    by the installer) → boolean ``AAPFlag`` ``FEATURE_<setting_name>_ENABLED`` → ``default``.
+
+    Feature keys omitted from ``FEATURE_ENABLED`` in defaults (e.g. ``DASHBOARD_COLLECTION``)
+    use the direct-attribute / AAPFlag / default path so platform toggles work without a
+    duplicate static default.
 
     Args:
         setting_name: Name of the feature enabled setting
@@ -44,15 +55,33 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
                 value = setting.current_value.lower() in ("true", "1", "yes", "on")
             return bool(value)
 
-        # Fallback to Django settings
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        return feature_enabled.get(setting_name, default)
+        if setting_name in feature_enabled:
+            return bool(feature_enabled[setting_name])
+
+        # Direct top-level attribute set by the installer (e.g. FEATURE_DASHBOARD_COLLECTION_ENABLED: True
+        # in settings.yaml). Checked before AAPFlag so installer opt-in overrides the seeded default.
+        direct_attr = f"FEATURE_{setting_name}_ENABLED"
+        direct_value = getattr(settings, direct_attr, None)
+        if direct_value is not None:
+            return bool(direct_value)
+
+        # Platform default from DAB (YAML-seeded), when not overridden above
+        try:
+            from ansible_base.feature_flags.models import AAPFlag
+
+            flag = AAPFlag.objects.filter(name=direct_attr, condition="boolean").first()
+            if flag is not None:
+                return flag.value.lower() in ("true", "1", "yes", "on")
+        except Exception as e:
+            logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
+
+        return default
 
     except Exception as e:
         logger.warning(f"Error reading feature enabled setting {setting_name} from database: {e}")
-        # Fallback to Django settings
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        return feature_enabled.get(setting_name, default)
+        return bool(feature_enabled[setting_name]) if setting_name in feature_enabled else default
 
 
 class TaskGroup:

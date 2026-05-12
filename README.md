@@ -161,6 +161,7 @@ We have these feature flags:
 |-|-|
 |`METRICS_COLLECTION`|true|
 |`ANONYMIZED_DATA_COLLECTION`|true|
+|`DASHBOARD_COLLECTION`|false (customer opt-in)|
 
 You can change defaults using `METRICS_SERVICE_FEATURE_ENABLED__` prefixed environment variables.
 

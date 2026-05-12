@@ -1,0 +1,15 @@
+- name: FEATURE_ANONYMIZED_DATA_COLLECTION_ENABLED
+  ui_name: Anonymized Data Collection
+  visibility: true
+  condition: boolean
+  value: 'True'
+  support_level: TECHNOLOGY_PREVIEW
+  description: >-
+    Enable anonymization and transmission of metrics data to Red Hat.
+    When enabled, collected job data is anonymized and sent to Segment
+    for platform analytics. Disabling this stops the anonymization and
+    sending tasks but does not affect metrics collection or rollup.
+  support_url: ''
+  toggle_type: run-time
+  labels:
+    - metrics

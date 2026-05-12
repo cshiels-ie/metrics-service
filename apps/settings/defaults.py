@@ -31,7 +31,6 @@ project_applications = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
-    "apps.dashboard",
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings

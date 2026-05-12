@@ -37,6 +37,6 @@ class TestDevelopmentModeDisabled(TestCase):
         """Test that dashboard returns 403 when development mode is disabled."""
         self.client.force_authenticate(user=self.user)
 
-        response = self.client.get("/dashboard/")
+        response = self.client.get("/api/dashboard/")
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
