@@ -12,10 +12,12 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+STUCK_TASK_TIMEOUT_SECONDS = 3600
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -203,6 +205,25 @@ class UnifiedTaskScheduler:
                 logger.info(
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
+
+            # Detect tasks stuck in running beyond their timeout
+            from .models import TaskExecution
+
+            now = timezone.now()
+            stuck_to_fail = Task.objects.filter(
+                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+            )
+            if stuck_to_fail:
+                ids = [t.id for t in stuck_to_fail]
+                error_msg = "Task timed out — worker died before completion"
+                with transaction.atomic():
+                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                        status="failed", error_message=error_msg, completed_at=now
+                    )
+                    Task.objects.filter(id__in=ids, status="running").update(
+                        status="failed", error_message=error_msg, completed_at=now
+                    )
+                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
