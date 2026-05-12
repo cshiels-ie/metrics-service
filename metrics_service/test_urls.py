@@ -16,6 +16,8 @@ urlpatterns = [
     path("", include("apps.dynamic_settings.urls")),
     # Tasks API - app owns its full path (api/v1/tasks/)
     path("", include("apps.tasks.urls")),
+    # Dashboard reports API - app owns its full path (api/v1/dashboard_reports/)
+    path("", include("apps.dashboard_reports.urls")),
     # Service-specific URLs (Prometheus, etc.)
     path("", include("apps.urls")),
 ]

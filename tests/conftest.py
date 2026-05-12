@@ -4,6 +4,11 @@ Pytest configuration and fixtures for metrics_service tests.
 
 import os
 
+# Must be set before Django is configured (pytest-django reads DJANGO_SETTINGS_MODULE
+# from pyproject.toml and calls django.setup() before conftest fixtures run, so the
+# setdefault inside the 'if not settings.configured' block below is too late).
+os.environ.setdefault("METRICS_SERVICE_MODE", "test")
+
 # Patch ansible_base feature flags loading before Django setup to prevent
 # Resource.DoesNotExist errors during test migrations
 try:

@@ -264,6 +264,12 @@ IS_RUNNING_TESTS = "test" in sys.argv or "PYTEST_VERSION" in os.environ
 LOADED_APPS = []
 """List of apps loaded by the Ansible Services Framework dynamically set at runtime."""
 
+DASHBOARD_COLLECTION = {
+    "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
+}
+"""Dashboard collection settings.
+Override cron via METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON env var."""
+
 default_variables = {k: v for k, v in locals().items() if k.isupper()}
 """Variables from this module locals that will be passed to Dynaconf"""
 

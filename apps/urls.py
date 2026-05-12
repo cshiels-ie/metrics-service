@@ -23,8 +23,11 @@ This file loads at step 3 in the URL loading order, before individual apps
 """
 
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 urlpatterns = [
     # Prometheus metrics endpoint
     path("", include("django_prometheus.urls")),
+    # Redirect bare feature_flags/ to the canonical states list
+    path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
 ]

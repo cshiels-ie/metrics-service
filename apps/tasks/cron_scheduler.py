@@ -12,12 +12,10 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
-
-STUCK_TASK_TIMEOUT_SECONDS = 3600
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -119,6 +117,15 @@ class UnifiedTaskScheduler:
             except Exception as e:
                 logger.error(f"Error stopping cron scheduler: {str(e)}")
 
+    def _task_feature_flag_enabled(self, task) -> bool:
+        """Return False if the task carries a feature flag that is currently disabled."""
+        feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
+        if not feature_flag:
+            return True
+        from .task_groups import get_feature_enabled_from_db
+
+        return get_feature_enabled_from_db(feature_flag)
+
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""
         try:
@@ -128,17 +135,22 @@ class UnifiedTaskScheduler:
             scheduled_tasks = Task.scheduled_tasks()
             recurring_tasks = Task.recurring_tasks()
 
-            # Add scheduled tasks
+            added_scheduled = 0
+            added_recurring = 0
+
+            # Add scheduled tasks whose feature flag is currently enabled
             for task in scheduled_tasks:
-                self._add_database_scheduled_task(task)
+                if self._task_feature_flag_enabled(task):
+                    self._add_database_scheduled_task(task)
+                    added_scheduled += 1
 
-            # Add recurring tasks
+            # Add recurring tasks whose feature flag is currently enabled
             for task in recurring_tasks:
-                self._add_database_recurring_task(task)
+                if self._task_feature_flag_enabled(task):
+                    self._add_database_recurring_task(task)
+                    added_recurring += 1
 
-            logger.info(
-                f"Synchronized {len(scheduled_tasks)} scheduled and {len(recurring_tasks)} recurring database tasks"
-            )
+            logger.info(f"Synchronized {added_scheduled} scheduled and {added_recurring} recurring database tasks")
 
         except Exception as e:
             logger.error(f"Error synchronizing database tasks: {e}")
@@ -161,6 +173,8 @@ class UnifiedTaskScheduler:
             # Handle immediate tasks - execute them right away
             for task in immediate_tasks:
                 if task.id not in self._db_task_jobs and task.is_ready_to_run():
+                    if not self._task_feature_flag_enabled(task):
+                        continue
                     logger.info(f"Found new immediate task: {task.name} (ID: {task.id}) - executing now")
                     # Track immediate task to prevent duplicate submissions
                     self._db_task_jobs[task.id] = f"db_immediate_{task.id}"
@@ -170,6 +184,8 @@ class UnifiedTaskScheduler:
             # Check for new scheduled tasks
             for task in scheduled_tasks:
                 if task.id not in self._db_task_jobs:
+                    if not self._task_feature_flag_enabled(task):
+                        continue
                     logger.info(f"Found new scheduled task: {task.name} (ID: {task.id})")
                     self._add_database_scheduled_task(task)
                     new_scheduled += 1
@@ -177,6 +193,8 @@ class UnifiedTaskScheduler:
             # Check for new recurring tasks
             for task in recurring_tasks:
                 if task.id not in self._db_task_jobs:
+                    if not self._task_feature_flag_enabled(task):
+                        continue
                     logger.info(f"Found new recurring task: {task.name} (ID: {task.id})")
                     self._add_database_recurring_task(task)
                     new_recurring += 1
@@ -185,25 +203,6 @@ class UnifiedTaskScheduler:
                 logger.info(
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
-
-            # Detect tasks stuck in running beyond their timeout
-            from .models import TaskExecution
-
-            now = timezone.now()
-            stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            )
-            if stuck_to_fail:
-                ids = [t.id for t in stuck_to_fail]
-                error_msg = "Task timed out — worker died before completion"
-                with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                    Task.objects.filter(id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
@@ -299,9 +298,7 @@ class UnifiedTaskScheduler:
                 from .task_groups import get_feature_enabled_from_db
 
                 if not get_feature_enabled_from_db(feature_flag):
-                    logger.info(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
-                    # Remove non-recurring tasks from tracking so they can be
-                    # retried on the next periodic sync when the flag is re-enabled.
+                    logger.debug(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
                     if not task.cron_expression:
                         self._remove_database_task(task_id)
                     return

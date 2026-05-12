@@ -2,7 +2,6 @@
 Enhanced unit tests for cron_scheduler.py to improve coverage.
 
 Tests cover:
-- _periodic_database_sync stuck task detection
 - _periodic_database_sync task discovery and routing
 - Error handling in _add_database_scheduled_task
 - Error handling in _add_database_recurring_task
@@ -15,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 
-from apps.tasks.cron_scheduler import STUCK_TASK_TIMEOUT_SECONDS, UnifiedTaskScheduler, _inject_dispatch_timestamps
+from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
 
 
 @pytest.mark.unit
@@ -35,6 +34,7 @@ class TestPeriodicDatabaseSync:
         mock_immediate_task.id = 1
         mock_immediate_task.name = "Immediate Task"
         mock_immediate_task.is_ready_to_run.return_value = True
+        mock_immediate_task.task_data = {}
 
         mock_task_model.immediate_tasks.return_value = [mock_immediate_task]
         mock_task_model.scheduled_tasks.return_value = []
@@ -59,6 +59,7 @@ class TestPeriodicDatabaseSync:
         mock_scheduled_task = MagicMock()
         mock_scheduled_task.id = 2
         mock_scheduled_task.name = "Scheduled Task"
+        mock_scheduled_task.task_data = {}
 
         mock_task_model.immediate_tasks.return_value = []
         mock_task_model.scheduled_tasks.return_value = [mock_scheduled_task]
@@ -81,6 +82,7 @@ class TestPeriodicDatabaseSync:
         mock_recurring_task = MagicMock()
         mock_recurring_task.id = 3
         mock_recurring_task.name = "Recurring Task"
+        mock_recurring_task.task_data = {}
 
         mock_task_model.immediate_tasks.return_value = []
         mock_task_model.scheduled_tasks.return_value = []
@@ -137,6 +139,71 @@ class TestPeriodicDatabaseSync:
 
         # Assert
         mock_execute.assert_not_called()
+
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=False)
+    @patch("apps.tasks.models.Task")
+    def test_skips_immediate_task_with_disabled_feature_flag(self, mock_task_model, mock_flag):
+        """Immediate tasks whose feature flag is off are silently skipped."""
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+
+        mock_task = MagicMock()
+        mock_task.id = 1
+        mock_task.name = "Flagged Task"
+        mock_task.is_ready_to_run.return_value = True
+        mock_task.task_data = {"_feature_flag": "DASHBOARD_COLLECTION"}
+
+        mock_task_model.immediate_tasks.return_value = [mock_task]
+        mock_task_model.scheduled_tasks.return_value = []
+        mock_task_model.recurring_tasks.return_value = []
+
+        with patch.object(scheduler, "_execute_database_task") as mock_execute:
+            scheduler._periodic_database_sync()
+
+        mock_execute.assert_not_called()
+        assert 1 not in scheduler._db_task_jobs
+
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=False)
+    @patch("apps.tasks.models.Task")
+    def test_skips_recurring_task_with_disabled_feature_flag(self, mock_task_model, mock_flag):
+        """Recurring tasks whose feature flag is off are not added to the scheduler."""
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+
+        mock_task = MagicMock()
+        mock_task.id = 2
+        mock_task.name = "Flagged Recurring"
+        mock_task.task_data = {"_feature_flag": "DASHBOARD_COLLECTION"}
+
+        mock_task_model.immediate_tasks.return_value = []
+        mock_task_model.scheduled_tasks.return_value = []
+        mock_task_model.recurring_tasks.return_value = [mock_task]
+
+        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
+            scheduler._periodic_database_sync()
+
+        mock_add.assert_not_called()
+
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True)
+    @patch("apps.tasks.models.Task")
+    @patch.object(UnifiedTaskScheduler, "_add_database_recurring_task")
+    def test_adds_recurring_task_when_flag_is_enabled(self, mock_add, mock_task_model, mock_flag):
+        """Recurring tasks are added once their feature flag is re-enabled."""
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+
+        mock_task = MagicMock()
+        mock_task.id = 3
+        mock_task.name = "Re-enabled Task"
+        mock_task.task_data = {"_feature_flag": "DASHBOARD_COLLECTION"}
+
+        mock_task_model.immediate_tasks.return_value = []
+        mock_task_model.scheduled_tasks.return_value = []
+        mock_task_model.recurring_tasks.return_value = [mock_task]
+
+        scheduler._periodic_database_sync()
+
+        mock_add.assert_called_once_with(mock_task)
 
     @patch("apps.tasks.cron_scheduler.close_old_connections")
     @patch("apps.tasks.models.Task")
@@ -327,7 +394,9 @@ class TestSyncDatabaseTasks:
         scheduler = UnifiedTaskScheduler()
 
         mock_scheduled_task = MagicMock()
+        mock_scheduled_task.task_data = {}
         mock_recurring_task = MagicMock()
+        mock_recurring_task.task_data = {}
 
         mock_task_model.scheduled_tasks.return_value = [mock_scheduled_task]
         mock_task_model.recurring_tasks.return_value = [mock_recurring_task]
@@ -445,92 +514,3 @@ class TestInjectDispatchTimestamps:
             {"collector_type": "task_executions_service", "hour_timestamp": fixed_ts},
         )
         assert result["hour_timestamp"] == fixed_ts
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestStuckTaskDetection:
-    """Test stuck task detection in _periodic_database_sync."""
-
-    def _run_sync(self, scheduler):
-        """Run _periodic_database_sync with scheduling methods and connection teardown stubbed out."""
-        from apps.tasks.models import Task
-
-        with (
-            patch("apps.tasks.cron_scheduler.close_old_connections"),
-            patch.object(Task, "immediate_tasks", return_value=[]),
-            patch.object(Task, "scheduled_tasks", return_value=[]),
-            patch.object(Task, "recurring_tasks", return_value=[]),
-        ):
-            scheduler._periodic_database_sync()
-
-    def test_fails_task_stuck_beyond_timeout(self, user):
-        """Task running longer than its timeout_seconds is marked failed."""
-        from apps.tasks.models import Task
-
-        task = Task.objects.create(
-            name="Stuck Task",
-            function_name="hello_world",
-            task_data={},
-            created_by=user,
-            status="running",
-        )
-        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
-
-        self._run_sync(UnifiedTaskScheduler())
-
-        task.refresh_from_db()
-        assert task.status == "failed"
-        assert task.completed_at is not None
-        assert task.error_message != ""
-
-    def test_ignores_task_within_timeout(self, user):
-        """Task running less than its timeout_seconds is left alone."""
-        from apps.tasks.models import Task
-
-        task = Task.objects.create(
-            name="Running Task",
-            function_name="hello_world",
-            task_data={},
-            created_by=user,
-            status="running",
-        )
-        Task.objects.filter(id=task.id).update(
-            started_at=timezone.now() - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS // 2)
-        )
-
-        self._run_sync(UnifiedTaskScheduler())
-
-        assert Task.objects.get(id=task.id).status == "running"
-
-    def test_ignores_task_with_no_started_at(self, running_task):
-        """Task with no started_at is not touched."""
-        from apps.tasks.models import Task
-
-        Task.objects.filter(id=running_task.id).update(started_at=None)
-
-        self._run_sync(UnifiedTaskScheduler())
-
-        assert Task.objects.get(id=running_task.id).status == "running"
-
-    def test_fails_associated_task_execution(self, user):
-        """TaskExecution record for a stuck task is also marked failed."""
-        from apps.tasks.models import Task, TaskExecution
-
-        task = Task.objects.create(
-            name="Stuck Task",
-            function_name="hello_world",
-            task_data={},
-            created_by=user,
-            status="running",
-        )
-        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
-        task.refresh_from_db()
-
-        execution = TaskExecution.objects.create(task=task, status="running")
-
-        self._run_sync(UnifiedTaskScheduler())
-
-        execution.refresh_from_db()
-        assert execution.status == "failed"
-        assert execution.completed_at is not None

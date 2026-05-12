@@ -41,6 +41,8 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *" # Every 5 minutes for testing
     networks:
       - metrics-service
 
@@ -99,6 +101,13 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      # Required: collect_dashboard_reports_initial_data reads DASHBOARD_COLLECTION_GROUP.tasks
+      # at runtime to create the follow-up task — the cron is evaluated from settings at import
+      # time, so without this var it falls back to the default "0 */6 * * *" instead of 5-min.
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
+      # Required: get_feature_enabled_from_db falls back to settings.FEATURE_ENABLED when the
+      # DB setting is absent; without this the flag defaults to False and tasks are skipped.
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
     networks:
       - metrics-service
 
@@ -125,6 +134,10 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      # Required: get_feature_enabled_from_db falls back to settings.FEATURE_ENABLED when the
+      # DB setting is absent; without this the flag defaults to False and tasks are skipped.
+      # (Cron is not needed here — the scheduler reads cron_expression from the DB Task record.)
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
     networks:
       - metrics-service
 
