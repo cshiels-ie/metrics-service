@@ -24,7 +24,6 @@ def mock_anonymize_rollups():
     mock_func = MagicMock()
     mock_func.return_value = {
         "anonymized_data": "test",
-        "salt_used": "test-salt",
     }
     return mock_func
 
