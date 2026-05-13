@@ -2,8 +2,8 @@
 Anonymize daily rollup and prepare payload for Segment.
 
 This task fetches the daily rollup summary (containing all 6 collectors),
-combines the rollup JSONs using anonymize_rollups(), applies salt-based hashing,
-and creates an anonymized payload ready for transmission.
+combines the rollup JSONs using anonymize_rollups(), and creates an anonymized
+payload ready for transmission.
 
 The output is a flattened structure with statistics and arrays ready for Segment.
 """
@@ -44,7 +44,6 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing:
             - summary_date (str): Date to anonymize (YYYY-MM-DD, defaults to yesterday)
-            - salt (str): Anonymization salt (auto-generated if not provided)
 
     Returns:
         dict: Task result with payload ID and scheduled send time
@@ -79,7 +78,6 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             controller_version_rollup=metrics.get("controller_version_service", {}),
             feature_flags_rollup=metrics.get("feature_flags_service", {}),
             task_executions_rollup=metrics.get("task_executions_service", []),
-            salt=kwargs.get("salt", generate_salt()),
         )
 
         # Add metadata
@@ -152,5 +150,5 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         return create_task_result("error", error=error_msg)
 
     except Exception as e:
-        logger.error(f"Error in daily_anonymize_and_prepare: {str(e)}")
+        logger.exception("Error in daily_anonymize_and_prepare: %s", e)
         return create_task_result("error", error=f"Anonymization failed: {str(e)}")
