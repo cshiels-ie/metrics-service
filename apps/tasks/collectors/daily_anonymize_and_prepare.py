@@ -15,6 +15,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from ..task_groups import SEGMENT_MAX_ATTEMPTS
 from ..utils import create_task_result, generate_salt, log_task_execution
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 task_data={"payload_id": payload.id},
                 scheduled_time=send_scheduled_time,
                 is_system_task=False,
+                max_attempts=SEGMENT_MAX_ATTEMPTS,
             )
 
         logger.info(
