@@ -113,7 +113,7 @@ class TaskModelTestCase(TestCase):
         self.assertTrue(self.task.can_retry())
 
         # Failed task with attempts >= max_attempts cannot be retried
-        self.task.attempts = 5
+        self.task.attempts = 3
         self.task.save()
         self.assertFalse(self.task.can_retry())
 
