@@ -13,9 +13,10 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.conf import settings
 from django.utils import timezone
 
-from apps.tasks.cron_scheduler import STUCK_TASK_TIMEOUT_SECONDS, UnifiedTaskScheduler, _inject_dispatch_timestamps
+from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
 
 
 @pytest.mark.unit
@@ -636,7 +637,7 @@ class TestStuckTaskDetection:
             scheduler._periodic_database_sync()
 
     def test_fails_task_stuck_beyond_timeout(self, user):
-        """Task running longer than its timeout_seconds is marked failed."""
+        """Task running longer than TASK_TIMEOUT is marked failed."""
         from apps.tasks.models import Task
 
         task = Task.objects.create(
@@ -656,7 +657,7 @@ class TestStuckTaskDetection:
         assert task.error_message != ""
 
     def test_ignores_task_within_timeout(self, user):
-        """Task running less than its timeout_seconds is left alone."""
+        """Task running less than TASK_TIMEOUT is left alone."""
         from apps.tasks.models import Task
 
         task = Task.objects.create(
@@ -667,7 +668,7 @@ class TestStuckTaskDetection:
             status="running",
         )
         Task.objects.filter(id=task.id).update(
-            started_at=timezone.now() - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS // 2)
+            started_at=timezone.now() - timedelta(seconds=settings.TASK_TIMEOUT // 2)
         )
 
         self._run_sync(UnifiedTaskScheduler())

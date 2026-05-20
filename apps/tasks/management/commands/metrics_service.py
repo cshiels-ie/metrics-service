@@ -100,7 +100,7 @@ class Command(BaseCommand):
             "--timeout",
             type=int,
             default=3600,
-            help="Task timeout in seconds (default: 3600)",
+            help="Deprecated, no effect. Use METRICS_SERVICE_TASK_TIMEOUT env var.",
         )
         parser.add_argument(
             "--max-tasks",
@@ -578,7 +578,6 @@ class Command(BaseCommand):
             str(manage_py),
             "run_dispatcherd",
             f"--workers={config['dispatcher_workers']}",
-            f"--timeout={config['timeout']}",
             f"--max-tasks={config['max_tasks']}",
             f"--log-level={config['log_level']}",
         ]
@@ -721,7 +720,6 @@ class Command(BaseCommand):
             "port": options.get("port", "8000"),
             "gunicorn_workers": gunicorn_workers,
             "dispatcher_workers": dispatcher_workers,
-            "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
             "check_interval": options.get("check_interval", 60),

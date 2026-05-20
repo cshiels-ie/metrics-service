@@ -54,7 +54,6 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "status",
             "attempts",
             "max_attempts",
-            "timeout_seconds",
             "result_data",
             "started_at",
             "completed_at",
@@ -142,7 +141,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "scheduled_time",
             "cron_expression",
             "max_attempts",
-            "timeout_seconds",
             "user",
         ]
         extra_kwargs = {
@@ -153,7 +151,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "task_data": {"required": False, "help_text": "JSON object with task parameters"},
             "cron_expression": {"required": False, "help_text": "Cron expression for recurring tasks"},
             "max_attempts": {"default": 3},
-            "timeout_seconds": {"default": 3600},
         }
 
     def validate_function_name(self, value):

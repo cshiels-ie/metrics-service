@@ -116,6 +116,9 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     # Override database config with Django settings
     config["brokers"]["pg_notify"]["config"] = pg_config
 
+    # Override task timeout with Django setting
+    config.setdefault("service", {}).setdefault("task_settings", {})["default_timeout"] = django_settings.TASK_TIMEOUT
+
     logger.info(
         f"Configured dispatcherd with Django database settings: "
         f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
@@ -161,6 +164,9 @@ def build_config_from_django_settings() -> dict[str, Any]:
             },
             "service": {
                 "pool_kwargs": {"max_workers": 4},
+                "task_settings": {
+                    "default_timeout": django_settings.TASK_TIMEOUT,
+                },
             },
         }
 

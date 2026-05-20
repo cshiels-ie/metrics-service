@@ -24,6 +24,7 @@ STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 _PREVIOUS_HOUR_FUNCTIONS = {"collect_hourly_metrics"}
 
 
+
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
     """
     Inject a fixed time-window timestamp into task_data at the moment a recurring
@@ -446,7 +447,6 @@ class UnifiedTaskScheduler:
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
                     max_attempts=task.max_attempts,
-                    timeout_seconds=task.timeout_seconds,
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )

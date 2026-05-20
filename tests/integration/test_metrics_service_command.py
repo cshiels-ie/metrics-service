@@ -317,8 +317,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
                 "8001",
                 "--workers",
                 "2",
-                "--timeout",
-                "1800",
                 "--max-tasks",
                 "50",
                 "--log-level",
@@ -334,7 +332,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         assert config["port"] == "8001"
         assert config["gunicorn_workers"] == 2
         assert config["dispatcher_workers"] == 2
-        assert config["timeout"] == 1800
         assert config["max_tasks"] == 50
         assert config["log_level"] == "DEBUG"
 
@@ -365,7 +362,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
             "host": "localhost",
             "port": "9000",
             "workers": 8,
-            "timeout": 7200,
             "max_tasks": 200,
             "log_level": "WARNING",
             "check_interval": 120,
@@ -377,7 +373,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         assert config["port"] == "9000"
         assert config["gunicorn_workers"] == 8
         assert config["dispatcher_workers"] == 8
-        assert config["timeout"] == 7200
         assert config["max_tasks"] == 200
         assert config["log_level"] == "WARNING"
         assert config["check_interval"] == 120
@@ -461,7 +456,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         assert str(manage_py) in dispatcher_cmd
         assert "run_dispatcherd" in dispatcher_cmd
         assert "--workers=4" in dispatcher_cmd
-        assert "--timeout=3600" in dispatcher_cmd
         assert "--max-tasks=100" in dispatcher_cmd
         assert "--log-level=INFO" in dispatcher_cmd
 

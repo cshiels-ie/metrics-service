@@ -84,7 +84,6 @@ class Task(NamedCommonModel, AuditableModel):
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
     attempts = models.PositiveIntegerField(default=0)
     max_attempts = models.PositiveIntegerField(default=3)
-    timeout_seconds = models.PositiveIntegerField(default=3600)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     result_data = models.JSONField(default=dict, blank=True)
