@@ -17,6 +17,7 @@ from apps.dashboard_reports.models import (
 )
 
 FIXED_DAILY_SUBSCRIPTION_COST = decimal.Decimal("161.29")
+FIXED_PER_SECOND_COST = decimal.Decimal("0.001")
 
 
 def get_now() -> datetime.datetime:
@@ -174,8 +175,8 @@ class TestExportEndpointGeneral:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
         ):
             yield
 
@@ -274,8 +275,8 @@ class TestExportSummaryCSV:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
         ):
             yield
 
@@ -393,8 +394,8 @@ class TestExportROICSV:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
         ):
             yield
 
@@ -487,8 +488,8 @@ class TestExportTrendsCSV:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
         ):
             yield
 
