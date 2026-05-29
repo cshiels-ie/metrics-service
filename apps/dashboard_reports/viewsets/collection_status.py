@@ -24,12 +24,14 @@ class DashboardCollectionStatusViewSet(BaseAdminViewSet):
         initial_collection_status = None
 
         if enabled:
-            data_task = Task.objects.filter(
-                function_name="collect_dashboard_reports_data",
+            # Incremental dashboard sync is driven by the hourly_unified_jobs hook,
+            # so next_run reflects when that collector will next fire.
+            hourly_task = Task.objects.filter(
+                name="hourly_unified_jobs",
                 is_system_task=True,
             ).first()
-            if data_task:
-                next_run = data_task.get_next_run_time()
+            if hourly_task:
+                next_run = hourly_task.get_next_run_time()
 
             initial_task = Task.objects.filter(
                 function_name="collect_dashboard_reports_initial_data",

@@ -2,6 +2,7 @@
 
 import datetime
 import decimal
+from unittest.mock import patch
 
 import pytest
 import pytz
@@ -653,3 +654,46 @@ class TestJobHostSummaryUniqueCount:
         assert JobHostSummary.objects.count() == 0
         count = JobHostSummary.unique_count()
         assert count == 0
+
+
+@pytest.mark.unit
+class TestCreateOrUpdateFromAwxHostSummaries:
+    """Tests for the host_summaries=None guard in create_or_update_from_awx."""
+
+    _AWX_JOB = {
+        "id": 9001,
+        "name": "Test Job",
+        "unified_job_template_id": 1,
+        "project_id": 1,
+        "project_name": "Proj",
+        "organization_id": 1,
+        "organization_name": "Org",
+        "status": "successful",
+        "started": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "finished": datetime.datetime(2024, 1, 1, 1, tzinfo=datetime.UTC),
+        "elapsed": 60.0,
+        "launched_by_id": 1,
+        "launched_by_username": "user",
+        "created": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "modified": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "num_hosts": 0,
+        "labels": [],
+    }
+
+    @patch("apps.dashboard_reports.models.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
+    @pytest.mark.django_db
+    def test_host_summaries_none_skips_sync(self, _mock_template_metadata, mock_sync_host_summaries):
+        """When host_summaries=None, _sync_host_summaries is never called."""
+        job = {**self._AWX_JOB, "host_summaries": None}
+        JobData.create_or_update_from_awx(job)
+        mock_sync_host_summaries.assert_not_called()
+
+    @patch("apps.dashboard_reports.models.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
+    @pytest.mark.django_db
+    def test_host_summaries_list_calls_sync(self, _mock_template_metadata, mock_sync_host_summaries):
+        """When host_summaries is a non-None list, _sync_host_summaries is called."""
+        job = {**self._AWX_JOB, "id": 9002, "host_summaries": []}
+        JobData.create_or_update_from_awx(job)
+        mock_sync_host_summaries.assert_called_once()

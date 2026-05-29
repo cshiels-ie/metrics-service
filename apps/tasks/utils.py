@@ -424,6 +424,88 @@ def _serialize_args(kwargs):
     return params
 
 
+def _run_post_collect_hook(hook, raw_data: Any, collector_type: str, task_execution_instance: Any) -> None:
+    """Call hook(raw_data), swallowing exceptions to protect the rollup pipeline.
+
+    On failure logs a warning and writes a failed TaskExecution record so the
+    failure is visible in task monitoring without aborting the anonymisation pipeline.
+    """
+    try:
+        hook(raw_data)
+    except Exception as hook_exc:
+        error_msg = f"post_collect_hook failed for {collector_type}: {hook_exc}"
+        logger.warning(error_msg)
+        if task_execution_instance is not None:
+            try:
+                from apps.tasks.models import TaskExecution
+
+                TaskExecution.objects.create(
+                    task=task_execution_instance.task,
+                    status="failed",
+                    error_message=error_msg,
+                    completed_at=timezone.now(),
+                )
+            except Exception:
+                logger.warning("Failed to persist hook failure as TaskExecution")
+
+
+def _persist_collection(
+    collection_model: Any,
+    collector_type: str,
+    collection_mode: str,
+    timestamp: Any,
+    rollup_data: Any,
+    collection_params: dict,
+    task_execution_instance: Any,
+) -> dict[str, Any]:
+    """Upsert an HourlyMetricsCollection record and return a task result dict.
+
+    Treats a concurrent-write IntegrityError as success — the other execution
+    already persisted the data, so there is nothing left to do.
+    """
+    from django.db import IntegrityError
+
+    try:
+        collection, created = collection_model.objects.update_or_create(
+            collector_type=collector_type,
+            collection_timestamp=timestamp,
+            defaults={
+                "raw_data": rollup_data,
+                "status": "collected",
+                "error_message": "",
+                "collection_parameters": collection_params,
+                "task_execution": task_execution_instance,
+            },
+        )
+    except IntegrityError:
+        logger.warning(
+            f"Duplicate collection skipped for {collector_type} at {timestamp.isoformat()} "
+            f"(unique constraint violation - record already written by concurrent execution)"
+        )
+        return create_task_result(
+            "success",
+            {
+                "message": f"Skipped duplicate {collection_mode} collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
+                "collector_type": collector_type,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
+    action = "Created" if created else "Updated"
+    log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")
+    return create_task_result(
+        "success",
+        {
+            "message": f"{action} {collection_mode} collection for {collector_type}",
+            "task_type": f"collect_{collector_type}",
+            "collection_id": collection.id,
+            "collector_type": collector_type,
+            "timestamp": timestamp.isoformat(),
+        },
+    )
+
+
 def generic_collect_metrics(
     collector_type: str,
     collector_registry: dict[str, dict[str, Any]],
@@ -432,8 +514,11 @@ def generic_collect_metrics(
     db_connection: Any,
     collector_kwargs: dict[str, Any] | None = None,
     task_execution_id: int | None = None,
+    post_collect_hook=None,
 ) -> dict[str, Any]:
     """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
+    import contextlib
+
     from apps.tasks.models import HourlyMetricsCollection
 
     if collector_type not in collector_registry:
@@ -443,10 +528,8 @@ def generic_collect_metrics(
     config = collector_registry[collector_type]
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
 
-    # Build collection_params for audit trail from collector_kwargs
     collection_params = _serialize_args(collector_kwargs)
 
-    # Get TaskExecution instance for linking if ID provided
     task_execution_instance = None
     if task_execution_id:
         try:
@@ -454,10 +537,7 @@ def generic_collect_metrics(
 
             task_execution_instance = TaskExecution.objects.get(id=task_execution_id)
         except Exception:
-            # Task execution not found or deleted, continue without it
             logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
-
-    from django.db import IntegrityError
 
     try:
         # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
@@ -468,58 +548,25 @@ def generic_collect_metrics(
         collector = config["collector_func"](db=db_connection, **actual_collector_kwargs)
         raw_data = collector.gather()
 
-        # Process rollup if processor provided, otherwise use raw data
+        if post_collect_hook is not None:
+            _run_post_collect_hook(post_collect_hook, raw_data, collector_type, task_execution_instance)
+
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
 
-        try:
-            collection, created = HourlyMetricsCollection.objects.update_or_create(
-                collector_type=collector_type,
-                collection_timestamp=timestamp,
-                defaults={
-                    "raw_data": rollup_data,
-                    "status": "collected",
-                    "error_message": "",
-                    "collection_parameters": collection_params,
-                    "task_execution": task_execution_instance,
-                },
-            )
-        except IntegrityError:
-            # Another execution wrote this record first. The data is already saved, so return success.
-            logger.warning(
-                f"Duplicate collection skipped for {collector_type} at {timestamp.isoformat()} "
-                f"(unique constraint violation - record already written by concurrent execution)"
-            )
-            return create_task_result(
-                "success",
-                {
-                    "message": f"Skipped duplicate {collection_mode} collection for {collector_type}",
-                    "task_type": f"collect_{collector_type}",
-                    "collector_type": collector_type,
-                    "timestamp": timestamp.isoformat(),
-                },
-            )
-
-        action = "Created" if created else "Updated"
-        log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")
-
-        return create_task_result(
-            "success",
-            {
-                "message": f"{action} {collection_mode} collection for {collector_type}",
-                "task_type": f"collect_{collector_type}",
-                "collection_id": collection.id,
-                "collector_type": collector_type,
-                "timestamp": timestamp.isoformat(),
-            },
+        return _persist_collection(
+            HourlyMetricsCollection,
+            collector_type,
+            collection_mode,
+            timestamp,
+            rollup_data,
+            collection_params,
+            task_execution_instance,
         )
 
     except Exception as e:
         logger.exception(f"Failed to collect {collector_type} {collection_mode} metrics: {str(e)}")
 
         # Store failed collection for audit trail (critical for diagnosing missing rollup data)
-        # Use contextlib.suppress to avoid secondary exception if database write fails
-        import contextlib
-
         with contextlib.suppress(Exception):
             HourlyMetricsCollection.objects.update_or_create(
                 collector_type=collector_type,

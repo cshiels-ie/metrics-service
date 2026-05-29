@@ -18,6 +18,7 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_job_records,
 )
 
 # Import cleanup tasks
@@ -62,6 +63,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "sync_dashboard_job_records": sync_dashboard_job_records,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -73,9 +75,9 @@ TASK_LOCKS = {
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
-    "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "sync_dashboard_job_records",
 }
 
 
@@ -84,6 +86,8 @@ def get_queue_for_function(function_name: str) -> str:
     metadata = TASK_METADATA.get(function_name)
     return (metadata and metadata.get("queue", None)) or "maintenance"
 
+
+_DASHBOARD_REPORTS_CATEGORY = "Dashboard Reports"
 
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
@@ -342,7 +346,7 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
         "parameters": {
             "since": {
@@ -367,8 +371,8 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_initial_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
-        "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "One-time backfill of historical AWX job data (window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days). Ongoing incremental sync is driven automatically by the hourly_unified_jobs hook after this completes.",
         "parameters": {
             "since": {
                 "type": "string",
@@ -389,21 +393,37 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_job_records": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Write unified_jobs data collected during the hourly rollup to the dashboard JobData table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_jobs": {
+                "type": "array",
+                "description": "Serialised unified_jobs rows from the hourly collector hook",
+            },
+        },
+        "examples": [],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
-        "description": "Delete dashboard report JobData records older than the retention period",
+        "description": "Delete dashboard report JobData records older than the retention period (defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS)",
         "parameters": {
             "retention_period_days": {
                 "type": "integer",
-                "default": 90,
-                "description": "Number of days to retain dashboard report data",
+                "default": None,
+                "description": "Number of days to retain dashboard report data. Defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS (or 90 if unset).",
                 "min": 0,
                 "max": 365,
             },
         },
         "examples": [
-            {"name": "Default retention (90 days)", "data": {}},
+            {"name": "Default (matches INITIAL_BACKFILL_DAYS)", "data": {}},
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
