@@ -208,10 +208,14 @@ def submit_task_to_dispatcher(task: Any) -> None:
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
     except Exception as e:
-        logger.error(f"Error submitting task to dispatcher: {str(e)}")
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save(update_fields=["status", "error_message", "modified"])
+        # status must be "failed" before can_retry() is called; log WARNING while retries remain, ERROR on final failure.
+        if task.can_retry():
+            logger.warning(f"Error submitting task to dispatcher: {str(e)}")
+        else:
+            logger.error(f"Error submitting task to dispatcher: {str(e)}")
 
 
 # runs during `manage.py metrics_service init-system-tasks`

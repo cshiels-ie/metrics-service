@@ -12,12 +12,13 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from django.conf import settings as django_settings
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-STUCK_TASK_TIMEOUT_SECONDS = 3600
+STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
