@@ -30,6 +30,28 @@ def ensure_django_setup():
         django.setup()
 
 
+def _fetch_task_by_id(task_id: int) -> Any:
+    """Fetch a Task instance by ID, returning None and logging on failure."""
+    try:
+        from .models import Task
+
+        return Task.objects.get(id=task_id)
+    except Exception:
+        logger.error(f"Failed to get task instance for task_id: {task_id}")
+        return None
+
+
+def _fetch_execution_by_id(execution_id: int) -> Any:
+    """Fetch a TaskExecution instance by ID, returning None and logging on failure."""
+    try:
+        from .models import TaskExecution
+
+        return TaskExecution.objects.get(id=execution_id)
+    except Exception:
+        logger.error(f"Failed to get execution instance for execution_id: {execution_id}")
+        return None
+
+
 def handle_task_error(
     task_instance: Any = None,
     execution_instance: Any = None,
@@ -58,24 +80,11 @@ def handle_task_error(
     if exception:
         error_message = error_message or f"Task execution failed: {str(exception)}"
 
-    logger.error(error_message)
-
-    # If we don't have instances but have IDs, try to get them
     if not task_instance and task_id:
-        try:
-            from .models import Task
-
-            task_instance = Task.objects.get(id=task_id)
-        except Exception:
-            logger.error(f"Failed to get task instance for task_id: {task_id}")
+        task_instance = _fetch_task_by_id(task_id)
 
     if not execution_instance and execution_id:
-        try:
-            from .models import TaskExecution
-
-            execution_instance = TaskExecution.objects.get(id=execution_id)
-        except Exception:
-            logger.error(f"Failed to get execution instance for execution_id: {execution_id}")
+        execution_instance = _fetch_execution_by_id(execution_id)
 
     try:
         with transaction.atomic():
@@ -110,6 +119,13 @@ def handle_task_error(
 
     except Exception as save_error:
         logger.error(f"Failed to update task status after error: {save_error}")
+
+    # Deferred past the transaction so status=="failed" and attempts are incremented before can_retry() is called.
+    # Defaults to ERROR when no task context is available.
+    if task_instance and task_instance.can_retry():
+        logger.warning(error_message)
+    else:
+        logger.error(error_message)
 
     return create_task_result("error", error=error_message)
 
