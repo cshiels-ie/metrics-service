@@ -70,8 +70,8 @@ DISPATCHERD_ENABLED = False
 
 # Disable feature enables during tests
 # NOTE: relies on get_feature_enabled_from_db falling back to directly using these settings when not in DB...
-# ...and on init-default-settings never happening during tests. If it does, @override_setings won't work.
-FEATURE_ENABLED = {
+# ...and on init-default-settings never happening during tests. If it does, @override_settings won't work.
+FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": False,
 }
 

@@ -123,23 +123,13 @@ class Command(BaseCommand):
 
     def _add_init_settings_arguments(self, parser):
         """Add arguments for the init-default-settings command."""
-        parser.add_argument(
-            "--overwrite",
-            action="store_true",
-            help="Remove all known default settings before reinitializing (passes all_known=True to remove)",
-        )
 
     def _add_remove_settings_arguments(self, parser):
         """Add arguments for the remove-default-settings command."""
         parser.add_argument(
-            "--all-known",
-            action="store_true",
-            help="Remove all known default settings (ignores previous_value logic, removes even modified settings)",
-        )
-        parser.add_argument(
             "--all-settings",
             action="store_true",
-            help="Remove all settings from database (ignores DEFAULT_SETTINGS known settings list)",
+            help="Remove all settings from the database",
         )
 
     def _add_init_tasks_arguments(self, parser):
@@ -193,7 +183,7 @@ class Command(BaseCommand):
             if command == "run":
                 self._handle_run_command(options)
             elif command == "init-default-settings":
-                self._handle_init_default_settings_command(options)
+                self._handle_init_default_settings_command()
             elif command == "remove-default-settings":
                 self._handle_remove_default_settings_command(options)
             elif command == "init-service-id":
@@ -224,14 +214,13 @@ class Command(BaseCommand):
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
 
-    def _handle_init_default_settings_command(self, options: dict[str, Any] | None = None) -> None:
+    def _handle_init_default_settings_command(self) -> None:
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings
             from apps.tasks.apps import load_task_feature_flags, sync_flag_values_from_settings
 
-            overwrite = options.get("overwrite", False) if options else False
-            initialize_default_settings(overwrite=overwrite)
+            initialize_default_settings()
             # Seed metrics-specific AAPFlags from feature_flags.yaml. This
             # mirrors what the post_migrate signal does during `migrate`, but
             # must also run here because init-default-settings is called in
@@ -254,10 +243,9 @@ class Command(BaseCommand):
         try:
             from apps.dynamic_settings.utils import remove_default_settings
 
-            all_known = options.get("all_known", False)
             all_settings = options.get("all_settings", False)
 
-            removed_count = remove_default_settings(all_known=all_known, all_settings=all_settings)
+            removed_count = remove_default_settings(all_settings=all_settings)
             self.output.success(f"Removed {removed_count} settings")
         except Exception as e:
             raise CommandError(f"Failed to remove default settings: {e}") from e
