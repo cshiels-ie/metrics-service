@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from apps.tasks.management.commands.metrics_service import Command
 from tests.unit.core.test_metrics_service_helpers import create_mock_processes_with_exit, get_default_config
