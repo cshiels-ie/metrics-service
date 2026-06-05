@@ -140,12 +140,12 @@ class TestMetricsEndpoint:
 
     def test_metrics_endpoint_returns_200(self, client, db):
         """Test that metrics endpoint returns 200."""
-        response = client.get("/metrics")
+        response = client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
 
     def test_metrics_endpoint_returns_prometheus_format(self, client, db):
         """Test that metrics endpoint returns text/plain content type."""
-        response = client.get("/metrics")
+        response = client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
         assert "text/plain" in response["Content-Type"]
 
@@ -155,11 +155,11 @@ class TestMetricsEndpoint:
         # Hint: Use response.content.decode() to get the text
         # Check that it contains strings like "django_" or "python_"
         # Example: assert 'django_http_requests_total' in response.content.decode()
-        response = client.get("/metrics")
+        response = client.get("/api/metrics")
         assert "django_" in response.content.decode()
 
     def test_metrics_endpoint_works_without_authentication(self, client):
         """Test that metrics endpoint doesn't require authentication."""
-        response = client.get("/metrics")
+        response = client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
         assert "django_" in response.content.decode()
