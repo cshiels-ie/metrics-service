@@ -118,18 +118,17 @@ DATABASES = {
     },
 }
 
-# Feature flag defaults
-# only used by `metrics_service init-default-settings` (and `... run`)
-# and only used when not already changed in the settings DB table
-# also used by tasks - unless set in the db.
-FEATURE_ENABLED = {
+# Feature flag defaults — controlled at runtime via METRICS_SERVICE_FEATURE__<KEY>=value env vars
+# (dynaconf nested-key syntax merges into this dict) or via the dynamic_settings DB API.
+# Keys present here provide the static default used by get_feature_enabled_from_db when no DB row
+# exists. DASHBOARD_COLLECTION is intentionally omitted because it defaults to False (opt-in) and
+# is controlled via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION, the installer top-level
+# FEATURE_DASHBOARD_COLLECTION_ENABLED attribute, or a DAB AAPFlag — see get_feature_enabled_from_db.
+FEATURE = {
     # Local hourly/daily collectors, rollup, cleanup_metrics_data — see METRICS_COLLECTION_GROUP.
     "METRICS_COLLECTION": True,
     # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
     "ANONYMIZED_DATA_COLLECTION": True,
-    # DASHBOARD_COLLECTION is intentionally omitted: set via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION,
-    # FEATURE_DASHBOARD_COLLECTION_ENABLED (top-level, installer convention), DAB AAPFlag
-    # FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
