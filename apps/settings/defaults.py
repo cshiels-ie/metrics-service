@@ -31,7 +31,6 @@ project_applications = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
-    "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
 ]
 

@@ -81,7 +81,6 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 "apps.settings" = ["*.yaml"]
-"apps.dashboard" = ["templates/*.html"]
 "apps.tasks" = ["feature_flags.yaml"]
 
 

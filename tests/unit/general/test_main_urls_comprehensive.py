@@ -48,44 +48,6 @@ class TestHealthURLsIntegration(TestCase):
 
 
 @pytest.mark.unit
-class TestDashboardURLsIntegration(TestCase):
-    """Test dashboard URLs integration."""
-
-    def setUp(self):
-        """Set up test environment."""
-        super().setUp()
-        self.client = Client()
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password=get_test_password()
-        )
-
-    def test_dashboard_urls_inclusion(self):
-        """Test that dashboard URLs are properly included."""
-        dashboard_urls = ["/dashboard/", "/dashboard/tasks/"]
-
-        for url in dashboard_urls:
-            with contextlib.suppress(Exception):
-                resolver_match = resolve(url)
-                assert resolver_match is not None
-
-    def test_dashboard_urls_authentication_required(self):
-        """Test that dashboard URLs require authentication."""
-        response = self.client.get("/dashboard/")
-
-        # Should redirect to login or return 403/401
-        assert response.status_code in [200, 302, 401, 403, 404]
-
-    def test_dashboard_urls_authenticated_access(self):
-        """Test dashboard access with authentication."""
-        self.client.force_login(self.user)
-
-        with contextlib.suppress(Exception):
-            response = self.client.get("/dashboard/")
-            # Should allow access or return appropriate status
-            assert response.status_code in [200, 302, 404]
-
-
-@pytest.mark.unit
 class TestAPISchemaURL(TestCase):
     """Test API schema URL configuration."""
 
@@ -254,7 +216,7 @@ class TestURLErrorHandling(TestCase):
 
     def test_malformed_urls(self):
         """Test handling of malformed URLs."""
-        malformed_urls = ["/api//", "/dashboard//", "/api/v1//", "//admin/"]
+        malformed_urls = ["/api//", "/api/v1//", "//admin/"]
 
         for url in malformed_urls:
             response = self.client.get(url)
@@ -299,7 +261,7 @@ class TestURLSecurityConsiderations(TestCase):
 
     def test_path_traversal_protection(self):
         """Test protection against path traversal attacks."""
-        traversal_urls = ["/api/../../../etc/passwd", "/dashboard/../../admin/", "/api/v1/../../../settings.py"]
+        traversal_urls = ["/api/../../../etc/passwd", "/api/v1/../../../settings.py"]
 
         for url in traversal_urls:
             response = self.client.get(url)
@@ -322,7 +284,7 @@ class TestURLPerformance(TestCase):
         """Test that URL resolution is fast."""
         import time
 
-        urls_to_test = ["/api/", "/dashboard/", "/admin/", "/api/v1/docs/schema/", "/api/v1/", "/health/"]
+        urls_to_test = ["/api/", "/admin/", "/api/v1/docs/schema/", "/api/v1/", "/health/"]
 
         start_time = time.time()
 
