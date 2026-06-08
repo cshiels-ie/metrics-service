@@ -116,6 +116,45 @@ DATABASES = {
             "sslmode": "prefer",
         },
     },
+    # EDA database — opt-in, credentials required when EDA_COLLECTION feature is enabled.
+    # Override with METRICS_SERVICE_DATABASES__eda__HOST, METRICS_SERVICE_DATABASES__eda__PASSWORD, etc.
+    "eda": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "",
+        "PORT": "5432",
+        "USER": "ms_aap_readonly",
+        "PASSWORD": "",
+        "NAME": "eda",
+        "OPTIONS": {
+            "sslmode": "prefer",
+        },
+    },
+    # Gateway database — opt-in, credentials required when GATEWAY_COLLECTION feature is enabled.
+    # Override with METRICS_SERVICE_DATABASES__gateway__HOST, METRICS_SERVICE_DATABASES__gateway__PASSWORD, etc.
+    "gateway": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "",
+        "PORT": "5432",
+        "USER": "ms_aap_readonly",
+        "PASSWORD": "",
+        "NAME": "gateway",
+        "OPTIONS": {
+            "sslmode": "prefer",
+        },
+    },
+    # Lightspeed database — opt-in, credentials required when LIGHTSPEED_COLLECTION feature is enabled.
+    # Override with METRICS_SERVICE_DATABASES__lightspeed__HOST, METRICS_SERVICE_DATABASES__lightspeed__PASSWORD, etc.
+    "lightspeed": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "",
+        "PORT": "5432",
+        "USER": "ms_aap_readonly",
+        "PASSWORD": "",
+        "NAME": "lightspeed",
+        "OPTIONS": {
+            "sslmode": "prefer",
+        },
+    },
 }
 
 # Feature flag defaults — controlled at runtime via METRICS_SERVICE_FEATURE__<KEY>=value env vars

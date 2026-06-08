@@ -6,6 +6,9 @@ individual task modules:
 - simple/: Simple system tasks
 - cleanup/: Cleanup and maintenance tasks
 - collectors/: Metrics collection and anonymization tasks
+  - collectors/eda/: EDA snapshot collectors (opt-in)
+  - collectors/gateway/: Gateway snapshot collectors (opt-in)
+  - collectors/lightspeed/: Lightspeed snapshot collectors (opt-in)
 - tasks_system: Core task execution infrastructure and utilities
 
 Queue routing is defined per-function in TASK_METADATA ("queue" field).
@@ -34,6 +37,12 @@ from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
+# Per-source collectors for EDA, Gateway, and Lightspeed (opt-in)
+from .collectors.eda.collect_eda_snapshot_metrics import collect_eda_snapshot_metrics
+from .collectors.gateway.collect_gateway_snapshot_metrics import collect_gateway_snapshot_metrics
+from .collectors.lightspeed.collect_lightspeed_snapshot_metrics import collect_lightspeed_snapshot_metrics
+from .collectors.probe_db_connection import probe_db_connection
+
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
@@ -61,6 +70,11 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
     "sync_dashboard_job_records": sync_dashboard_job_records,
+    # Connectivity probes and opt-in source collectors (EDA, Gateway, Lightspeed)
+    "probe_db_connection": probe_db_connection,
+    "collect_eda_snapshot_metrics": collect_eda_snapshot_metrics,
+    "collect_gateway_snapshot_metrics": collect_gateway_snapshot_metrics,
+    "collect_lightspeed_snapshot_metrics": collect_lightspeed_snapshot_metrics,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -75,6 +89,10 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "sync_dashboard_job_records",
+    # Opt-in snapshot collectors (probe_db_connection intentionally omitted — fast, non-mutating)
+    "collect_eda_snapshot_metrics",
+    "collect_gateway_snapshot_metrics",
+    "collect_lightspeed_snapshot_metrics",
 }
 
 
@@ -447,6 +465,85 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    # Connectivity Probes
+    "probe_db_connection": {
+        "queue": "metrics",
+        "category": "Connectivity",
+        "description": "Check that an optional external database (eda/gateway/lightspeed) is reachable. Never raises — always returns a structured result.",
+        "parameters": {
+            "source": {
+                "type": "string",
+                "required": True,
+                "description": "Database alias to probe: 'eda', 'gateway', or 'lightspeed'",
+            },
+        },
+        "examples": [
+            {"name": "Probe EDA", "data": {"source": "eda"}},
+            {"name": "Probe Gateway", "data": {"source": "gateway"}},
+            {"name": "Probe Lightspeed", "data": {"source": "lightspeed"}},
+        ],
+    },
+    # EDA Collection
+    "collect_eda_snapshot_metrics": {
+        "queue": "metrics",
+        "category": "Metrics Collection",
+        "description": "Collect a daily snapshot from the EDA database. Returns a structured error result if the EDA DB is unreachable.",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "EDA collector type to run",
+            },
+            "collection_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp for the collection (defaults to 23:00 of the previous day)",
+            },
+        },
+        "examples": [
+            {"name": "EDA config snapshot", "data": {"collector_type": "eda_config"}},
+            {"name": "EDA activation counts", "data": {"collector_type": "eda_activations"}},
+        ],
+    },
+    # Gateway Collection
+    "collect_gateway_snapshot_metrics": {
+        "queue": "metrics",
+        "category": "Metrics Collection",
+        "description": "Collect a daily snapshot from the Gateway database. Returns a structured error result if the Gateway DB is unreachable.",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Gateway collector type to run",
+            },
+            "collection_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp for the collection (defaults to 23:00 of the previous day)",
+            },
+        },
+        "examples": [
+            {"name": "Gateway config snapshot", "data": {"collector_type": "gateway_config"}},
+        ],
+    },
+    # Lightspeed Collection
+    "collect_lightspeed_snapshot_metrics": {
+        "queue": "metrics",
+        "category": "Metrics Collection",
+        "description": "Collect a daily snapshot from the Lightspeed database. Returns a structured error result if the Lightspeed DB is unreachable.",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Lightspeed collector type to run",
+            },
+            "collection_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp for the collection (defaults to 23:00 of the previous day)",
+            },
+        },
+        "examples": [
+            {"name": "Lightspeed config snapshot", "data": {"collector_type": "lightspeed_config"}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -475,4 +572,9 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    # Connectivity probes and opt-in source collectors
+    "probe_db_connection",
+    "collect_eda_snapshot_metrics",
+    "collect_gateway_snapshot_metrics",
+    "collect_lightspeed_snapshot_metrics",
 ]

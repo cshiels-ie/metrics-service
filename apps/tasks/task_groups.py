@@ -330,12 +330,109 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# EDA Collection Group — opt-in (default: False).
+# Enable via METRICS_SERVICE_FEATURE__EDA_COLLECTION=true, a DAB AAPFlag, or
+# dynamic_settings.Setting row. Requires ms_aap_readonly credentials for the EDA DB
+# (METRICS_SERVICE_DATABASES__eda__HOST, METRICS_SERVICE_DATABASES__eda__PASSWORD, etc.).
+# If credentials are absent, the daily probe task reports the failure and the snapshot
+# collectors return structured error results — neither raises nor breaks other groups.
+EDA_COLLECTION_GROUP = TaskGroup(
+    name="eda_collection",
+    description="EDA metrics collection (opt-in, requires ms_aap_readonly credentials for EDA DB)",
+    feature_flag="EDA_COLLECTION",
+    tasks=[
+        {
+            "task_id": "eda_connectivity_probe",
+            "function": "probe_db_connection",
+            "cron": "0 6 * * *",  # Daily at 6:00 AM
+            "args": {"source": "eda"},
+            "enabled": True,
+            "description": "Daily connectivity check for the EDA database",
+        },
+        {
+            "task_id": "daily_eda_config",
+            "function": "collect_eda_snapshot_metrics",
+            "cron": "30 1 * * *",  # Daily at 1:30 AM
+            "args": {"collector_type": "eda_config"},
+            "enabled": True,
+            "description": "Collect EDA configuration snapshot daily",
+        },
+        {
+            "task_id": "daily_eda_activations",
+            "function": "collect_eda_snapshot_metrics",
+            "cron": "35 1 * * *",  # Daily at 1:35 AM
+            "args": {"collector_type": "eda_activations"},
+            "enabled": True,
+            "description": "Collect EDA activation status counts daily",
+        },
+    ],
+)
+
+# Gateway Collection Group — opt-in (default: False).
+# Enable via METRICS_SERVICE_FEATURE__GATEWAY_COLLECTION=true.
+# Requires ms_aap_readonly credentials for the Gateway DB
+# (METRICS_SERVICE_DATABASES__gateway__HOST, METRICS_SERVICE_DATABASES__gateway__PASSWORD, etc.).
+GATEWAY_COLLECTION_GROUP = TaskGroup(
+    name="gateway_collection",
+    description="Gateway metrics collection (opt-in, requires ms_aap_readonly credentials for Gateway DB)",
+    feature_flag="GATEWAY_COLLECTION",
+    tasks=[
+        {
+            "task_id": "gateway_connectivity_probe",
+            "function": "probe_db_connection",
+            "cron": "5 6 * * *",  # Daily at 6:05 AM (staggered from EDA probe)
+            "args": {"source": "gateway"},
+            "enabled": True,
+            "description": "Daily connectivity check for the Gateway database",
+        },
+        {
+            "task_id": "daily_gateway_config",
+            "function": "collect_gateway_snapshot_metrics",
+            "cron": "40 1 * * *",  # Daily at 1:40 AM
+            "args": {"collector_type": "gateway_config"},
+            "enabled": True,
+            "description": "Collect Gateway configuration snapshot daily",
+        },
+    ],
+)
+
+# Lightspeed Collection Group — opt-in (default: False).
+# Enable via METRICS_SERVICE_FEATURE__LIGHTSPEED_COLLECTION=true.
+# Requires ms_aap_readonly credentials for the Lightspeed DB
+# (METRICS_SERVICE_DATABASES__lightspeed__HOST, METRICS_SERVICE_DATABASES__lightspeed__PASSWORD, etc.).
+LIGHTSPEED_COLLECTION_GROUP = TaskGroup(
+    name="lightspeed_collection",
+    description="Lightspeed metrics collection (opt-in, requires ms_aap_readonly credentials for Lightspeed DB)",
+    feature_flag="LIGHTSPEED_COLLECTION",
+    tasks=[
+        {
+            "task_id": "lightspeed_connectivity_probe",
+            "function": "probe_db_connection",
+            "cron": "10 6 * * *",  # Daily at 6:10 AM (staggered from EDA and Gateway probes)
+            "args": {"source": "lightspeed"},
+            "enabled": True,
+            "description": "Daily connectivity check for the Lightspeed database",
+        },
+        {
+            "task_id": "daily_lightspeed_config",
+            "function": "collect_lightspeed_snapshot_metrics",
+            "cron": "45 1 * * *",  # Daily at 1:45 AM
+            "args": {"collector_type": "lightspeed_config"},
+            "enabled": True,
+            "description": "Collect Lightspeed configuration snapshot daily",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    EDA_COLLECTION_GROUP,
+    GATEWAY_COLLECTION_GROUP,
+    LIGHTSPEED_COLLECTION_GROUP,
 ]
 
 
