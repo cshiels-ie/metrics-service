@@ -34,9 +34,6 @@ class BasicURLConfigurationTestCase(TestCase):
         """Test that included app URLs can be imported."""
         # Test that included apps have valid URL configurations
         with contextlib.suppress(ImportError):
-            import apps.dashboard.urls  # noqa: F401
-
-        with contextlib.suppress(ImportError):
             import apps.tasks.urls  # noqa: F401
 
     def test_django_url_functions(self):
@@ -97,7 +94,6 @@ class BasicURLConfigurationTestCase(TestCase):
 
         # Test that we can create the same patterns as in the actual config
         patterns = [
-            path("dashboard/", include("apps.dashboard.urls")),
             path("api/", include("apps.tasks.urls")),
         ]
 

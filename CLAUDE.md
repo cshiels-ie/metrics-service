@@ -89,7 +89,6 @@ apps/
   tasks/          # Background task system (models, scheduling, execution)
   dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
   settings/       # Dynaconf settings layering (see below)
-  dashboard/      # Web UI for task monitoring at /dashboard/
 metrics_service/
   settings/       # Split Django settings (development, production, test)
 ```

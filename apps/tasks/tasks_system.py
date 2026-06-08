@@ -21,8 +21,6 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
-
 RETRY_BASE_DELAY_SECONDS = 600  # 10 minutes - delay used for the first retry
 RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
 

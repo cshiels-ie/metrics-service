@@ -9,7 +9,6 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 - **⚡ Smart Task Routing** - Automatic submission to dispatcherd with no manual intervention
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
 - **🔐 Authentication & Authorization** - Django-Ansible-Base integration with RBAC
-- **📈 Real-time Dashboard** - Web-based task monitoring and management interface
 - **🐳 Docker Ready** - Multi-container deployment with PostgreSQL
 - **🧪 Comprehensive Testing** - Unit and integration tests with coverage reporting
 - **📝 API Documentation** - Interactive Swagger/OpenAPI documentation
@@ -36,7 +35,6 @@ Your service will be available at:
 - **Application**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/api/docs/
 - **Admin Interface**: http://localhost:8000/admin/
-- **Task Dashboard**: http://localhost:8000/dashboard/
 
 ### Option 2: Local Development
 
@@ -429,7 +427,7 @@ docker run -p 8000:8000 \
 - **Type Hints**: Required for all new code
 - **Documentation**: Docstrings for public APIs
 - **Testing**: Test coverage for new features
-- **Commits**: Conventional commit messages
+- **Commits**: Clear, concise commit messages
 
 ## License
 
