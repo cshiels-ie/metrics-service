@@ -232,6 +232,40 @@ class TestExecuteDbTask(TestCase):
         delta = (self.task.scheduled_time - before).total_seconds()
         assert 118 <= delta <= 125, f"Expected scheduled_time ~120s in the future, got {delta:.1f}s"
 
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_invalid_retry_delay_falls_back_to_default(self):
+        """Invalid retry_delay_seconds values fall back to RETRY_BASE_DELAY_SECONDS."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import RETRY_BASE_DELAY_SECONDS
+
+        for bad_value in ("banana", -1, 0, None):
+            task = Task(
+                function_name="hello_world",
+                name=f"invalid_delay_test_{bad_value}",
+                max_attempts=3,
+                attempts=0,
+                status="pending",
+                task_data={"retry_delay_seconds": bad_value},
+            )
+            task.save()
+
+            before = timezone.now()
+
+            with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+                mock_fns.__contains__.return_value = True
+                mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+                execute_db_task(task_id=task.id)
+
+            task.refresh_from_db()
+            assert task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
+            assert task.scheduled_time is not None
+            delta = (task.scheduled_time - before).total_seconds()
+            # First attempt with default base: RETRY_BASE_DELAY_SECONDS * 2^0 = RETRY_BASE_DELAY_SECONDS
+            assert delta >= RETRY_BASE_DELAY_SECONDS - 2, (
+                f"Expected fallback delay ~{RETRY_BASE_DELAY_SECONDS}s for bad_value={bad_value!r}, got {delta:.1f}s"
+            )
+
 
 # =============================================================================
 # Task Registry Tests
@@ -323,6 +357,33 @@ class TestSystemTaskCreation(TestCase):
 
         assert result["removed"] == 2
         assert Task.objects.filter(is_system_task=True).count() == 0
+
+    def test_create_task_from_group_respects_max_attempts_override(self):
+        """Tasks with a max_attempts field in their config get that value instead of the model default."""
+        config = {
+            "function": "hello_world",
+            "description": "Test task",
+            "cron": None,
+            "max_attempts": 7,
+        }
+        results = {"created": 0, "tasks": []}
+        tasks_system._create_task_from_group("test_override_task", config, results, Task)
+
+        task = Task.objects.get(name="test_override_task")
+        assert task.max_attempts == 7
+
+    def test_create_task_from_group_uses_model_default_when_no_max_attempts(self):
+        """Tasks without a max_attempts field in their config use the model default."""
+        config = {
+            "function": "hello_world",
+            "description": "Test task",
+            "cron": None,
+        }
+        results = {"created": 0, "tasks": []}
+        tasks_system._create_task_from_group("test_default_task", config, results, Task)
+
+        task = Task.objects.get(name="test_default_task")
+        assert task.max_attempts == 3
 
 
 # =============================================================================
@@ -888,3 +949,165 @@ class TestCreateSystemTasksExceptionHandling(TestCase):
         # Result should contain error for failed task
         assert any("Error with task1" in msg for msg in result["tasks"])
         assert any("Creation failed" in msg for msg in result["tasks"])
+
+
+# =============================================================================
+# Retry Backoff Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestComputeRetryDelay(TestCase):
+    """
+    Unit tests for compute_retry_delay().
+
+    Verifies that delays double with each attempt (exponential backoff) and are
+    capped at RETRY_MAX_DELAY_SECONDS.
+
+    Formula: min(base_delay * 2^(attempts - 1), RETRY_MAX_DELAY_SECONDS)
+    """
+
+    def setUp(self):
+        """Import the helpers under test."""
+        from apps.tasks.tasks_system import (
+            RETRY_MAX_DELAY_SECONDS,
+            compute_retry_delay,
+        )
+
+        self.compute_retry_delay = compute_retry_delay
+        self.RETRY_MAX_DELAY_SECONDS = RETRY_MAX_DELAY_SECONDS
+
+    def test_first_attempt_returns_base_delay(self):
+        """attempts=1: 2^0 = 1, so delay equals the base unchanged."""
+        assert self.compute_retry_delay(600, 1) == 600
+
+    def test_second_attempt_doubles_delay(self):
+        """attempts=2: 600 * 2^1 = 1200s (20 min)."""
+        assert self.compute_retry_delay(600, 2) == 1200
+
+    def test_third_attempt_quadruples_base(self):
+        """attempts=3: 600 * 2^2 = 2400s (40 min)."""
+        assert self.compute_retry_delay(600, 3) == 2400
+
+    def test_fourth_attempt_scales_correctly(self):
+        """attempts=4: 600 * 2^3 = 4800s (1h 20m)."""
+        assert self.compute_retry_delay(600, 4) == 4800
+
+    def test_fifth_attempt_scales_correctly(self):
+        """attempts=5: 600 * 2^4 = 9600s (2h 40m)."""
+        assert self.compute_retry_delay(600, 5) == 9600
+
+    def test_delay_is_capped_at_max(self):
+        """Delay must never exceed RETRY_MAX_DELAY_SECONDS regardless of attempt count."""
+        # attempts=7: 600 * 2^6 = 38400 > 28800, so it is capped
+        result = self.compute_retry_delay(600, 7)
+        assert result == self.RETRY_MAX_DELAY_SECONDS
+
+    def test_high_attempt_count_stays_at_cap(self):
+        """Very high attempt counts should still be capped."""
+        assert self.compute_retry_delay(600, 100) == self.RETRY_MAX_DELAY_SECONDS
+
+    def test_zero_attempts_treated_as_first_attempt(self):
+        """attempts=0 is out-of-range; exponent is floored to 0, so result equals base_delay."""
+        assert self.compute_retry_delay(600, 0) == 600
+
+    def test_custom_base_delay_doubles(self):
+        """Custom base delay should double with each attempt just like the default."""
+        assert self.compute_retry_delay(120, 1) == 120
+        assert self.compute_retry_delay(120, 2) == 240
+        assert self.compute_retry_delay(120, 3) == 480
+
+    def test_delays_are_strictly_increasing_until_cap(self):
+        """Each successive attempt should produce a delay >= the previous until the cap is hit."""
+        base = 600
+        delays = [self.compute_retry_delay(base, a) for a in range(1, 8)]
+        for i in range(len(delays) - 1):
+            assert delays[i] <= delays[i + 1], f"Delay at attempt {i + 1} was not <= attempt {i + 2}"
+
+
+@pytest.mark.unit
+class TestRetryBackoffProgression(TestCase):
+    """
+    Integration-style tests confirming that consecutive task failures schedule
+    each retry further into the future than the previous one.
+    """
+
+    def setUp(self):
+        """Set up a failing task."""
+        self.user = User.objects.create_user(
+            username="backoff_user", email="backoff@example.com", password=get_test_password()
+        )
+
+    @pytest.mark.django_db(transaction=True)
+    def test_second_retry_scheduled_further_than_first(self):
+        """
+        Run a task twice, both times returning an error result.
+
+        The second retry's scheduled_time should be strictly further in the
+        future than the first retry's scheduled_time, demonstrating that
+        exponential backoff is applied based on the current attempt count.
+
+        Note: the second execution calls execute_claimed directly rather than
+        execute_db_task to avoid _claim_task incrementing attempts a second
+        time. The test manually sets attempts=2 to simulate the state that
+        _claim_task would produce, keeping the test focused on the backoff
+        formula rather than the claim mechanism.
+        """
+        from django.utils import timezone
+
+        task = Task(
+            name="Backoff Test Task",
+            function_name="hello_world",
+            status="pending",
+            attempts=0,
+            max_attempts=7,
+            task_data={},
+        )
+        task.save()
+
+        before_first = timezone.now()
+
+        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+            mock_fns.__contains__.return_value = True
+            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+            execute_db_task(task_id=task.id)
+
+        task.refresh_from_db()
+        assert task.status == "pending"
+        assert task.scheduled_time is not None
+        first_scheduled_time = task.scheduled_time
+
+        # Simulate the scheduler picking the task back up (reset to pending/running manually)
+        task.status = "failed"
+        task.save()
+
+        # Manually bump attempts as _claim_task would on a second execution
+        task.attempts = 2
+        task.status = "pending"
+        task.scheduled_time = None
+        task.save()
+
+        before_second = timezone.now()
+
+        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+            mock_fns.__contains__.return_value = True
+            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+            # Execute directly via execute_claimed to skip _claim_task incrementing attempts
+            from apps.tasks.models import TaskExecution
+            from apps.tasks.tasks_system import execute_claimed
+
+            execution = TaskExecution.objects.create(task=task, status="running")
+            task.status = "running"
+            task.save()
+            execute_claimed(task, execution)
+
+        task.refresh_from_db()
+        assert task.status == "pending"
+        assert task.scheduled_time is not None
+
+        first_delay = (first_scheduled_time - before_first).total_seconds()
+        second_delay = (task.scheduled_time - before_second).total_seconds()
+
+        assert second_delay > first_delay, (
+            f"Second retry delay ({second_delay:.1f}s) should exceed first ({first_delay:.1f}s)"
+        )
