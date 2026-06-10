@@ -8,14 +8,9 @@ including URL pattern resolution, view integration, and routing behavior.
 import contextlib
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import NoReverseMatch, resolve, reverse
 from django.urls.exceptions import Resolver404
-
-from tests.test_utils import get_test_password
-
-User = get_user_model()
 
 
 @pytest.mark.unit
