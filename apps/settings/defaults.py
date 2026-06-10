@@ -130,6 +130,9 @@ FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": True,
 }
 
+# Timeout in seconds for stuck task detection (used by cron_scheduler)
+TASK_TIMEOUT = 3600
+
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
