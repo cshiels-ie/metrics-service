@@ -172,7 +172,7 @@ def _process_single_payload(payload, results: dict) -> None:
             _handle_failed_send(payload, segment_result, results)
 
     except Exception as e:
-        logger.error(f"Error sending payload {payload.id}: {str(e)}")
+        logger.exception(f"Error sending payload {payload.id}")
         error_result = create_task_result("error", error=str(e))
         _handle_failed_send(payload, error_result, results)
 
@@ -237,7 +237,7 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         return create_task_result("success", {"chunks_sent": chunk_count, "data_size_bytes": data_size})
 
     except Exception as e:
-        logger.error(f"Error sending data to Segment.com: {str(e)}")
+        logger.exception("Error sending data to Segment.com")
         return create_task_result("error", error=str(e))
 
 
@@ -309,5 +309,5 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
         )
 
     except Exception as e:
-        logger.error(f"Error in send_anonymized_to_segment: {str(e)}")
+        logger.exception("Error in send_anonymized_to_segment")
         return create_task_result("error", error=f"Send task failed: {str(e)}")

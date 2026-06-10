@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
 
+RETRY_BASE_DELAY_SECONDS = 600  # 10 minutes - delay used for the first retry
+RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
+
+
+def compute_retry_delay(base_delay: int, attempts: int) -> int:
+    """Seconds before next retry: min(base_delay * 2**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
+    exponent = max(0, attempts - 1)
+    return min(base_delay * (2**exponent), RETRY_MAX_DELAY_SECONDS)
+
+
 try:
     from dispatcherd.publish import task
 except ImportError:
@@ -84,6 +94,34 @@ def execute_function(task, execution, task_function, locked):
         return create_task_result("error", error=f"Task execution failed: {e}")
 
 
+def _get_base_delay(task) -> int:
+    """Return a validated base retry delay for task, falling back to RETRY_BASE_DELAY_SECONDS."""
+    raw = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
+    try:
+        value = int(raw)
+        if value <= 0:
+            raise ValueError(f"retry_delay_seconds must be positive, got {value}")
+        return value
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Invalid retry_delay_seconds {raw!r} for task {task.name}, using default {RETRY_BASE_DELAY_SECONDS}s"
+        )
+        return RETRY_BASE_DELAY_SECONDS
+
+
+def _schedule_retry(task) -> None:
+    """Schedule a retry for a failed task if attempts remain."""
+    if not task.can_retry():
+        return
+    task.refresh_from_db()
+    if not task.can_retry():
+        return
+    base_delay = _get_base_delay(task)
+    retry_delay = compute_retry_delay(base_delay, task.attempts)
+    logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)")
+    task.retry(delay_seconds=retry_delay)
+
+
 def execute_claimed(task, execution):
     # Import TASK_FUNCTIONS here to avoid circular import
     # This import happens at runtime, not module load time
@@ -116,14 +154,8 @@ def execute_claimed(task, execution):
         log_task_execution(task.function_name, "error", error_msg, level="error")
     log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
-    # Auto-retry if the task failed and has attempts remaining
     if status == "failed":
-        task.refresh_from_db()
-        if task.can_retry():
-            retry_delay = task.task_data.get("retry_delay_seconds", 600)
-            delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
-            logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
-            task.retry(delay_seconds=retry_delay)
+        _schedule_retry(task)
 
     return result
 
@@ -278,14 +310,18 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
     if config.get("feature_flag"):
         task_data["_feature_flag"] = config["feature_flag"]
 
-    new_task = task_model.objects.create(
-        name=task_id,
-        description=config.get("description", ""),
-        function_name=config["function"],
-        task_data=task_data,
-        cron_expression=config.get("cron"),
-        is_system_task=True,
-        status="pending",
-    )
+    kwargs = {
+        "name": task_id,
+        "description": config.get("description", ""),
+        "function_name": config["function"],
+        "task_data": task_data,
+        "cron_expression": config.get("cron"),
+        "is_system_task": True,
+        "status": "pending",
+    }
+    if config.get("max_attempts") is not None:
+        kwargs["max_attempts"] = config["max_attempts"]
+
+    new_task = task_model.objects.create(**kwargs)
     results["created"] += 1
     results["tasks"].append(f"Created: {new_task.name}")
