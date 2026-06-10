@@ -436,10 +436,10 @@ class TestGlobalSchedulerFunctions:
         ("daily_anonymize_and_prepare", "metrics"),
         ("send_anonymized_to_segment", "metrics"),
         ("cleanup_metrics_data", "metrics"),
-        # Dashboard tasks
-        ("collect_dashboard_reports_initial_data", "dashboard"),
-        ("collect_dashboard_reports_data", "dashboard"),
-        ("cleanup_dashboard_reports_old_data", "dashboard"),
+        # Dashboard tasks (no TASK_METADATA on this branch, falls back to maintenance)
+        ("collect_dashboard_reports_initial_data", "maintenance"),
+        ("collect_dashboard_reports_data", "maintenance"),
+        ("cleanup_dashboard_reports_old_data", "maintenance"),
         # Unknown function (default)
         ("unknown_function", "maintenance"),
     ],
