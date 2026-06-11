@@ -4,7 +4,7 @@ Unit tests for the SubscriptionCost API endpoint.
 Covers:
 - SubscriptionCostViewSet: list and update endpoints
 - SubscriptionCostSerializer: field validation
-- Permission enforcement via DeveloperModeRequired
+- Permission enforcement via IsSystemAdminOrAuditor
 - SubscriptionCost.get_subscription_cost_by_id classmethod
 """
 

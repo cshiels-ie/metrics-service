@@ -10,8 +10,6 @@ from django.urls import include, path
 urlpatterns = [
     # Core app (authentication, health, ping, api/v1/) - owns its full paths
     path("", include("apps.core.urls")),
-    # Dashboard interface - app owns its full path (dashboard/)
-    path("", include("apps.dashboard.urls")),
     # Dynamic settings API - app owns its full path (api/v1/settings/)
     path("", include("apps.dynamic_settings.urls")),
     # Tasks API - app owns its full path (api/v1/tasks/)

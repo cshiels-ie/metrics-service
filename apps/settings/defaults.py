@@ -31,7 +31,6 @@ project_applications = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
-    "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
 ]
 
@@ -130,6 +129,9 @@ FEATURE = {
     # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
     "ANONYMIZED_DATA_COLLECTION": True,
 }
+
+# Timeout in seconds for stuck task detection (used by cron_scheduler)
+TASK_TIMEOUT = 3600
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None

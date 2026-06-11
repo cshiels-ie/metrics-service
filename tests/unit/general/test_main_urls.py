@@ -129,13 +129,6 @@ class TestMainURLsImports(TestCase):
 class TestMainURLResolution(TestCase):
     """Test URL resolution for main URL patterns."""
 
-    def test_dashboard_url_resolution(self):
-        """Test that dashboard URLs can be resolved."""
-        # Test that dashboard URLs are accessible
-        with contextlib.suppress(Exception):
-            # This should work if dashboard URLs are properly included
-            resolve("/dashboard/")
-
     def test_api_url_resolution(self):
         """Test that API URLs can be resolved."""
         # Test that API URLs are accessible

@@ -113,9 +113,6 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
             "apps/core/templates",
-            "apps/dynamic_settings/templates",
-            "apps/tasks/templates",
-            "apps/dashboard/templates",
         ],
         "APP_DIRS": True,
         "OPTIONS": {
