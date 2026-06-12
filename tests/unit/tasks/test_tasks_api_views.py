@@ -963,31 +963,28 @@ class TestTaskPermissions(APITestCase):
             username="user", email="user@example.com", password=get_test_password()
         )
 
-    @override_settings(MODE="production")
-    def test_development_mode_disabled_access_denied(self):
-        """Test requests are denied when development mode is disabled."""
+    def test_regular_user_access_denied(self):
+        """Test that non-admin, non-auditor users are denied access."""
+        self.client.force_authenticate(user=self.regular_user)
+
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
-        # Should deny access when development mode is disabled
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @override_settings(MODE="development")
-    def test_authenticated_user_can_list_tasks(self):
-        """Test authenticated users can list tasks in development mode."""
-        self.client.force_authenticate(user=self.regular_user)
+    def test_admin_user_can_list_tasks(self):
+        """Test superusers can list tasks."""
+        self.client.force_authenticate(user=self.admin_user)
 
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
 
-    @override_settings(MODE="development")
     def test_admin_user_full_access(self):
         """Test admin users have full access to task operations."""
         self.client.force_authenticate(user=self.admin_user)
 
-        # Test create
         url = reverse("tasks:v1:task-list")
         data = {"name": "Admin Task", "function_name": "hello_world"}
         response = self.client.post(url, data, format="json")
