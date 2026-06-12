@@ -136,11 +136,11 @@ The task system has several layers:
 - **`METRICS_COLLECTION_GROUP`** — Always enabled (no feature flag). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`. Local metrics are collected regardless of the opt-out flag to prevent data gaps.
 - **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains only `daily_anonymize_and_prepare` and `send_anonymized_to_segment` — the tasks that transmit data to Red Hat.
 
-Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE_ENABLED` in Django settings if not in DB.
+Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE` in Django settings if not in DB.
 
 ```bash
-# Toggle at runtime without restart
-METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
+# Toggle (requires process/pod restart to take effect)
+METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
 ```
 
 ### API Structure

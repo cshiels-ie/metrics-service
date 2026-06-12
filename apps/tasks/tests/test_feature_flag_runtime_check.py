@@ -105,7 +105,7 @@ class TestFeatureFlagRuntimeCheck:
         mock_submit.assert_called_once()
 
     @pytest.mark.django_db
-    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE={"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_includes_feature_flag(self):
         """get_all_enabled_tasks propagates each group's feature_flag into task configs."""
         from apps.tasks.task_groups import ANONYMIZATION_GROUP, METRICS_COLLECTION_GROUP, get_all_enabled_tasks

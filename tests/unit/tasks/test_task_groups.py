@@ -7,6 +7,7 @@ task categorization, and integration with the cron scheduler.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
@@ -18,7 +19,9 @@ from apps.tasks.task_groups import (
     get_all_tasks_for_init,
 )
 
-# override_settings replaces the entire FEATURE_ENABLED dict; include both keys when tests need
+pytestmark = pytest.mark.unit
+
+# override_settings replaces the entire FEATURE dict; include both keys when tests need
 # metrics collectors plus anonymization tasks from get_all_enabled_tasks().
 _FLAGS_METRICS_AND_ANON_ON = {"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True}
 _FLAGS_METRICS_ON_ANON_OFF = {"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": False}
@@ -47,7 +50,7 @@ class TestTaskGroup(TestCase):
         assert group.description == "Test group"
         assert len(group.tasks) == 1
 
-    @override_settings(FEATURE_ENABLED={"TEST_FLAG": True})
+    @override_settings(FEATURE={"TEST_FLAG": True})
     def test_get_enabled_tasks_with_flag_true(self):
         """Test tasks are enabled when group's feature flag is True."""
         group = TaskGroup(
@@ -66,7 +69,7 @@ class TestTaskGroup(TestCase):
         enabled_tasks = group.get_enabled_tasks()
         assert len(enabled_tasks) == 1
 
-    @override_settings(FEATURE_ENABLED={"TEST_FLAG": False})
+    @override_settings(FEATURE={"TEST_FLAG": False})
     def test_get_enabled_tasks_with_flag_false(self):
         """Test tasks are disabled when group's feature flag is False."""
         group = TaskGroup(
@@ -127,7 +130,7 @@ class TestTaskGroup(TestCase):
         assert len(enabled_tasks) == 1
         assert enabled_tasks[0]["task_id"] == "task1"
 
-    @override_settings(FEATURE_ENABLED={"TEST_FLAG": True})
+    @override_settings(FEATURE={"TEST_FLAG": True})
     def test_get_enabled_tasks_with_task_enabled_false(self):
         """Test that individual tasks can be disabled via enabled field."""
         tasks = [
@@ -169,7 +172,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert "daily_task_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_ON_ANON_OFF)
+    @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
     def test_metrics_collection_group_respects_feature_flag(self):
         """Test metrics collection group is gated by METRICS_COLLECTION (default-on in production settings)."""
         assert METRICS_COLLECTION_GROUP.name == "metrics_collection"
@@ -192,7 +195,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert "daily_anonymize" not in task_ids
         assert "send_to_segment_daily" not in task_ids
 
-    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION": False})
+    @override_settings(FEATURE={"METRICS_COLLECTION": False})
     def test_metrics_collection_group_disabled(self):
         """When METRICS_COLLECTION is false, the group contributes no enabled tasks."""
         assert METRICS_COLLECTION_GROUP.get_enabled_tasks() == []
@@ -205,19 +208,19 @@ class TestPredefinedTaskGroups(TestCase):
         task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.tasks]
         assert set(task_ids) == {"daily_anonymize"}
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True})
     def test_anonymization_group_enabled(self):
         """Test ANONYMIZATION_GROUP returns both tasks when flag is enabled."""
         task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.get_enabled_tasks()]
         assert "daily_anonymize" in task_ids
         assert "send_to_segment_daily" not in task_ids
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
+    @override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": False})
     def test_anonymization_group_disabled(self):
         """Test ANONYMIZATION_GROUP returns no tasks when flag is disabled."""
         assert ANONYMIZATION_GROUP.get_enabled_tasks() == []
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_AND_ANON_ON)
+    @override_settings(FEATURE=_FLAGS_METRICS_AND_ANON_ON)
     def test_no_duplicate_cron_slots(self):
         """Assert that no two enabled tasks across all groups share the same cron hour:minute slot.
 
@@ -257,7 +260,7 @@ class TestPredefinedTaskGroups(TestCase):
 class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_ON_ANON_OFF)
+    @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
     def test_get_all_enabled_tasks_flag_false(self):
         """Metrics collection tasks stay on; anonymization tasks absent when ANONYMIZED_DATA_COLLECTION is false."""
         all_tasks = get_all_enabled_tasks()
@@ -281,7 +284,7 @@ class TestTaskGroupFunctions(TestCase):
             assert "group" in task_config
             assert "group_description" in task_config
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_AND_ANON_ON)
+    @override_settings(FEATURE=_FLAGS_METRICS_AND_ANON_ON)
     def test_get_all_enabled_tasks_flag_true(self):
         """All tasks including anonymize/send are present when flag is true."""
         all_tasks = get_all_enabled_tasks()
@@ -291,7 +294,7 @@ class TestTaskGroupFunctions(TestCase):
         assert "hourly_job_host_summary" in task_ids
         assert "daily_metrics_rollup" in task_ids
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_ON_ANON_OFF)
+    @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
     def test_get_all_tasks_for_init_includes_flagged_tasks(self):
         """get_all_tasks_for_init() returns anonymize and metrics tasks regardless of flag values."""
         all_tasks = get_all_tasks_for_init()
@@ -315,7 +318,7 @@ class TestTaskGroupFunctions(TestCase):
         # hourly_job_events has enabled=False in METRICS_COLLECTION_GROUP
         assert "hourly_job_events" not in all_tasks
 
-    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION": False, "ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE={"METRICS_COLLECTION": False, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_metrics_collection_false_excludes_pipeline(self):
         """When METRICS_COLLECTION is false, hourly/daily collectors and rollup/cleanup are omitted."""
         all_tasks = get_all_enabled_tasks()
@@ -345,7 +348,7 @@ class TestTaskGroupIntegration(TestCase):
         assert scheduler == mock_scheduler
         assert scheduler.running is True
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_AND_ANON_ON)
+    @override_settings(FEATURE=_FLAGS_METRICS_AND_ANON_ON)
     def test_all_flags_enabled(self):
         """Test that all tasks are present when ANONYMIZED_DATA_COLLECTION is enabled."""
         all_tasks = get_all_enabled_tasks()
@@ -361,7 +364,7 @@ class TestTaskGroupIntegration(TestCase):
         # Anonymization tasks (from ANONYMIZATION_GROUP, enabled when flag is true)
         assert "daily_anonymize" in task_ids
 
-    @override_settings(FEATURE_ENABLED=_FLAGS_METRICS_ON_ANON_OFF)
+    @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
     def test_flag_false_stops_only_anonymize_send(self):
         """When ANONYMIZED_DATA_COLLECTION is false but METRICS_COLLECTION is true, only anonymize is absent."""
         all_tasks = get_all_enabled_tasks()

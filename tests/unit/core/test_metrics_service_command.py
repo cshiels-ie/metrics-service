@@ -9,10 +9,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from apps.tasks.management.commands.metrics_service import Command
 from tests.unit.core.test_metrics_service_helpers import create_mock_processes_with_exit, get_default_config
+
+pytestmark = pytest.mark.unit
 
 
 class BaseCommandTestCase(TestCase):
@@ -291,44 +293,37 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         assert callable(initialize_default_settings)
 
     def test_handle_init_default_settings_creates_settings(self):
-        """Test that _handle_init_default_settings_command creates settings when they don't exist."""
+        """AAP-77009: init-default-settings is a no-op for feature flags — they resolve from
+        the FEATURE dict (env-var driven) rather than being pre-seeded into the DB."""
         from apps.dynamic_settings.models import Setting
 
-        # Ensure no settings exist
         Setting.objects.all().delete()
 
-        # Run the command
         self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
-        # Verify settings were created
-        assert Setting.objects.count() > 0
-        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
-        assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
+        # DEFAULT_SETTINGS is empty: no rows created, flags resolve from FEATURE dict
+        assert Setting.objects.count() == 0
 
-        # Check output
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True, "METRICS_COLLECTION": True})
-    def test_handle_init_default_settings_updates_unchanged_defaults(self):
-        """Test that init updates unchanged default settings to match current config."""
+    def test_handle_init_default_settings_does_not_touch_existing_settings(self):
+        """AAP-77009: init-default-settings leaves existing settings untouched when no keys
+        are in DEFAULT_SETTINGS — feature flags are env-var driven, not DB-seeded."""
         from apps.dynamic_settings.models import Setting
 
-        # Create an unchanged default setting with non-default value
+        # Manually-created setting (unchanged, previous_value=None)
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, None)
 
-        # Run the command
         self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
-        # Verify setting was updated to default value (True)
+        # Setting is not in DEFAULT_SETTINGS, so init leaves it as-is
         assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").count() == 1
         setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
-        # Value should be reset to default (True)
-        assert json.loads(setting.current_value) is True
+        assert json.loads(setting.current_value) is False
 
-        # Check output
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
@@ -359,18 +354,13 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         """Test that init-default-settings command works via handle method."""
         from apps.dynamic_settings.models import Setting
 
-        # Ensure no settings exist
         Setting.objects.all().delete()
 
-        # Run via handle method
         self.setup_command_output()
         options = {"command": "init-default-settings"}
         self.command.handle(**options)
 
-        # Verify settings were created
-        assert Setting.objects.count() > 0
-
-        # Check output
+        # DEFAULT_SETTINGS is empty — no rows seeded, command still succeeds
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
@@ -403,27 +393,22 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         assert "Failed to initialize default settings" in str(exc_info.value)
         assert "Database error" in str(exc_info.value)
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True, "METRICS_COLLECTION": True})
     def test_handle_init_default_settings_with_overwrite(self):
-        """Test that _handle_init_default_settings_command with --overwrite removes even modified settings."""
+        """AAP-77009: --overwrite is a no-op when DEFAULT_SETTINGS is empty — manually-created
+        settings (including feature flags written via the API) are left untouched."""
         from apps.dynamic_settings.models import Setting
 
-        # Create a modified default setting (has previous_value)
+        # Setting that exists in the DB (written manually, e.g. via API or dbshell)
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
-        # Run the command with --overwrite
         self.setup_command_output()
-        options = {"overwrite": True}
-        self.command._handle_init_default_settings_command(options)
+        self.command._handle_init_default_settings_command()
 
-        # Verify setting was recreated with default value
-        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        # ANONYMIZED_DATA_COLLECTION is not in DEFAULT_SETTINGS → not removed, not re-created
         setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
-        # Value should be reset to default (True) and previous_value should be None
-        assert json.loads(setting.current_value) is True
-        assert setting.previous_value is None
+        assert json.loads(setting.current_value) is False
+        assert json.loads(setting.previous_value) is True
 
-        # Check output
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
@@ -440,32 +425,22 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         self.assert_subcommand_exists(parser, "remove-default-settings")
 
     def test_handle_remove_default_settings_removes_unchanged_settings(self):
-        """Test that _handle_remove_default_settings_command only removes unchanged default settings."""
+        """AAP-77009: remove-default-settings is a no-op when DEFAULT_SETTINGS is empty.
+        Feature flags are env-var driven; only all_settings=True removes DB rows."""
         from apps.dynamic_settings.models import Setting
 
-        # Create unchanged default setting (previous_value is None)
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
-
-        # Create a non-default setting
         self.create_test_setting("CUSTOM_SETTING", "test", None)
+        assert Setting.objects.count() == 2
 
-        initial_count = Setting.objects.count()
-        assert initial_count == 2
-
-        # Run the command
         self.setup_command_output()
         options = {"all_known": False, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
-        # Verify only unchanged default settings were removed
-        assert Setting.objects.count() == 1
-        assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
-        # Custom setting should remain
-        assert Setting.objects.filter(setting_key="CUSTOM_SETTING").exists()
-
-        # Check output
+        # DEFAULT_SETTINGS is empty — neither setting is "known", so nothing is removed
+        assert Setting.objects.count() == 2
         output = self.out.getvalue()
-        assert "Removed 1 settings" in output
+        assert "Removed 0 settings" in output
 
     def test_handle_remove_default_settings_when_none_exist(self):
         """Test that _handle_remove_default_settings_command handles no settings gracefully."""
@@ -484,21 +459,18 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         assert "Removed 0 settings" in output
 
     def test_handle_remove_default_settings_via_handle(self):
-        """Test that remove-default-settings command works via handle method."""
+        """AAP-77009: remove-default-settings via handle is a no-op when DEFAULT_SETTINGS is empty."""
         from apps.dynamic_settings.models import Setting
 
-        # Create a default setting
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
-        # Run via handle method
         self.setup_command_output()
         options = {"command": "remove-default-settings", "all_known": False, "all_settings": False}
         self.command.handle(**options)
 
-        # Verify setting was removed
-        assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        # Not in DEFAULT_SETTINGS → not removed
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
 
-        # Check output
         output = self.out.getvalue()
         assert "Removed" in output
 
@@ -519,32 +491,22 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         assert "Database error" in str(exc_info.value)
 
     def test_handle_remove_default_settings_with_all_known(self):
-        """Test that _handle_remove_default_settings_command with --all-known removes even modified settings."""
+        """AAP-77009: --all-known only removes keys in DEFAULT_SETTINGS. Since DEFAULT_SETTINGS
+        is empty, all settings are left untouched regardless of all_known=True."""
         from apps.dynamic_settings.models import Setting
 
-        # Create unchanged default setting
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
-
-        # Create a non-default setting
         self.create_test_setting("CUSTOM_SETTING", "test", None)
+        assert Setting.objects.count() == 2
 
-        initial_count = Setting.objects.count()
-        assert initial_count == 2
-
-        # Run the command with --all-known
         self.setup_command_output()
         options = {"all_known": True, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
-        # Verify default setting was removed
-        assert Setting.objects.count() == 1
-        assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
-        # Custom setting should remain
-        assert Setting.objects.filter(setting_key="CUSTOM_SETTING").exists()
-
-        # Check output
+        # Nothing in DEFAULT_SETTINGS → nothing removed by all_known path
+        assert Setting.objects.count() == 2
         output = self.out.getvalue()
-        assert "Removed 1 settings" in output
+        assert "Removed 0 settings" in output
 
     def test_handle_remove_default_settings_with_all_settings(self):
         """Test that _handle_remove_default_settings_command with --all-settings removes all settings."""
