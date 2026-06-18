@@ -5,6 +5,8 @@ The settings here overrides any setting previously loaded
 from the `metrics_service.settings`.
 """
 
+from pathlib import Path
+
 from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
@@ -135,6 +137,37 @@ TASK_TIMEOUT = 3600
 URL_PREFIX = None
 
 
+# Project-specific middleware additions
+MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
+
+# Template directories for core app
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [
+            "apps/core/templates",
+        ],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+# Dashboard collection schedule configuration
+DASHBOARD_COLLECTION = {
+    "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
+}
+
+# Conditional static files directory (avoids staticfiles.W004 when absent)
+_base_dir = Path(__file__).resolve().parent.parent.parent
+STATICFILES_DIRS = [d for d in [_base_dir / "static"] if d.exists()]
+
+
 @post_hook
 def load_prometheus_middlewares(settings: Dynaconf) -> dict:
     """Defer to execute after all settings are loaded."""
@@ -147,3 +180,83 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
         "django_prometheus.middleware.PrometheusAfterMiddleware",
     ]
     return {"MIDDLEWARE": new}
+
+
+@post_hook
+def load_segment_write_key(settings: Dynaconf) -> dict:
+    """Load SEGMENT_WRITE_KEY from file if configured."""
+    import os
+
+    from apps.core.segment import read_segment_key_from_path
+
+    # Respect env/settings precedence: do not overwrite if already set
+    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
+        return {}
+    if settings.get("SEGMENT_WRITE_KEY"):
+        return {}
+
+    # Get path from environment or use default
+    segment_key_path = os.environ.get(
+        "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
+        "/etc/ansible-automation-platform/metrics/segment-write-key",
+    )
+    path = Path(segment_key_path)
+
+    if not path.exists():
+        return {}
+
+    key = read_segment_key_from_path(path)
+    if key:
+        return {"SEGMENT_WRITE_KEY": key}
+    return {}
+
+
+@post_hook
+def parse_allowed_hosts_env(settings: Dynaconf) -> dict:
+    """Parse METRICS_SERVICE_ALLOWED_HOSTS from environment (CSV or JSON array)."""
+    import json
+    import logging
+    import os
+
+    if not os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
+        return {}
+
+    raw = os.environ["METRICS_SERVICE_ALLOWED_HOSTS"].strip()
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as e:
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
+                type(e).__name__,
+                e,
+            )
+            parsed = []
+        if not isinstance(parsed, list):
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
+                type(parsed).__name__,
+            )
+            parsed = []
+        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
+    else:
+        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
+
+    return {"ALLOWED_HOSTS": allowed_hosts}
+
+
+@post_hook
+def setup_json_logging_for_production(settings: Dynaconf) -> dict:
+    """Enable JSON logging when in production mode or when METRICS_SERVICE_LOG_FORMAT=json."""
+    import copy
+    import os
+
+    environment = os.environ.get("METRICS_SERVICE_MODE", "development").lower()
+    if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
+        log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+        log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
+        for h in log_cfg.get("handlers", {}).values():
+            if isinstance(h, dict) and "StreamHandler" in str(h.get("class", "")):
+                h["formatter"] = "json"
+        return {"LOGGING": log_cfg}
+    return {}
