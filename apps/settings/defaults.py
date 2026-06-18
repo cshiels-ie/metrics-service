@@ -158,11 +158,6 @@ TEMPLATES = [
     },
 ]
 
-# Dashboard collection schedule configuration
-DASHBOARD_COLLECTION = {
-    "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
-}
-
 # Conditional static files directory (avoids staticfiles.W004 when absent)
 _base_dir = Path(__file__).resolve().parent.parent.parent
 STATICFILES_DIRS = [d for d in [_base_dir / "static"] if d.exists()]
