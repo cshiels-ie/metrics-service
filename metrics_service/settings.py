@@ -49,7 +49,6 @@ uv run dynaconf inspect -k VARIABLE
 ## Default variables
 """
 
-import logging
 import os
 import sys
 from importlib import import_module
@@ -89,7 +88,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -113,6 +111,9 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
             "apps/core/templates",
+            "apps/dynamic_settings/templates",
+            "apps/tasks/templates",
+            "apps/dashboard/templates",
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -242,8 +243,9 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 """Root directory for static files"""
 
-# Only include project-level static dir if it exists (avoids staticfiles.W004 when absent)
-STATICFILES_DIRS = [d for d in [BASE_DIR / "static"] if d.exists()]
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 """Directories to search for static files"""
 
 MEDIA_URL = "media/"
@@ -261,12 +263,6 @@ IS_RUNNING_TESTS = "test" in sys.argv or "PYTEST_VERSION" in os.environ
 LOADED_APPS = []
 """List of apps loaded by the Ansible Services Framework dynamically set at runtime."""
 
-DASHBOARD_COLLECTION = {
-    "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
-}
-"""Dashboard collection settings.
-Override cron via METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON env var."""
-
 default_variables = {k: v for k, v in locals().items() if k.isupper()}
 """Variables from this module locals that will be passed to Dynaconf"""
 
@@ -275,13 +271,8 @@ default_variables = {k: v for k, v in locals().items() if k.isupper()}
 app_prefix = "METRICS_SERVICE"
 """Application prefix for environment variables filtering."""
 
-# Environment: METRICS_SERVICE_MODE, or PRODUCTION=1/true/yes → production (DEBUG=False).
-# Do not fall back to ENV; it is too generic and often set by runtimes/CI to values like "test"/"ci".
-_mode = os.environ.get("METRICS_SERVICE_MODE") or (
-    "production" if os.environ.get("PRODUCTION", "").lower() in ("1", "true", "yes") else None
-)
-os.environ.setdefault("METRICS_SERVICE_MODE", _mode or "development")
-environment = (os.environ.get("METRICS_SERVICE_MODE") or "development").lower()
+os.environ.setdefault("METRICS_SERVICE_MODE", "development")
+environment = os.environ.get("METRICS_SERVICE_MODE", "development").lower()
 """The current environment, by default development"""
 
 DYNACONF = factory(__name__, app_prefix, add_dab_settings=False, **default_variables)
@@ -331,97 +322,6 @@ load_standard_settings_files(DYNACONF)
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
 
-
-# SEGMENT_WRITE_KEY from a single file (e.g. installed at build from pipeline secret).
-# Default path: /etc/ansible-automation-platform/metrics/segment-write-key.
-# Pipeline passes build secret metrics-service-segment-write-keys (SEGMENT_WRITE_KEY_DEV for
-# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path.
-# File content is the raw plaintext key (no encoding).
-def _read_segment_key_from_path(path: Path) -> str | None:
-    """Read SEGMENT_WRITE_KEY from a single file. Returns the key or None."""
-    logger = logging.getLogger(__name__)
-    try:
-        if not path.is_file():
-            return None
-        key = path.read_text().strip()
-        return key if key else None
-    except OSError as e:
-        filename = getattr(e, "filename", path)
-        logger.error(
-            "Failed to read segment write key from %s: %s",
-            filename,
-            e,
-            exc_info=True,
-        )
-        return None
-
-
-def _load_segment_write_key_from_file(
-    path: Path | None = None,
-    dynaconf_instance=None,
-) -> None:
-    """Load SEGMENT_WRITE_KEY from file and set on Dynaconf. Used at module load and in tests."""
-    if path is None:
-        _segment_write_key_path = os.environ.get(
-            "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
-            "/etc/ansible-automation-platform/metrics/segment-write-key",
-        )
-        path = Path(_segment_write_key_path)
-    if dynaconf_instance is None:
-        dynaconf_instance = DYNACONF
-    # Respect env/settings precedence: do not overwrite if already set
-    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
-        return
-    if dynaconf_instance.get("SEGMENT_WRITE_KEY"):
-        return
-    if not path.exists():
-        return
-    key = _read_segment_key_from_path(path)
-    if key:
-        dynaconf_instance.set("SEGMENT_WRITE_KEY", key)
-
-
-_load_segment_write_key_from_file()
-
-# ALLOWED_HOSTS from environment: comma-separated list or JSON array
-if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
-    import json
-    import logging
-
-    raw = os.environ["METRICS_SERVICE_ALLOWED_HOSTS"].strip()
-    if raw.startswith("["):
-        try:
-            parsed = json.loads(raw)
-        except (json.JSONDecodeError, TypeError) as e:
-            logging.getLogger(__name__).warning(
-                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
-                type(e).__name__,
-                e,
-            )
-            parsed = []
-        if not isinstance(parsed, list):
-            logging.getLogger(__name__).warning(
-                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
-                type(parsed).__name__,
-            )
-            parsed = []
-        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
-        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
-    else:
-        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
-        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
-
-# Container-friendly logging: JSON to stdout when production or METRICS_SERVICE_LOG_FORMAT=json
-if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
-    import copy
-
-    log_cfg = copy.deepcopy(DYNACONF.get("LOGGING") or {})
-    log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
-    for h in log_cfg.get("handlers", {}).values():
-        if isinstance(h, dict) and "StreamHandler" in str(h.get("class", "")):
-            h["formatter"] = "json"
-    DYNACONF.set("LOGGING", log_cfg)
-
 # Load development only apps
 if not DYNACONF.get("IS_RUNNING_TESTS") and DYNACONF.get("DEBUG"):
     try:
@@ -450,20 +350,6 @@ if (env_settings := Path(apps_settings_dir / f"{environment}.py")).exists():
     env_module = import_module(f"apps.settings.{environment}")
     if hasattr(env_module, "validators"):
         DYNACONF.validators.register(*env_module.validators)
-
-# Normalize DATABASES OPTIONS: move PostgreSQL session parameters into the psycopg2 'options' string.
-# This allows installers to set e.g. METRICS_SERVICE_DATABASES__awx__OPTIONS__datestyle=iso, mdy
-# without needing to know the psycopg2-specific OPTIONS__options=-c datestyle=... syntax.
-_PG_SESSION_PARAMS = {"datestyle", "search_path", "timezone", "application_name"}
-_databases = DYNACONF.get("DATABASES", {})
-for _db_conf in _databases.values():
-    _opts = _db_conf.get("OPTIONS", {})
-    _session_params = {k: _opts.pop(k) for k in list(_opts) if k.lower() in _PG_SESSION_PARAMS}
-    if _session_params:
-        _existing = _opts.get("options", "")
-        _new = " ".join(f"-c {k}={v.replace(' ', '')}" for k, v in _session_params.items())
-        _opts["options"] = f"{_existing} {_new}".strip()
-DYNACONF.set("DATABASES", _databases)
 
 # Update django.conf.settings with DYNACONF keys.
 export(__name__, DYNACONF, validation=False)
