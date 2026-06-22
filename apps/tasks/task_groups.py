@@ -227,6 +227,14 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
+        {
+            "task_id": "hourly_indirect_managed_nodes",
+            "function": "collect_hourly_metrics",
+            "cron": "25 * * * *",  # Every hour at XX:25
+            "args": {"collector_type": "indirect_managed_nodes"},
+            "enabled": True,
+            "description": "Collect indirect managed node audit metrics every hour",
+        },
         # Daily Snapshot Collection
         {
             "task_id": "daily_execution_environments",

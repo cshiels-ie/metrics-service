@@ -26,12 +26,16 @@ def _get_hourly_collectors():
     """
     from metrics_utility.anonymized_rollups import (
         CredentialsAnonymizedRollup,
+        EventModulesAnonymizedRollup,
+        IndirectManagedNodesAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
     )
     from metrics_utility.library.collectors.controller import (
         credentials_service,
         job_host_summary_service,
+        main_indirectmanagednodeaudit,
+        main_jobevent_service,
         unified_jobs_dashboard,
     )
 
@@ -56,6 +60,16 @@ def _get_hourly_collectors():
             "collector_func": credentials_service,
             "rollup_processor": CredentialsAnonymizedRollup,
             "description": "Credentials usage metrics",
+        },
+        "main_jobevent_service": {
+            "collector_func": main_jobevent_service,
+            "rollup_processor": EventModulesAnonymizedRollup,
+            "description": "Job events (event modules) metrics",
+        },
+        "indirect_managed_nodes": {
+            "collector_func": main_indirectmanagednodeaudit,
+            "rollup_processor": IndirectManagedNodesAnonymizedRollup,
+            "description": "Indirect managed node audit metrics",
         },
     }
 
