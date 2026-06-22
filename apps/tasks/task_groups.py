@@ -295,7 +295,6 @@ ANONYMIZATION_GROUP = TaskGroup(
             "function": "daily_anonymize_and_prepare",
             "cron": "0 3 * * *",  # Daily at 3:00 AM
             "args": {},
-            "max_attempts": SEGMENT_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Anonymize daily summary for Segment transmission",
         },
