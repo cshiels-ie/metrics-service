@@ -208,26 +208,80 @@ class UnifiedTaskScheduler:
                 )
 
             # Detect tasks stuck in running beyond their timeout
-            from .models import TaskExecution
+            self._fail_stuck_tasks()
 
-            now = timezone.now()
-            stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            )
-            if stuck_to_fail:
-                ids = [t.id for t in stuck_to_fail]
-                error_msg = "Task timed out — worker died before completion"
-                with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                    Task.objects.filter(id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+            # Clean up advisory locks held by sessions that outlived their process
+            self._cleanup_stale_advisory_locks()
 
         except Exception as e:
-            logger.error(f"Error in periodic database sync: {e}")
+            logger.exception(f"Error in periodic database sync: {e}")
+
+    def _fail_stuck_tasks(self):
+        """Mark tasks stuck in running status as failed after their timeout."""
+        from .models import Task, TaskExecution
+
+        now = timezone.now()
+        stuck_to_fail = Task.objects.filter(
+            status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+        )
+        if stuck_to_fail:
+            ids = [t.id for t in stuck_to_fail]
+            error_msg = "Task timed out — worker died before completion"
+            with transaction.atomic():
+                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+                Task.objects.filter(id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+
+    def _cleanup_stale_advisory_locks(self):
+        """Terminate database sessions holding advisory locks that appear stale.
+
+        A session is considered stale when it has been idle longer than the task
+        timeout — at that point the corresponding Task has already been marked
+        failed by the stuck-task detector above, but a network partition can keep
+        the PostgreSQL session (and its lock) alive for hours.
+
+        Only cleans up locks matching TASK_LOCKS function names, not arbitrary
+        advisory locks that other applications might hold.
+        """
+        from django.db import connection
+
+        from .tasks import TASK_LOCKS
+
+        try:
+            with connection.cursor() as cursor:
+                # Compute our lock IDs the same way lock.py does:
+                # hashtext(name)::bigint, then Python-style modulo 2**63
+                cursor.execute("SELECT hashtext(name)::bigint FROM unnest(%s::text[]) AS name", [list(TASK_LOCKS)])
+                our_lock_ids = [row[0] % (2**63) for row in cursor.fetchall()]
+
+                cursor.execute(
+                    """
+                    SELECT l.pid
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON l.pid = a.pid
+                    WHERE l.locktype = 'advisory'
+                      AND l.granted = true
+                      AND a.pid != pg_backend_pid()
+                      AND a.state = 'idle'
+                      AND a.state_change < NOW() - interval '1 second' * %s
+                      AND ((l.classid::bigint << 32) | (l.objid::bigint & x'ffffffff'::bigint)) = ANY(%s)
+                    """,
+                    [STUCK_TASK_TIMEOUT_SECONDS, our_lock_ids],
+                )
+                stale_pids = [row[0] for row in cursor.fetchall()]
+
+                for pid in stale_pids:
+                    cursor.execute("SELECT pg_terminate_backend(%s)", [pid])
+                    logger.warning(f"Terminated stale session {pid} holding an advisory lock")
+
+                if stale_pids:
+                    logger.warning(f"Cleaned up {len(stale_pids)} stale advisory lock(s)")
+        except Exception as e:
+            logger.exception(f"Error cleaning up stale advisory locks: {e}")
 
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""
