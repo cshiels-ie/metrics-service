@@ -23,8 +23,29 @@ jobs:
           - 5432:5432
 
     steps:
+      - name: "Check PR target"
+        env:
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [[ "$BASE_REPO" == "ansible/metrics-service" && "$BASE_BRANCH" == "devel" ]]; then
+            echo "✓ PR targets devel on upstream"
+          elif [[ "$BASE_BRANCH" == stable-2.* ]]; then
+            echo "✓ PR targets $BASE_BRANCH"
+          else
+            echo "::error::PRs should target devel on ansible/metrics-service or a stable-2.x branch"
+            exit 1
+          fi
+
       - name: "Checkout metrics-service (${{ github.ref }})"
         uses: actions/checkout@v6
+
+      - name: "Check for wildcard cron minutes in renovate config"
+        run: |
+          if grep -Pn '"schedule".*"\* ' renovate.json; then
+            echo "::error::Cron schedules in renovate.json must not use * for minutes (runs every minute). Use a specific minute like 0."
+            exit 1
+          fi
 
       - name: "Install uv"
         uses: astral-sh/setup-uv@v7
@@ -64,3 +85,4 @@ jobs:
             echo "Models have changed. Run 'uv run ./manage.py makemigrations' locally and commit the updated migrations."
             exit 1  # Fail the job
           fi
+
