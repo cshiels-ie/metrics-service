@@ -50,6 +50,19 @@ paths:
         '200':
           description: No response body
       x-ai-description: Retrieve single api
+  /api/metrics:
+    get:
+      operationId: api_metrics_retrieve
+      description: Prometheus metrics endpoint restricted to system admins and auditors.
+      tags:
+      - api
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single api metric
   /api/v1/:
     get:
       operationId: root_retrieve_2
@@ -148,6 +161,930 @@ paths:
           description: ''
       x-ai-description: Retrieve a audit trail entry for tracking system changes and
         user actions
+  /api/v1/dashboard_reports/collection_status/:
+    get:
+      operationId: dashboard_reports_collection_status_list
+      description: 'When enabled is false, next_run and initial_collection_status
+        are null. initial_collection-status reflects the status of the one-shot initial
+        collection task: ''pending'', ''running'', ''completed'', ''failed'' or ''canceled''.'
+      summary: Return dashboard collection feature flag status and task state.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardCollectionResponse'
+          description: ''
+      x-ai-description: List all dashboard reports collection status
+  /api/v1/dashboard_reports/filter_sets/:
+    get:
+      operationId: dashboard_reports_filter_sets_list
+      description: Returns a list of job templates from metrics service database.
+      summary: Get a list of filter sets from metrics service database (with pagination).
+      parameters:
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFilterSetList'
+          description: ''
+      x-ai-description: List all dashboard reports filter sets
+    post:
+      operationId: dashboard_reports_filter_sets_create
+      description: Create a new filter set object.
+      summary: Create a filter set.
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterSet'
+          description: ''
+      x-ai-description: Create new dashboard reports filter set
+  /api/v1/dashboard_reports/filter_sets/{id}/:
+    put:
+      operationId: dashboard_reports_filter_sets_update
+      description: Update a specific filter set by ID.
+      summary: Update a specific filter set by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Filter Set.
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FilterSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterSet'
+          description: ''
+      x-ai-description: Update existing dashboard reports filter set
+    patch:
+      operationId: dashboard_reports_filter_sets_partial_update
+      description: Partially update a specific filter set by ID.
+      summary: Partially update a specific filter set by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Filter Set.
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFilterSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFilterSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFilterSetRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterSet'
+          description: ''
+      x-ai-description: Partially update existing dashboard reports filter set
+    delete:
+      operationId: dashboard_reports_filter_sets_destroy
+      description: Delete a specific filter set record by ID.
+      summary: Delete a specific filter set by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Filter Set.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+      x-ai-description: Delete existing dashboard reports filter set
+  /api/v1/dashboard_reports/labels/:
+    get:
+      operationId: dashboard_reports_labels_retrieve
+      description: Returns a list of labels from AWX database.
+      summary: Get a list of labels from AWX database.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1).'
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+        description: 'Results per page (default: 10).'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by label name.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports label
+  /api/v1/dashboard_reports/labels/{id}/:
+    get:
+      operationId: dashboard_reports_labels_retrieve_2
+      description: Returns a single label record from AWX database by ID.
+      summary: Get a specific label from AWX database by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Job Data.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports label
+  /api/v1/dashboard_reports/organizations/:
+    get:
+      operationId: dashboard_reports_organizations_retrieve
+      description: Returns a list of organizations from AWX database.
+      summary: Get a list of organizations from AWX database.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1).'
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+        description: 'Results per page (default: 10).'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by organization name.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports organization
+  /api/v1/dashboard_reports/organizations/{id}/:
+    get:
+      operationId: dashboard_reports_organizations_retrieve_2
+      description: Returns a single organization record from AWX database by ID.
+      summary: Get a specific organization from AWX database by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Job Data.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports organization
+  /api/v1/dashboard_reports/projects/:
+    get:
+      operationId: dashboard_reports_projects_retrieve
+      description: Returns a list of projects from AWX database.
+      summary: Get a list of projects from AWX database.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1).'
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+        description: 'Results per page (default: 10).'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by project name.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports project
+  /api/v1/dashboard_reports/projects/{id}/:
+    get:
+      operationId: dashboard_reports_projects_retrieve_2
+      description: Returns a single project record from AWX database by ID.
+      summary: Get a specific project from AWX database by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Job Data.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports project
+  /api/v1/dashboard_reports/report/:
+    get:
+      operationId: dashboard_reports_report_list
+      description: Returns a paginated report data for dashboard.
+      summary: Get a list of report data for dashboard (with pagination).
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportList'
+          description: ''
+      x-ai-description: List all dashboard reports report
+  /api/v1/dashboard_reports/report/{id}/:
+    get:
+      operationId: dashboard_reports_report_retrieve
+      description: This endpoint is intentionally not supported and returns 405.
+      summary: Not supported for aggregated dashboard report data.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardReportRetrieveNotAllowed'
+          description: ''
+      x-ai-description: Retrieve single dashboard reports report
+  /api/v1/dashboard_reports/report/details/:
+    get:
+      operationId: dashboard_reports_report_details_retrieve
+      description: Returns summary, chart data, and top users/projects for dashboard
+      summary: Returns summary, chart data, and top users/projects for dashboard
+      parameters:
+      - in: query
+        name: label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by label ID (multiple allowed)
+      - in: query
+        name: or__label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by label ID (multiple allowed)
+      - in: query
+        name: or__organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by organization ID (multiple allowed)
+      - in: query
+        name: or__project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by project ID (multiple allowed)
+      - in: query
+        name: or__template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by template ID (multiple allowed)
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
+          'savings', etc.)
+      - in: query
+        name: organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by organization ID (multiple allowed)
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1)'
+        required: true
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+        description: 'Results per page (default: 10)'
+        required: true
+      - in: query
+        name: period
+        schema:
+          type: string
+          enum:
+          - last_14_days
+          - last_30_days
+          - last_60_days
+          - last_7_days
+          - last_90_days
+        description: Filter for report period.
+        required: true
+      - in: query
+        name: project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by project ID (multiple allowed)
+      - in: query
+        name: template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by template ID (multiple allowed)
+      - in: query
+        name: tz
+        schema:
+          type: string
+          default: UTC
+        description: 'Timezone string (default: UTC)'
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: ''
+      x-ai-description: Retrieve single dashboard reports report detail
+  /api/v1/dashboard_reports/report/export/:
+    get:
+      operationId: dashboard_reports_report_export_retrieve
+      description: Exports report data as CSV based on the specific report type and
+        format query parameters.
+      summary: Exports report data as CSV
+      parameters:
+      - in: query
+        name: export_format
+        schema:
+          type: string
+          enum:
+          - csv
+          default: csv
+        description: 'Export file format. Options: ''csv''.'
+      - in: query
+        name: label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by label ID (multiple allowed)
+      - in: query
+        name: or__label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by label ID (multiple allowed)
+      - in: query
+        name: or__organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by organization ID (multiple allowed)
+      - in: query
+        name: or__project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by project ID (multiple allowed)
+      - in: query
+        name: or__template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by template ID (multiple allowed)
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
+          'savings', etc.)
+      - in: query
+        name: organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by organization ID (multiple allowed)
+      - in: query
+        name: period
+        schema:
+          type: string
+          enum:
+          - last_14_days
+          - last_30_days
+          - last_60_days
+          - last_7_days
+          - last_90_days
+        description: Filter for report period.
+        required: true
+      - in: query
+        name: project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by project ID (multiple allowed)
+      - in: query
+        name: report_type
+        schema:
+          type: string
+          enum:
+          - roi
+          - summary
+          - trends
+          default: summary
+        description: 'Type of report to export. Options: ''summary'', ''roi'', ''trends''.'
+      - in: query
+        name: template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by template ID (multiple allowed)
+      - in: query
+        name: tz
+        schema:
+          type: string
+          default: UTC
+        description: 'Timezone string (default: UTC)'
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            text/csv; charset=UTF-8:
+              schema:
+                type: string
+          description: ''
+        '400':
+          content:
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/DashboardReportExportError'
+          description: ''
+      x-ai-description: Retrieve single dashboard reports report export
+  /api/v1/dashboard_reports/subscription_costs/:
+    get:
+      operationId: dashboard_reports_subscription_costs_list
+      description: Returns a list of subscription costs.
+      summary: Get a list of subscription costs.
+      parameters:
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionCost'
+          description: ''
+      x-ai-description: List all dashboard reports subscription costs
+  /api/v1/dashboard_reports/subscription_costs/{id}/:
+    put:
+      operationId: dashboard_reports_subscription_costs_update
+      description: Update a specific subscription cost by ID.
+      summary: Update a specific subscription cost by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCostRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCostRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCostRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCost'
+          description: ''
+      x-ai-description: Update existing dashboard reports subscription cost
+    patch:
+      operationId: dashboard_reports_subscription_costs_partial_update
+      description: Partially update a specific subscription cost by ID.
+      summary: Partially update a specific subscription cost by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionCostRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionCostRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubscriptionCostRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCost'
+          description: ''
+      x-ai-description: Partially update existing dashboard reports subscription cost
+  /api/v1/dashboard_reports/template_metadata/{id}/:
+    get:
+      operationId: dashboard_reports_template_metadata_retrieve
+      description: Returns a specific template metadata by ID.
+      summary: Get specific template metadata ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Template Metadata.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateMetadata'
+          description: ''
+      x-ai-description: Retrieve single dashboard reports template metadatum
+    put:
+      operationId: dashboard_reports_template_metadata_update
+      description: Update a specific template metadata by ID.
+      summary: Update a specific template metadata by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Template Metadata.
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateMetadataRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TemplateMetadataRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TemplateMetadataRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateMetadata'
+          description: ''
+      x-ai-description: Update existing dashboard reports template metadatum
+    patch:
+      operationId: dashboard_reports_template_metadata_partial_update
+      description: Partially update a specific template metadata by ID.
+      summary: Partially update a specific template metadata by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Template Metadata.
+        required: true
+      tags:
+      - dashboard_reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTemplateMetadataRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTemplateMetadataRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTemplateMetadataRequest'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateMetadata'
+          description: ''
+      x-ai-description: Partially update existing dashboard reports template metadatum
+  /api/v1/dashboard_reports/templates/:
+    get:
+      operationId: dashboard_reports_templates_retrieve
+      description: Returns a list of job templates from AWX database.
+      summary: Get a list of job templates from AWX database.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1).'
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+        description: 'Results per page (default: 10).'
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by job template name.
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports template
+  /api/v1/dashboard_reports/templates/{id}/:
+    get:
+      operationId: dashboard_reports_templates_retrieve_2
+      description: Returns a single job template record from AWX database by ID.
+      summary: Get a specific job template from AWX database by ID.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Job Data.
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single dashboard reports template
   /api/v1/docs/schema/:
     get:
       operationId: docs_schema_retrieve
@@ -590,12 +1527,8 @@ paths:
   /api/v1/organizations/:
     get:
       operationId: organizations_list
-      description: |-
-        Read and update viewset for Organization resources with RBAC filtering.
-
-        Organizations are managed by the AAP resource server (gateway) and synced
-        into metrics-service automatically. Creating organizations directly via this
-        API is not supported; use the gateway to manage organizations.
+      description: Returns a list of organizations.
+      summary: List organizations.
       parameters:
       - in: query
         name: created
@@ -750,15 +1683,38 @@ paths:
                 $ref: '#/components/schemas/PaginatedOrganizationList'
           description: ''
       x-ai-description: List all organizations
+    post:
+      operationId: organizations_create
+      description: CRUD viewset for Organization resources with RBAC filtering.
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+      x-ai-description: Create new organization
   /api/v1/organizations/{id}/:
     get:
       operationId: organizations_retrieve
-      description: |-
-        Read and update viewset for Organization resources with RBAC filtering.
-
-        Organizations are managed by the AAP resource server (gateway) and synced
-        into metrics-service automatically. Creating organizations directly via this
-        API is not supported; use the gateway to manage organizations.
+      description: CRUD viewset for Organization resources with RBAC filtering.
       parameters:
       - in: path
         name: id
@@ -781,12 +1737,7 @@ paths:
       x-ai-description: Retrieve single organization
     put:
       operationId: organizations_update
-      description: |-
-        Read and update viewset for Organization resources with RBAC filtering.
-
-        Organizations are managed by the AAP resource server (gateway) and synced
-        into metrics-service automatically. Creating organizations directly via this
-        API is not supported; use the gateway to manage organizations.
+      description: CRUD viewset for Organization resources with RBAC filtering.
       parameters:
       - in: path
         name: id
@@ -821,12 +1772,7 @@ paths:
       x-ai-description: Update existing organization
     patch:
       operationId: organizations_partial_update
-      description: |-
-        Read and update viewset for Organization resources with RBAC filtering.
-
-        Organizations are managed by the AAP resource server (gateway) and synced
-        into metrics-service automatically. Creating organizations directly via this
-        API is not supported; use the gateway to manage organizations.
+      description: CRUD viewset for Organization resources with RBAC filtering.
       parameters:
       - in: path
         name: id
@@ -860,12 +1806,7 @@ paths:
       x-ai-description: Partially update existing organization
     delete:
       operationId: organizations_destroy
-      description: |-
-        Read and update viewset for Organization resources with RBAC filtering.
-
-        Organizations are managed by the AAP resource server (gateway) and synced
-        into metrics-service automatically. Creating organizations directly via this
-        API is not supported; use the gateway to manage organizations.
+      description: CRUD viewset for Organization resources with RBAC filtering.
       parameters:
       - in: path
         name: id
@@ -885,12 +1826,8 @@ paths:
   /api/v1/organizations/{id}/teams/:
     get:
       operationId: organizations_teams_list
-      description: |-
-        Manage Team objects in the 'teams' relationship of this particular Organization.
-
-        Starting from the detail URL:
-
-        GET /:id/teams/ to show teams currently in the relationship
+      description: Returns a list of teams.
+      summary: List teams.
       parameters:
       - in: query
         name: created
@@ -2995,12 +3932,8 @@ paths:
   /api/v1/tasks/:
     get:
       operationId: tasks_list
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Returns a list of all task.
+      summary: List all tasks.
       parameters:
       - in: query
         name: attempts
@@ -3317,31 +4250,6 @@ paths:
           type: string
         description: Filter by task_data (exact match)
       - in: query
-        name: timeout_seconds
-        schema:
-          type: string
-        description: Filter by timeout_seconds (exact match)
-      - in: query
-        name: timeout_seconds__gt
-        schema:
-          type: string
-        description: Filter by timeout_seconds (gt)
-      - in: query
-        name: timeout_seconds__gte
-        schema:
-          type: string
-        description: Filter by timeout_seconds (gte)
-      - in: query
-        name: timeout_seconds__lt
-        schema:
-          type: string
-        description: Filter by timeout_seconds (lt)
-      - in: query
-        name: timeout_seconds__lte
-        schema:
-          type: string
-        description: Filter by timeout_seconds (lte)
-      - in: query
         name: type
         schema:
           type: string
@@ -3362,25 +4270,21 @@ paths:
       x-ai-description: List all tasks
     post:
       operationId: tasks_create
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Create a new task object.
+      summary: Create a task.
       tags:
       - tasks
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskCreateRequest'
+              $ref: '#/components/schemas/TaskRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TaskCreateRequest'
+              $ref: '#/components/schemas/TaskRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TaskCreateRequest'
+              $ref: '#/components/schemas/TaskRequest'
         required: true
       security:
       - cookieAuth: []
@@ -3396,12 +4300,8 @@ paths:
   /api/v1/tasks/{id}/:
     get:
       operationId: tasks_retrieve
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Returns a specific task by ID.
+      summary: Get specific task by ID.
       parameters:
       - in: path
         name: id
@@ -3424,12 +4324,8 @@ paths:
       x-ai-description: Retrieve single task
     put:
       operationId: tasks_update
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Update a specific task by ID.
+      summary: Update a specific task by ID.
       parameters:
       - in: path
         name: id
@@ -3464,12 +4360,8 @@ paths:
       x-ai-description: Update existing task
     patch:
       operationId: tasks_partial_update
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Partially update a specific task by ID.
+      summary: Partially update a specific task by ID.
       parameters:
       - in: path
         name: id
@@ -3503,12 +4395,8 @@ paths:
       x-ai-description: Partially update existing task
     delete:
       operationId: tasks_destroy
-      description: |-
-        ViewSet for Task model with comprehensive task management functionality.
-
-        This ViewSet provides all the functionality from the manage_tasks.py command
-        converted to REST API endpoints including creation, listing, monitoring,
-        and control.
+      description: Delete a specific task record by ID.
+      summary: Delete a specific task by ID.
       parameters:
       - in: path
         name: id
@@ -3528,18 +4416,9 @@ paths:
   /api/v1/tasks/{id}/cancel/:
     post:
       operationId: tasks_cancel_create
-      description: |-
-        Cancel a pending or running task.
-
-        This endpoint replicates the functionality of:
-        python manage.py manage_tasks cancel <task_id>
-
-        Args:
-            request: HTTP request
-            pk: Primary key of the task
-
-        Returns:
-            Response: Success or error response
+      description: 'This endpoint replicates the functionality of: ''python manage.py
+        manage_tasks cancel <task_id>'''
+      summary: Cancel a pending or running task.
       parameters:
       - in: path
         name: id
@@ -3569,17 +4448,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/TaskCancelResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCancelErrorResponse'
           description: ''
       x-ai-description: Create new cancel for a task
   /api/v1/tasks/{id}/force_delete/:
     delete:
       operationId: tasks_force_delete_destroy
-      description: |-
-        Force delete a system task (admin only).
-
-        This endpoint allows administrators to delete system tasks if absolutely necessary.
-        Use with extreme caution as it may break system functionality.
+      description: This endpoint allows administrators to delete system tasks if absolutely
+        necessary. Use with extreme caution as it may break system functionality.
+      summary: Force delete a system task (admin only).
       parameters:
       - in: path
         name: id
@@ -3593,24 +4476,27 @@ paths:
       - cookieAuth: []
       - basicAuth: []
       responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteWarningResponse'
+          description: ''
         '204':
           description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletErrorResponse'
+          description: ''
       x-ai-description: Delete existing delete for a task
   /api/v1/tasks/{id}/retry/:
     post:
       operationId: tasks_retry_create
-      description: |-
-        Retry a failed task.
-
-        This endpoint replicates the functionality of:
-        python manage.py manage_tasks retry <task_id>
-
-        Args:
-            request: HTTP request
-            pk: Primary key of the task
-
-        Returns:
-            Response: Success or error response
+      description: 'This endpoint replicates the functionality of: ''python manage.py
+        manage_tasks retry <task_id>'''
+      summary: Retry a failed task.
       parameters:
       - in: path
         name: id
@@ -3640,17 +4526,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/TaskRetryResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRetryErrorResponse'
           description: ''
       x-ai-description: Create new retry for a task
   /api/v1/tasks/available_functions/:
     get:
       operationId: tasks_available_functions_retrieve
-      description: |-
-        Get list of available task functions with enhanced metadata for the dashboard.
-
-        Returns:
-            Response: List of available task functions with descriptions, parameters, and examples
+      description: Get list of available task functions with enhanced metadata for
+        dashboard.
+      summary: Get list of available task functions with enhanced metadata for dashboard.
       tags:
       - tasks
       security:
@@ -3661,37 +4551,28 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/TaskFunctionResponse'
           description: ''
       x-ai-description: Retrieve single tasks available function
   /api/v1/tasks/cleanup/:
     post:
       operationId: tasks_cleanup_create
-      description: |-
-        Clean up old completed tasks.
-
-        This endpoint replicates the functionality of:
-        python manage.py manage_tasks cleanup --days=30 --dry-run
-
-        Args:
-            request: HTTP request with cleanup parameters
-
-        Returns:
-            Response: Success message with count of tasks cleaned up
+      description: 'This endpoint replicates the functionality of: ''python manage.py
+        manage_tasks cleanup --days=30 --dry-run'''
+      summary: Clean up old completed tasks
       tags:
       - tasks
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskCleanupRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskCleanupRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
-        required: true
+              $ref: '#/components/schemas/TaskCleanupRequest'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -3700,13 +4581,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/TaskCleanupResponse'
           description: ''
       x-ai-description: Create new tasks cleanup
   /api/v1/tasks/executions/:
     get:
       operationId: tasks_executions_list
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Returns a list of task executions.
+      summary: List task executions.
       parameters:
       - in: query
         name: completed_at
@@ -3958,7 +4840,8 @@ paths:
       x-ai-description: List all tasks executions
     post:
       operationId: tasks_executions_create
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Create a new task execution object.
+      summary: Create a task execution.
       tags:
       - tasks
       requestBody:
@@ -3987,7 +4870,8 @@ paths:
   /api/v1/tasks/executions/{id}/:
     get:
       operationId: tasks_executions_retrieve
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Returns a specific task execution by ID.
+      summary: Get specific task execution by ID.
       parameters:
       - in: path
         name: id
@@ -4010,7 +4894,8 @@ paths:
       x-ai-description: Retrieve single tasks execution
     put:
       operationId: tasks_executions_update
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Update a specific task execution by ID.
+      summary: Update a specific task execution by ID.
       parameters:
       - in: path
         name: id
@@ -4045,7 +4930,8 @@ paths:
       x-ai-description: Update existing tasks execution
     patch:
       operationId: tasks_executions_partial_update
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Partially update a specific task execution by ID.
+      summary: Partially update a specific task execution by ID.
       parameters:
       - in: path
         name: id
@@ -4079,7 +4965,8 @@ paths:
       x-ai-description: Partially update existing tasks execution
     delete:
       operationId: tasks_executions_destroy
-      description: ViewSet for TaskExecution model to monitor task execution history.
+      description: Delete a specific task execution record by ID.
+      summary: Delete a specific task execution by ID.
       parameters:
       - in: path
         name: id
@@ -4098,15 +4985,336 @@ paths:
       x-ai-description: Delete existing tasks execution
   /api/v1/tasks/list/:
     get:
-      operationId: tasks_list_retrieve
-      description: |-
-        List tasks with filtering, similar to manage_tasks list command.
-
-        This endpoint replicates the functionality of:
-        python manage.py manage_tasks list --status=pending --limit=20
-
-        Returns:
-            Response: Filtered and limited list of tasks
+      operationId: tasks_list_list
+      description: 'This endpoint replicates the functionality of: ''python manage.py
+        manage-tasks list --status=pending --limit=20'''
+      summary: List tasks with filtering, similar to manage_tasks list command.
+      parameters:
+      - in: query
+        name: attempts
+        schema:
+          type: string
+        description: Filter by attempts (exact match)
+      - in: query
+        name: attempts__gt
+        schema:
+          type: string
+        description: Filter by attempts (gt)
+      - in: query
+        name: attempts__gte
+        schema:
+          type: string
+        description: Filter by attempts (gte)
+      - in: query
+        name: attempts__lt
+        schema:
+          type: string
+        description: Filter by attempts (lt)
+      - in: query
+        name: attempts__lte
+        schema:
+          type: string
+        description: Filter by attempts (lte)
+      - in: query
+        name: completed_at
+        schema:
+          type: string
+        description: Filter by completed_at (exact match)
+      - in: query
+        name: completed_at__gt
+        schema:
+          type: string
+        description: Filter by completed_at (gt)
+      - in: query
+        name: completed_at__gte
+        schema:
+          type: string
+        description: Filter by completed_at (gte)
+      - in: query
+        name: completed_at__lt
+        schema:
+          type: string
+        description: Filter by completed_at (lt)
+      - in: query
+        name: completed_at__lte
+        schema:
+          type: string
+        description: Filter by completed_at (lte)
+      - in: query
+        name: created
+        schema:
+          type: string
+        description: Filter by created (exact match)
+      - in: query
+        name: created__gt
+        schema:
+          type: string
+        description: Filter by created (gt)
+      - in: query
+        name: created__gte
+        schema:
+          type: string
+        description: Filter by created (gte)
+      - in: query
+        name: created__lt
+        schema:
+          type: string
+        description: Filter by created (lt)
+      - in: query
+        name: created__lte
+        schema:
+          type: string
+        description: Filter by created (lte)
+      - in: query
+        name: created_by
+        schema:
+          type: string
+        description: Filter by created_by (exact match)
+      - in: query
+        name: cron_expression
+        schema:
+          type: string
+        description: Filter by cron_expression (exact match)
+      - in: query
+        name: cron_expression__icontains
+        schema:
+          type: string
+        description: Filter by cron_expression (case-insensitive partial match)
+      - in: query
+        name: description
+        schema:
+          type: string
+        description: Filter by description (exact match)
+      - in: query
+        name: description__icontains
+        schema:
+          type: string
+        description: Filter by description (case-insensitive partial match)
+      - in: query
+        name: error_message
+        schema:
+          type: string
+        description: Filter by error_message (exact match)
+      - in: query
+        name: error_message__icontains
+        schema:
+          type: string
+        description: Filter by error_message (case-insensitive partial match)
+      - in: query
+        name: function_name
+        schema:
+          type: string
+        description: Filter by function_name (exact match)
+      - in: query
+        name: function_name__icontains
+        schema:
+          type: string
+        description: Filter by function_name (case-insensitive partial match)
+      - in: query
+        name: id
+        schema:
+          type: string
+        description: Filter by id (exact match)
+      - in: query
+        name: id__gt
+        schema:
+          type: string
+        description: Filter by id (gt)
+      - in: query
+        name: id__gte
+        schema:
+          type: string
+        description: Filter by id (gte)
+      - in: query
+        name: id__lt
+        schema:
+          type: string
+        description: Filter by id (lt)
+      - in: query
+        name: id__lte
+        schema:
+          type: string
+        description: Filter by id (lte)
+      - in: query
+        name: is_system_task
+        schema:
+          type: string
+        description: Filter by is_system_task (exact match)
+      - in: query
+        name: limit
+        schema:
+          type: integer
+        description: Limit the number of tasks returned (default 20)
+      - in: query
+        name: max_attempts
+        schema:
+          type: string
+        description: Filter by max_attempts (exact match)
+      - in: query
+        name: max_attempts__gt
+        schema:
+          type: string
+        description: Filter by max_attempts (gt)
+      - in: query
+        name: max_attempts__gte
+        schema:
+          type: string
+        description: Filter by max_attempts (gte)
+      - in: query
+        name: max_attempts__lt
+        schema:
+          type: string
+        description: Filter by max_attempts (lt)
+      - in: query
+        name: max_attempts__lte
+        schema:
+          type: string
+        description: Filter by max_attempts (lte)
+      - in: query
+        name: modified
+        schema:
+          type: string
+        description: Filter by modified (exact match)
+      - in: query
+        name: modified__gt
+        schema:
+          type: string
+        description: Filter by modified (gt)
+      - in: query
+        name: modified__gte
+        schema:
+          type: string
+        description: Filter by modified (gte)
+      - in: query
+        name: modified__lt
+        schema:
+          type: string
+        description: Filter by modified (lt)
+      - in: query
+        name: modified__lte
+        schema:
+          type: string
+        description: Filter by modified (lte)
+      - in: query
+        name: modified_by
+        schema:
+          type: string
+        description: Filter by modified_by (exact match)
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: Filter by name (exact match)
+      - in: query
+        name: name__icontains
+        schema:
+          type: string
+        description: Filter by name (case-insensitive partial match)
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: result_data
+        schema:
+          type: string
+        description: Filter by result_data (exact match)
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - in: query
+        name: scheduled_time
+        schema:
+          type: string
+        description: Filter by scheduled_time (exact match)
+      - in: query
+        name: scheduled_time__gt
+        schema:
+          type: string
+        description: Filter by scheduled_time (gt)
+      - in: query
+        name: scheduled_time__gte
+        schema:
+          type: string
+        description: Filter by scheduled_time (gte)
+      - in: query
+        name: scheduled_time__lt
+        schema:
+          type: string
+        description: Filter by scheduled_time (lt)
+      - in: query
+        name: scheduled_time__lte
+        schema:
+          type: string
+        description: Filter by scheduled_time (lte)
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: started_at
+        schema:
+          type: string
+        description: Filter by started_at (exact match)
+      - in: query
+        name: started_at__gt
+        schema:
+          type: string
+        description: Filter by started_at (gt)
+      - in: query
+        name: started_at__gte
+        schema:
+          type: string
+        description: Filter by started_at (gte)
+      - in: query
+        name: started_at__lt
+        schema:
+          type: string
+        description: Filter by started_at (lt)
+      - in: query
+        name: started_at__lte
+        schema:
+          type: string
+        description: Filter by started_at (lte)
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Filter by task status (e.g. pending, running, completed)
+      - in: query
+        name: status__icontains
+        schema:
+          type: string
+        description: Filter by status (case-insensitive partial match)
+      - in: query
+        name: task_data
+        schema:
+          type: string
+        description: Filter by task_data (exact match)
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - tasks
       security:
@@ -4117,17 +5325,335 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskList'
+                $ref: '#/components/schemas/PaginatedTaskListList'
           description: ''
-      x-ai-description: Retrieve single tasks list
+      x-ai-description: List all tasks list
   /api/v1/tasks/pending/:
     get:
-      operationId: tasks_pending_retrieve
-      description: |-
-        Get list of pending tasks waiting to run.
-
-        Returns:
-            Response: List of tasks with status 'pending'
+      operationId: tasks_pending_list
+      description: This endpoint returns a list of pending tasks waiting to run.
+      summary: Get list of pending tasks waiting to run.
+      parameters:
+      - in: query
+        name: attempts
+        schema:
+          type: string
+        description: Filter by attempts (exact match)
+      - in: query
+        name: attempts__gt
+        schema:
+          type: string
+        description: Filter by attempts (gt)
+      - in: query
+        name: attempts__gte
+        schema:
+          type: string
+        description: Filter by attempts (gte)
+      - in: query
+        name: attempts__lt
+        schema:
+          type: string
+        description: Filter by attempts (lt)
+      - in: query
+        name: attempts__lte
+        schema:
+          type: string
+        description: Filter by attempts (lte)
+      - in: query
+        name: completed_at
+        schema:
+          type: string
+        description: Filter by completed_at (exact match)
+      - in: query
+        name: completed_at__gt
+        schema:
+          type: string
+        description: Filter by completed_at (gt)
+      - in: query
+        name: completed_at__gte
+        schema:
+          type: string
+        description: Filter by completed_at (gte)
+      - in: query
+        name: completed_at__lt
+        schema:
+          type: string
+        description: Filter by completed_at (lt)
+      - in: query
+        name: completed_at__lte
+        schema:
+          type: string
+        description: Filter by completed_at (lte)
+      - in: query
+        name: created
+        schema:
+          type: string
+        description: Filter by created (exact match)
+      - in: query
+        name: created__gt
+        schema:
+          type: string
+        description: Filter by created (gt)
+      - in: query
+        name: created__gte
+        schema:
+          type: string
+        description: Filter by created (gte)
+      - in: query
+        name: created__lt
+        schema:
+          type: string
+        description: Filter by created (lt)
+      - in: query
+        name: created__lte
+        schema:
+          type: string
+        description: Filter by created (lte)
+      - in: query
+        name: created_by
+        schema:
+          type: string
+        description: Filter by created_by (exact match)
+      - in: query
+        name: cron_expression
+        schema:
+          type: string
+        description: Filter by cron_expression (exact match)
+      - in: query
+        name: cron_expression__icontains
+        schema:
+          type: string
+        description: Filter by cron_expression (case-insensitive partial match)
+      - in: query
+        name: description
+        schema:
+          type: string
+        description: Filter by description (exact match)
+      - in: query
+        name: description__icontains
+        schema:
+          type: string
+        description: Filter by description (case-insensitive partial match)
+      - in: query
+        name: error_message
+        schema:
+          type: string
+        description: Filter by error_message (exact match)
+      - in: query
+        name: error_message__icontains
+        schema:
+          type: string
+        description: Filter by error_message (case-insensitive partial match)
+      - in: query
+        name: function_name
+        schema:
+          type: string
+        description: Filter by function_name (exact match)
+      - in: query
+        name: function_name__icontains
+        schema:
+          type: string
+        description: Filter by function_name (case-insensitive partial match)
+      - in: query
+        name: id
+        schema:
+          type: string
+        description: Filter by id (exact match)
+      - in: query
+        name: id__gt
+        schema:
+          type: string
+        description: Filter by id (gt)
+      - in: query
+        name: id__gte
+        schema:
+          type: string
+        description: Filter by id (gte)
+      - in: query
+        name: id__lt
+        schema:
+          type: string
+        description: Filter by id (lt)
+      - in: query
+        name: id__lte
+        schema:
+          type: string
+        description: Filter by id (lte)
+      - in: query
+        name: is_system_task
+        schema:
+          type: string
+        description: Filter by is_system_task (exact match)
+      - in: query
+        name: max_attempts
+        schema:
+          type: string
+        description: Filter by max_attempts (exact match)
+      - in: query
+        name: max_attempts__gt
+        schema:
+          type: string
+        description: Filter by max_attempts (gt)
+      - in: query
+        name: max_attempts__gte
+        schema:
+          type: string
+        description: Filter by max_attempts (gte)
+      - in: query
+        name: max_attempts__lt
+        schema:
+          type: string
+        description: Filter by max_attempts (lt)
+      - in: query
+        name: max_attempts__lte
+        schema:
+          type: string
+        description: Filter by max_attempts (lte)
+      - in: query
+        name: modified
+        schema:
+          type: string
+        description: Filter by modified (exact match)
+      - in: query
+        name: modified__gt
+        schema:
+          type: string
+        description: Filter by modified (gt)
+      - in: query
+        name: modified__gte
+        schema:
+          type: string
+        description: Filter by modified (gte)
+      - in: query
+        name: modified__lt
+        schema:
+          type: string
+        description: Filter by modified (lt)
+      - in: query
+        name: modified__lte
+        schema:
+          type: string
+        description: Filter by modified (lte)
+      - in: query
+        name: modified_by
+        schema:
+          type: string
+        description: Filter by modified_by (exact match)
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: Filter by name (exact match)
+      - in: query
+        name: name__icontains
+        schema:
+          type: string
+        description: Filter by name (case-insensitive partial match)
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: result_data
+        schema:
+          type: string
+        description: Filter by result_data (exact match)
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - in: query
+        name: scheduled_time
+        schema:
+          type: string
+        description: Filter by scheduled_time (exact match)
+      - in: query
+        name: scheduled_time__gt
+        schema:
+          type: string
+        description: Filter by scheduled_time (gt)
+      - in: query
+        name: scheduled_time__gte
+        schema:
+          type: string
+        description: Filter by scheduled_time (gte)
+      - in: query
+        name: scheduled_time__lt
+        schema:
+          type: string
+        description: Filter by scheduled_time (lt)
+      - in: query
+        name: scheduled_time__lte
+        schema:
+          type: string
+        description: Filter by scheduled_time (lte)
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: started_at
+        schema:
+          type: string
+        description: Filter by started_at (exact match)
+      - in: query
+        name: started_at__gt
+        schema:
+          type: string
+        description: Filter by started_at (gt)
+      - in: query
+        name: started_at__gte
+        schema:
+          type: string
+        description: Filter by started_at (gte)
+      - in: query
+        name: started_at__lt
+        schema:
+          type: string
+        description: Filter by started_at (lt)
+      - in: query
+        name: started_at__lte
+        schema:
+          type: string
+        description: Filter by started_at (lte)
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Filter by status (exact match)
+      - in: query
+        name: status__icontains
+        schema:
+          type: string
+        description: Filter by status (case-insensitive partial match)
+      - in: query
+        name: task_data
+        schema:
+          type: string
+        description: Filter by task_data (exact match)
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - tasks
       security:
@@ -4138,17 +5664,335 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/PaginatedTaskListList'
           description: ''
-      x-ai-description: Retrieve single tasks pending
+      x-ai-description: List all tasks pending
   /api/v1/tasks/running/:
     get:
-      operationId: tasks_running_retrieve
-      description: |-
-        Get list of currently running tasks.
-
-        Returns:
-            Response: List of tasks with status 'running'
+      operationId: tasks_running_list
+      description: This endpoint returns a list of currently running tasks.
+      summary: Get list of currently running tasks.
+      parameters:
+      - in: query
+        name: attempts
+        schema:
+          type: string
+        description: Filter by attempts (exact match)
+      - in: query
+        name: attempts__gt
+        schema:
+          type: string
+        description: Filter by attempts (gt)
+      - in: query
+        name: attempts__gte
+        schema:
+          type: string
+        description: Filter by attempts (gte)
+      - in: query
+        name: attempts__lt
+        schema:
+          type: string
+        description: Filter by attempts (lt)
+      - in: query
+        name: attempts__lte
+        schema:
+          type: string
+        description: Filter by attempts (lte)
+      - in: query
+        name: completed_at
+        schema:
+          type: string
+        description: Filter by completed_at (exact match)
+      - in: query
+        name: completed_at__gt
+        schema:
+          type: string
+        description: Filter by completed_at (gt)
+      - in: query
+        name: completed_at__gte
+        schema:
+          type: string
+        description: Filter by completed_at (gte)
+      - in: query
+        name: completed_at__lt
+        schema:
+          type: string
+        description: Filter by completed_at (lt)
+      - in: query
+        name: completed_at__lte
+        schema:
+          type: string
+        description: Filter by completed_at (lte)
+      - in: query
+        name: created
+        schema:
+          type: string
+        description: Filter by created (exact match)
+      - in: query
+        name: created__gt
+        schema:
+          type: string
+        description: Filter by created (gt)
+      - in: query
+        name: created__gte
+        schema:
+          type: string
+        description: Filter by created (gte)
+      - in: query
+        name: created__lt
+        schema:
+          type: string
+        description: Filter by created (lt)
+      - in: query
+        name: created__lte
+        schema:
+          type: string
+        description: Filter by created (lte)
+      - in: query
+        name: created_by
+        schema:
+          type: string
+        description: Filter by created_by (exact match)
+      - in: query
+        name: cron_expression
+        schema:
+          type: string
+        description: Filter by cron_expression (exact match)
+      - in: query
+        name: cron_expression__icontains
+        schema:
+          type: string
+        description: Filter by cron_expression (case-insensitive partial match)
+      - in: query
+        name: description
+        schema:
+          type: string
+        description: Filter by description (exact match)
+      - in: query
+        name: description__icontains
+        schema:
+          type: string
+        description: Filter by description (case-insensitive partial match)
+      - in: query
+        name: error_message
+        schema:
+          type: string
+        description: Filter by error_message (exact match)
+      - in: query
+        name: error_message__icontains
+        schema:
+          type: string
+        description: Filter by error_message (case-insensitive partial match)
+      - in: query
+        name: function_name
+        schema:
+          type: string
+        description: Filter by function_name (exact match)
+      - in: query
+        name: function_name__icontains
+        schema:
+          type: string
+        description: Filter by function_name (case-insensitive partial match)
+      - in: query
+        name: id
+        schema:
+          type: string
+        description: Filter by id (exact match)
+      - in: query
+        name: id__gt
+        schema:
+          type: string
+        description: Filter by id (gt)
+      - in: query
+        name: id__gte
+        schema:
+          type: string
+        description: Filter by id (gte)
+      - in: query
+        name: id__lt
+        schema:
+          type: string
+        description: Filter by id (lt)
+      - in: query
+        name: id__lte
+        schema:
+          type: string
+        description: Filter by id (lte)
+      - in: query
+        name: is_system_task
+        schema:
+          type: string
+        description: Filter by is_system_task (exact match)
+      - in: query
+        name: max_attempts
+        schema:
+          type: string
+        description: Filter by max_attempts (exact match)
+      - in: query
+        name: max_attempts__gt
+        schema:
+          type: string
+        description: Filter by max_attempts (gt)
+      - in: query
+        name: max_attempts__gte
+        schema:
+          type: string
+        description: Filter by max_attempts (gte)
+      - in: query
+        name: max_attempts__lt
+        schema:
+          type: string
+        description: Filter by max_attempts (lt)
+      - in: query
+        name: max_attempts__lte
+        schema:
+          type: string
+        description: Filter by max_attempts (lte)
+      - in: query
+        name: modified
+        schema:
+          type: string
+        description: Filter by modified (exact match)
+      - in: query
+        name: modified__gt
+        schema:
+          type: string
+        description: Filter by modified (gt)
+      - in: query
+        name: modified__gte
+        schema:
+          type: string
+        description: Filter by modified (gte)
+      - in: query
+        name: modified__lt
+        schema:
+          type: string
+        description: Filter by modified (lt)
+      - in: query
+        name: modified__lte
+        schema:
+          type: string
+        description: Filter by modified (lte)
+      - in: query
+        name: modified_by
+        schema:
+          type: string
+        description: Filter by modified_by (exact match)
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: Filter by name (exact match)
+      - in: query
+        name: name__icontains
+        schema:
+          type: string
+        description: Filter by name (case-insensitive partial match)
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: result_data
+        schema:
+          type: string
+        description: Filter by result_data (exact match)
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - in: query
+        name: scheduled_time
+        schema:
+          type: string
+        description: Filter by scheduled_time (exact match)
+      - in: query
+        name: scheduled_time__gt
+        schema:
+          type: string
+        description: Filter by scheduled_time (gt)
+      - in: query
+        name: scheduled_time__gte
+        schema:
+          type: string
+        description: Filter by scheduled_time (gte)
+      - in: query
+        name: scheduled_time__lt
+        schema:
+          type: string
+        description: Filter by scheduled_time (lt)
+      - in: query
+        name: scheduled_time__lte
+        schema:
+          type: string
+        description: Filter by scheduled_time (lte)
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: started_at
+        schema:
+          type: string
+        description: Filter by started_at (exact match)
+      - in: query
+        name: started_at__gt
+        schema:
+          type: string
+        description: Filter by started_at (gt)
+      - in: query
+        name: started_at__gte
+        schema:
+          type: string
+        description: Filter by started_at (gte)
+      - in: query
+        name: started_at__lt
+        schema:
+          type: string
+        description: Filter by started_at (lt)
+      - in: query
+        name: started_at__lte
+        schema:
+          type: string
+        description: Filter by started_at (lte)
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Filter by status (exact match)
+      - in: query
+        name: status__icontains
+        schema:
+          type: string
+        description: Filter by status (case-insensitive partial match)
+      - in: query
+        name: task_data
+        schema:
+          type: string
+        description: Filter by task_data (exact match)
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - tasks
       security:
@@ -4159,31 +6003,27 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/PaginatedTaskListList'
           description: ''
-      x-ai-description: Retrieve single tasks running
+      x-ai-description: List all tasks running
   /api/v1/tasks/schedule_immediate/:
     post:
       operationId: tasks_schedule_immediate_create
-      description: |-
-        Schedule a task to run immediately using the simple scheduler.
-        Args:
-            request: HTTP request with task parameters
-        Returns:
-            Response: Success message with task ID
+      description: Schedule a task to run immediately using the simple scheduler.
+      summary: Schedule a task to run immediately using the simple scheduler.
       tags:
       - tasks
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskCreateRequest'
         required: true
       security:
       - cookieAuth: []
@@ -4193,31 +6033,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/ScheduleImmediateResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
       x-ai-description: Create new tasks schedule immediate
   /api/v1/tasks/schedule_recurring/:
     post:
       operationId: tasks_schedule_recurring_create
-      description: |-
-        Schedule a recurring task using cron expression.
-        Args:
-            request: HTTP request with task parameters including cron_expression
-        Returns:
-            Response: Success message with task ID
+      description: Schedule a recurring task using cron expression.
+      summary: Schedule a recurring task using cron expression.
       tags:
       - tasks
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/ScheduleRecurringRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/ScheduleRecurringRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/ScheduleRecurringRequestRequest'
         required: true
       security:
       - cookieAuth: []
@@ -4227,16 +6069,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/ScheduleRecurringResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
       x-ai-description: Create new tasks schedule recurring
   /api/v1/tasks/scheduler_status/:
     get:
       operationId: tasks_scheduler_status_retrieve
-      description: |-
-        Get the status of the simple scheduler and all scheduled tasks.
-        Returns:
-            Response: Scheduler status and list of scheduled tasks
+      description: Returns Scheduler's and scheduled tasks' status
+      summary: Get the status of the simple scheduler and all scheduled tasks
       tags:
       - tasks
       security:
@@ -4247,13 +6099,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/SchedulerStatusResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
       x-ai-description: Retrieve single tasks scheduler status
   /api/v1/teams/:
     get:
       operationId: teams_list
-      description: Base viewset with RBAC filtering.
+      description: Returns a list of teams.
+      summary: List teams.
       parameters:
       - in: query
         name: created
@@ -4415,7 +6274,8 @@ paths:
       x-ai-description: List all teams
     post:
       operationId: teams_create
-      description: Base viewset with RBAC filtering.
+      description: Create a new team object.
+      summary: Create a team.
       tags:
       - teams
       requestBody:
@@ -4444,7 +6304,8 @@ paths:
   /api/v1/teams/{id}/:
     get:
       operationId: teams_retrieve
-      description: Base viewset with RBAC filtering.
+      description: Returns a specific teams by ID.
+      summary: Get specific teams by ID.
       parameters:
       - in: path
         name: id
@@ -4467,7 +6328,8 @@ paths:
       x-ai-description: Retrieve single team
     put:
       operationId: teams_update
-      description: Base viewset with RBAC filtering.
+      description: Update a specific team by ID.
+      summary: Update a specific team by ID.
       parameters:
       - in: path
         name: id
@@ -4502,7 +6364,8 @@ paths:
       x-ai-description: Update existing team
     patch:
       operationId: teams_partial_update
-      description: Base viewset with RBAC filtering.
+      description: Partially update a specific team by ID.
+      summary: Partially update a specific team by ID.
       parameters:
       - in: path
         name: id
@@ -4536,7 +6399,8 @@ paths:
       x-ai-description: Partially update existing team
     delete:
       operationId: teams_destroy
-      description: Base viewset with RBAC filtering.
+      description: Delete a specific team record by ID.
+      summary: Delete a specific team by ID.
       parameters:
       - in: path
         name: id
@@ -4556,16 +6420,8 @@ paths:
   /api/v1/teams/{id}/organization/:
     get:
       operationId: teams_organization_list
-      description: |-
-        Manage Organization objects in the 'organization' relationship of this particular Team.
-
-        Starting from the detail URL:
-
-        GET /:id/organization/ to show organizations currently in the relationship
-
-        POST a list of instances to /:id/organization/associate/ to add those organizations to the relationship
-
-        POST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp
+      description: Returns a list of organizations.
+      summary: List organizations.
       parameters:
       - in: query
         name: created
@@ -4726,10 +6582,69 @@ paths:
                 $ref: '#/components/schemas/PaginatedOrganizationList'
           description: ''
       x-ai-description: List all organization for a team
+  /api/v1/teams/{id}/organization/associate/:
+    post:
+      operationId: teams_organization_associate_create
+      description: |-
+        Manage Organization objects in the 'organization' relationship of this particular Team.
+
+        Starting from the detail URL:
+
+        GET /:id/organization/ to show organizations currently in the relationship
+
+        POST a list of instances to /:id/organization/associate/ to add those organizations to the relationship
+
+        POST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9]+$
+        required: true
+      tags:
+      - teams
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Associate organization with a team
+  /api/v1/teams/{id}/organization/disassociate/:
+    post:
+      operationId: teams_organization_disassociate_create
+      description: |-
+        Manage Organization objects in the 'organization' relationship of this particular Team.
+
+        Starting from the detail URL:
+
+        GET /:id/organization/ to show organizations currently in the relationship
+
+        POST a list of instances to /:id/organization/associate/ to add those organizations to the relationship
+
+        POST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9]+$
+        required: true
+      tags:
+      - teams
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Disassociate organization from a team
   /api/v1/users/:
     get:
       operationId: users_list
-      description: Base viewset with RBAC filtering.
+      description: Returns a list of users.
+      summary: Get a list of users.
       parameters:
       - in: query
         name: date_joined
@@ -4921,7 +6836,8 @@ paths:
       x-ai-description: List all users
     post:
       operationId: users_create
-      description: Base viewset with RBAC filtering.
+      description: Create a new user object
+      summary: Create a user.
       tags:
       - users
       requestBody:
@@ -4950,7 +6866,8 @@ paths:
   /api/v1/users/{id}/:
     get:
       operationId: users_retrieve
-      description: Base viewset with RBAC filtering.
+      description: Returns a specific user by ID.
+      summary: Get a specific user by ID.
       parameters:
       - in: path
         name: id
@@ -4973,7 +6890,8 @@ paths:
       x-ai-description: Retrieve single user
     put:
       operationId: users_update
-      description: Base viewset with RBAC filtering.
+      description: Update a specific user by ID.
+      summary: Update a specific user by ID.
       parameters:
       - in: path
         name: id
@@ -5008,7 +6926,8 @@ paths:
       x-ai-description: Update existing user
     patch:
       operationId: users_partial_update
-      description: Base viewset with RBAC filtering.
+      description: Partially update a specific user by ID.
+      summary: Partially update a specific user by ID.
       parameters:
       - in: path
         name: id
@@ -5042,7 +6961,8 @@ paths:
       x-ai-description: Partially update existing user
     delete:
       operationId: users_destroy
-      description: Base viewset with RBAC filtering.
+      description: Delete a specific user by ID.
+      summary: Delete a specific user by ID.
       parameters:
       - in: path
         name: id
@@ -5062,7 +6982,8 @@ paths:
   /api/v1/users/me/:
     get:
       operationId: users_me_retrieve
-      description: Base viewset with RBAC filtering.
+      description: Get currently logged in user's details
+      summary: Get current user details
       tags:
       - users
       security:
@@ -5079,35 +7000,69 @@ paths:
   /health/:
     get:
       operationId: health_retrieve
-      description: |-
-        Health check endpoint to verify service health.
-
-        Checks database connectivity and returns overall health status.
+      description: Checks database connectivity and returns overall health status.
+      summary: Health check endpoint to verify service health
       tags:
       - health
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
       x-ai-description: Retrieve single health
   /ping/:
     get:
       operationId: ping_retrieve
-      description: |-
-        Simple ping endpoint to verify the service is running.
-
-        Returns a simple "pong" response with HTTP 200.
+      description: Simple ping endpoint to verify the service is running.
+      summary: Ping server
       tags:
       - ping
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+          description: ''
       x-ai-description: Retrieve single ping
 components:
   schemas:
+    ChartDataItem:
+      type: object
+      description: Serializer for a single time-series data point (timestamp label
+        and integer value).
+      properties:
+        label:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Label for the data point (e.g. timestamp)
+        value:
+          type: integer
+          readOnly: true
+          description: Value for the data point (e.g. number of job runs)
+    Checks:
+      type: object
+      properties:
+        database:
+          type: string
+          description: '''ok'' or ''error: <message>'''
+        segment_send:
+          $ref: '#/components/schemas/SegmentSend'
+      required:
+      - database
     DABContentType:
       type: object
       properties:
@@ -5170,6 +7125,61 @@ components:
       required:
       - codename
       - name
+    DashboardCollectionResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        next_run:
+          type: string
+          nullable: true
+        initial_collection_status:
+          type: string
+          nullable: true
+      required:
+      - enabled
+      - initial_collection_status
+      - next_run
+    DashboardReportExportError:
+      type: object
+      properties:
+        detail:
+          type: string
+        error:
+          type: string
+    DashboardReportRetrieveNotAllowed:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    DeletErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        warning:
+          type: string
+        task:
+          $ref: '#/components/schemas/TaskResponse'
+      required:
+      - error
+      - message
+      - task
+      - warning
+    DeleteWarningResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        warning:
+          type: string
+      required:
+      - message
+      - warning
     Entry:
       type: object
       properties:
@@ -5254,6 +7264,23 @@ components:
       required:
       - content_type
       - operation
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        status_code:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+      - error
+      - status_code
+      - timestamp
     FeatureFlagStates:
       type: object
       description: Serialize list of feature flags
@@ -5267,14 +7294,91 @@ components:
           readOnly: true
       required:
       - name
+    FilterSet:
+      type: object
+      description: Serializer for FilterSet, exposing name, filter criteria, and default
+        flag.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: ID of the filter set entry
+        name:
+          type: string
+          description: Name of the filter set
+          maxLength: 255
+        filters:
+          type: object
+          additionalProperties: {}
+          description: JSON object containing the filter criteria
+        is_default:
+          type: boolean
+          description: Indicates whether this filter set is the default for the user
+            (only one default per user allowed)
+      required:
+      - filters
+      - name
+    FilterSetRequest:
+      type: object
+      description: Serializer for FilterSet, exposing name, filter criteria, and default
+        flag.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Name of the filter set
+          maxLength: 255
+        filters:
+          type: object
+          additionalProperties: {}
+          description: JSON object containing the filter criteria
+        is_default:
+          type: boolean
+          description: Indicates whether this filter set is the default for the user
+            (only one default per user allowed)
+      required:
+      - filters
+      - name
+    FunctionInfoSerializers:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: {}
+        examples:
+          type: array
+          items: {}
+      required:
+      - category
+      - description
+      - examples
+      - name
+      - parameters
+    Health:
+      type: object
+      properties:
+        status:
+          enum:
+          - healthy
+          - unhealthy
+          type: string
+          description: |-
+            * `healthy` - healthy
+            * `unhealthy` - unhealthy
+        checks:
+          $ref: '#/components/schemas/Checks'
+      required:
+      - checks
+      - status
     Organization:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Organization model with RBAC access mixin.
       properties:
         id:
           type: integer
@@ -5324,12 +7428,7 @@ components:
       - name
     OrganizationRequest:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Organization model with RBAC access mixin.
       properties:
         name:
           type: string
@@ -5433,6 +7532,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FeatureFlagStates'
+    PaginatedFilterSetList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterSet'
     PaginatedOrganizationList:
       type: object
       required:
@@ -5456,6 +7578,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Organization'
+    PaginatedReportList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
     PaginatedResourceListList:
       type: object
       required:
@@ -5617,6 +7762,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Task'
+    PaginatedTaskListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskList'
     PaginatedTeamAccessViewSet_Team_List:
       type: object
       required:
@@ -5709,14 +7877,27 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/User'
+    PatchedFilterSetRequest:
+      type: object
+      description: Serializer for FilterSet, exposing name, filter criteria, and default
+        flag.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Name of the filter set
+          maxLength: 255
+        filters:
+          type: object
+          additionalProperties: {}
+          description: JSON object containing the filter criteria
+        is_default:
+          type: boolean
+          description: Indicates whether this filter set is the default for the user
+            (only one default per user allowed)
     PatchedOrganizationRequest:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Organization model with RBAC access mixin.
       properties:
         name:
           type: string
@@ -5770,6 +7951,25 @@ components:
         description:
           type: string
           description: A description of this role.
+    PatchedSubscriptionCostRequest:
+      type: object
+      description: Serializer for viewing and updating the SubscriptionCost singleton
+        record.
+      properties:
+        monthly_subscription_cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Monthly subscription cost for AAP subscription
+        engineer_avg_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Average hourly rate for engineers performing manual work
+        include_template_creation_time_in_costs:
+          type: boolean
+          description: Include template creation time in cost calculations. If false,
+            costs related to template creation time will be excluded.
     PatchedTaskExecutionRequest:
       type: object
       description: Serializer for TaskExecution model for execution tracking and monitoring.
@@ -5842,19 +8042,9 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Maximum number of retry attempts
-        timeout_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          description: Task timeout in seconds
     PatchedTeamRequest:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Team model with RBAC access mixin.
       properties:
         name:
           type: string
@@ -5867,9 +8057,27 @@ components:
         organization:
           type: integer
           description: The organization of this team.
+    PatchedTemplateMetadataRequest:
+      type: object
+      description: Serializer for TemplateMetadata, exposing user-overridable time
+        estimate fields.
+      properties:
+        time_taken_manually_execute_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time to perform this task manually
+            (minutes)'
+        time_taken_create_automation_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time spent creating this automation
+            (minutes)'
     PatchedUserRequest:
       type: object
-      description: Disallows editing of system user and enforces superuser requirement.
+      description: Serializer for the User model, handling password hashing on create
+        and update.
       properties:
         password:
           type: string
@@ -5913,6 +8121,178 @@ components:
         date_joined:
           type: string
           format: date-time
+    Ping:
+      type: object
+      properties:
+        ping:
+          type: string
+      required:
+      - ping
+    Report:
+      type: object
+      description: |-
+        Serializer for per-template aggregated report rows.
+
+        Each row represents a single job template with aggregated run counts, elapsed
+        time, cost estimates, and savings calculations across the selected date range.
+      properties:
+        template_name:
+          type: string
+          readOnly: true
+        id:
+          type: integer
+          readOnly: true
+        time_taken_manually_execute_minutes:
+          type: integer
+          readOnly: true
+          description: Estimated time to perform this task manually (minutes)
+        time_taken_create_automation_minutes:
+          type: integer
+          readOnly: true
+          description: Estimated time spent creating this automation (minutes)
+        runs:
+          type: integer
+          readOnly: true
+          description: Total number of times this job template was executed
+        successful_runs:
+          type: integer
+          readOnly: true
+          description: Number of successful runs
+        failed_runs:
+          type: integer
+          readOnly: true
+          description: Number of failed runs
+        elapsed:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
+          description: Total elapsed time for all runs (seconds)
+        elapsed_str:
+          type: string
+          description: Total elapsed time for all runs (human-readable string)
+          readOnly: true
+        automated_costs:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Estimated costs of running this job template on AAP
+        manual_costs:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Estimated costs if all jobs were run manually
+        time_savings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Estimated time savings in seconds by automating this job template
+        time_savings_str:
+          type: string
+          description: Estimated time savings by automating this job template (human-readable
+            string)
+          readOnly: true
+        savings:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Estimated cost savings by automating this job template
+      required:
+      - elapsed
+    ReportChart:
+      type: object
+      description: Serializer for a chart series including the time granularity kind
+        and data items.
+      properties:
+        kind:
+          type: string
+          readOnly: true
+          description: Type of date range for the series (e.g. hour, day, month, year)
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartDataItem'
+          readOnly: true
+          description: Data points for the chart series
+    ReportDetail:
+      type: object
+      description: |-
+        Serializer for the dashboard detail endpoint response.
+
+        Aggregates total run counts, cost figures, time savings, unique host count,
+        top users, top projects, and chart series data for the selected date range.
+      properties:
+        total_number_of_job_runs:
+          type: integer
+          readOnly: true
+          description: Total number of job runs
+        total_number_of_successful_jobs:
+          type: integer
+          readOnly: true
+          description: Total number of successful job runs
+        total_number_of_failed_jobs:
+          type: integer
+          readOnly: true
+          description: Total number of failed job runs
+        total_number_of_host_job_runs:
+          type: integer
+          readOnly: true
+          description: Total number of host job runs (sum of all hosts across all
+            jobs)
+        total_hours_of_automation:
+          type: number
+          format: double
+          description: Total hours of automation
+          readOnly: true
+        cost_of_automated_execution:
+          type: number
+          format: double
+          description: Total cost of automated execution
+          readOnly: true
+        cost_of_manual_automation:
+          type: number
+          format: double
+          description: Total cost of manual execution
+          readOnly: true
+        total_saving:
+          type: number
+          format: double
+          description: Total savings from automation (manual costs - automated costs)
+          readOnly: true
+        total_time_saving:
+          type: number
+          format: double
+          description: Total time savings from automation (in hours)
+          readOnly: true
+        total_number_of_unique_hosts:
+          type: integer
+          readOnly: true
+          description: Total number of unique hosts across all job runs
+        top_users:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopUser'
+          readOnly: true
+          description: List of top users who executed the most jobs
+        top_projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopProject'
+          readOnly: true
+          description: List of top projects associated with the most job executions
+        job_chart:
+          allOf:
+          - $ref: '#/components/schemas/ReportChart'
+          readOnly: true
+          description: Chart data showing job executions over time
+        host_chart:
+          allOf:
+          - $ref: '#/components/schemas/ReportChart'
+          readOnly: true
+          description: Chart data showing host job runs over time
     Resource:
       type: object
       properties:
@@ -6214,6 +8594,94 @@ components:
             its content type.
       required:
       - allowed_permissions
+    ScheduleImmediateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        task_id:
+          type: string
+      required:
+      - message
+      - task_id
+    ScheduleRecurringRequestRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        function_name:
+          type: string
+          minLength: 1
+        task_data:
+          type: object
+          additionalProperties: {}
+        cron_expression:
+          type: string
+          minLength: 1
+        max_attempts:
+          type: integer
+        timeout_seconds:
+          type: integer
+        user:
+          type: string
+          minLength: 1
+      required:
+      - cron_expression
+      - function_name
+    ScheduleRecurringResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        task_id:
+          type: string
+      required:
+      - message
+      - task_id
+    Scheduler:
+      type: object
+      properties:
+        running:
+          type: boolean
+        check_interval:
+          type: integer
+        scheduled_tasks:
+          type: integer
+        recurring_tasks:
+          type: integer
+      required:
+      - check_interval
+      - recurring_tasks
+      - running
+      - scheduled_tasks
+    SchedulerStatusResponse:
+      type: object
+      properties:
+        scheduler:
+          $ref: '#/components/schemas/Scheduler'
+        message:
+          type: string
+      required:
+      - message
+      - scheduler
+    SegmentSend:
+      type: object
+      properties:
+        status:
+          enum:
+          - ok
+          - failed
+          type: string
+          description: |-
+            * `ok` - ok
+            * `failed` - failed
+        last_failure_at:
+          type: string
+        last_success_at:
+          type: string
+        error:
+          type: string
     ServiceRoleTeamAssignment:
       type: object
       properties:
@@ -6324,6 +8792,48 @@ components:
       required:
       - role_definition
       - user_ansible_id
+    SubscriptionCost:
+      type: object
+      description: Serializer for viewing and updating the SubscriptionCost singleton
+        record.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: ID of the subscription cost entry
+        monthly_subscription_cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Monthly subscription cost for AAP subscription
+        engineer_avg_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Average hourly rate for engineers performing manual work
+        include_template_creation_time_in_costs:
+          type: boolean
+          description: Include template creation time in cost calculations. If false,
+            costs related to template creation time will be excluded.
+    SubscriptionCostRequest:
+      type: object
+      description: Serializer for viewing and updating the SubscriptionCost singleton
+        record.
+      properties:
+        monthly_subscription_cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Monthly subscription cost for AAP subscription
+        engineer_avg_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          description: Average hourly rate for engineers performing manual work
+        include_template_creation_time_in_costs:
+          type: boolean
+          description: Include template creation time in cost calculations. If false,
+            costs related to template creation time will be excluded.
     Task:
       type: object
       description: |-
@@ -6391,11 +8901,6 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Maximum number of retry attempts
-        timeout_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          description: Task timeout in seconds
         result_data:
           type: object
           additionalProperties: {}
@@ -6465,6 +8970,54 @@ components:
       required:
       - function_name
       - name
+    TaskCancelErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    TaskCancelResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    TaskCleanupRequest:
+      type: object
+      description: |-
+        Serializer for task cleanup operations.
+
+        This serializer handles the cleanup functionality from manage_tasks.py.
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          default: 30
+          description: Number of days to keep completed tasks
+        dry_run:
+          type: boolean
+          default: false
+          description: Show what would be deleted without actually deleting
+    TaskCleanupResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        count:
+          type: integer
+        preview:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        showing_preview_of:
+          type: integer
+          nullable: true
+      required:
+      - count
+      - message
     TaskCreate:
       type: object
       description: |-
@@ -6501,12 +9054,6 @@ components:
           minimum: 0
           default: 3
           description: Maximum number of retry attempts
-        timeout_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          default: 3600
-          description: Task timeout in seconds
         user:
           type: string
           description: Username of task creator (optional)
@@ -6551,12 +9098,6 @@ components:
           minimum: 0
           default: 3
           description: Maximum number of retry attempts
-        timeout_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          default: 3600
-          description: Task timeout in seconds
         user:
           type: string
           minLength: 1
@@ -6682,6 +9223,15 @@ components:
       required:
       - status
       - task
+    TaskFunctionResponse:
+      type: object
+      properties:
+        functions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionInfoSerializers'
+      required:
+      - functions
     TaskList:
       type: object
       description: |-
@@ -6772,22 +9322,39 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Maximum number of retry attempts
-        timeout_seconds:
-          type: integer
-          maximum: 2147483647
-          minimum: 0
-          description: Task timeout in seconds
       required:
       - function_name
       - name
+    TaskResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        function_name:
+          type: string
+        is_system_task:
+          type: boolean
+      required:
+      - function_name
+      - is_system_task
+      - name
+    TaskRetryErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    TaskRetryResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
     Team:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Team model with RBAC access mixin.
       properties:
         id:
           type: integer
@@ -6868,12 +9435,7 @@ components:
       - organization
     TeamRequest:
       type: object
-      description: |-
-        Class to be used by apps to check permissions to related objects
-
-        This is a core part of integrating permission checks with REST APIs.
-        Full enablement of checks is accomplished by this plus
-        the permission class.
+      description: Serializer for the Team model with RBAC access mixin.
       properties:
         name:
           type: string
@@ -6889,9 +9451,88 @@ components:
       required:
       - name
       - organization
+    TemplateMetadata:
+      type: object
+      description: Serializer for TemplateMetadata, exposing user-overridable time
+        estimate fields.
+      properties:
+        template_id:
+          type: integer
+          readOnly: true
+          description: ID of the associated job template
+        time_taken_manually_execute_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time to perform this task manually
+            (minutes)'
+        time_taken_create_automation_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time spent creating this automation
+            (minutes)'
+      required:
+      - time_taken_create_automation_minutes
+      - time_taken_manually_execute_minutes
+    TemplateMetadataRequest:
+      type: object
+      description: Serializer for TemplateMetadata, exposing user-overridable time
+        estimate fields.
+      properties:
+        time_taken_manually_execute_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time to perform this task manually
+            (minutes)'
+        time_taken_create_automation_minutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'User override: Estimated time spent creating this automation
+            (minutes)'
+      required:
+      - time_taken_create_automation_minutes
+      - time_taken_manually_execute_minutes
+    TopProject:
+      type: object
+      description: Serializer for top project entries (project ID, name, and execution
+        count).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: ID of the project associated with the job
+        name:
+          type: string
+          readOnly: true
+          description: Name of the project associated with the job
+        execution_count:
+          type: integer
+          readOnly: true
+          description: Number of times jobs associated with this project were executed
+    TopUser:
+      type: object
+      description: Serializer for top user entries (user ID, username, and execution
+        count).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: ID of the user who executed the job
+        name:
+          type: string
+          readOnly: true
+          description: Username of the user who executed the job
+        execution_count:
+          type: integer
+          readOnly: true
+          description: Number of times this user executed a job
     User:
       type: object
-      description: Disallows editing of system user and enforces superuser requirement.
+      description: Serializer for the User model, handling password hashing on create
+        and update.
       properties:
         id:
           type: integer
@@ -6990,7 +9631,8 @@ components:
       - username
     UserRequest:
       type: object
-      description: Disallows editing of system user and enforces superuser requirement.
+      description: Serializer for the User model, handling password hashing on create
+        and update.
       properties:
         password:
           type: string

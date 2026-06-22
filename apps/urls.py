@@ -22,17 +22,19 @@ This file loads at step 3 in the URL loading order, before individual apps
 
 """
 
-from django.urls import include, path
+from django.urls import path
 from django.views.generic import RedirectView
 
+from apps.core.views.metrics import PrometheusMetricsView
+
 urlpatterns = [
-    # Prometheus metrics endpoint
-    path("", include("django_prometheus.urls")),
+    # Prometheus metrics endpoint — requires system admin or auditor
+    path("api/metrics", PrometheusMetricsView.as_view(), name="prometheus-django-metrics"),
+    # Redirect /metrics to canonical /api/metrics for backwards compatibility
+    path("metrics", RedirectView.as_view(url="/api/metrics", permanent=False)),
     # Redirect bare feature_flags/ to the canonical states list.
     # Use the full gateway-prefixed URL so that clients accessing the service
     # through the AAP Gateway (which proxies /api/metrics/...) receive a
-    # Location header they can actually reach.  The ServicePrefixMiddleware
-    # will rewrite /api/metrics/v1/feature_flags/states/ → /api/v1/feature_flags/states/
-    # for direct (non-gateway) requests, so the redirect works in both cases.
+    # Location header they can actually reach.
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/metrics/v1/feature_flags/states/", permanent=True)),
 ]

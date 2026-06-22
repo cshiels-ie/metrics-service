@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from rest_framework import status
+from rest_framework.test import APIClient
 
 
 @pytest.mark.unit
@@ -135,31 +136,55 @@ class TestHealthEndpoint:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestMetricsEndpoint:
-    """Test cases for /metrics endpoint."""
+    """Test cases for /api/metrics endpoint."""
 
-    def test_metrics_endpoint_returns_200(self, client, db):
-        """Test that metrics endpoint returns 200."""
-        response = client.get("/metrics")
+    def test_metrics_endpoint_requires_authentication(self):
+        """Unauthenticated requests must be denied."""
+        response = APIClient().get("/api/metrics")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_metrics_endpoint_denies_unprivileged_user(self):
+        """Authenticated non-admin users must be denied."""
+        from django.contrib.auth import get_user_model
+
+        user = get_user_model().objects.create_user(username="regular", password="pw")  # noqa: S106
+        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
+            client = APIClient()
+            client.force_authenticate(user=user)
+            response = client.get("/api/metrics")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_metrics_endpoint_allows_system_admin(self, admin_client):
+        """System admin (is_superuser) must receive Prometheus output."""
+        response = admin_client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_metrics_endpoint_returns_prometheus_format(self, client, db):
-        """Test that metrics endpoint returns text/plain content type."""
-        response = client.get("/metrics")
+    def test_metrics_endpoint_allows_system_auditor(self):
+        """System auditor (has_super_permission view) must receive Prometheus output."""
+        from django.contrib.auth import get_user_model
+
+        auditor = get_user_model().objects.create_user(username="auditor", password="pw")  # noqa: S106
+        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True):
+            client = APIClient()
+            client.force_authenticate(user=auditor)
+            response = client.get("/api/metrics")
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_metrics_endpoint_returns_prometheus_format(self, admin_client):
+        """Response content type must be text/plain."""
+        response = admin_client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
         assert "text/plain" in response["Content-Type"]
 
-    def test_metrics_endpoint_contains_django_metrics(self, client, db):
-        """Test that metrics endpoint contains Django metrics."""
-        # TODO: Your code here!
-        # Hint: Use response.content.decode() to get the text
-        # Check that it contains strings like "django_" or "python_"
-        # Example: assert 'django_http_requests_total' in response.content.decode()
-        response = client.get("/metrics")
+    def test_metrics_endpoint_contains_django_metrics(self, admin_client):
+        """Response body must contain Django metric names."""
+        response = admin_client.get("/api/metrics")
         assert "django_" in response.content.decode()
 
-    def test_metrics_endpoint_works_without_authentication(self, client):
-        """Test that metrics endpoint doesn't require authentication."""
+    def test_metrics_legacy_path_redirects(self, client):
+        """GET /metrics must redirect to /api/metrics for backwards compatibility."""
         response = client.get("/metrics")
-        assert response.status_code == status.HTTP_200_OK
-        assert "django_" in response.content.decode()
+        assert response.status_code == status.HTTP_302_FOUND
+        assert response["Location"] == "/api/metrics"
