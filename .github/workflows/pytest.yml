@@ -2,9 +2,9 @@ name: "Pytest tests"
 
 on:
   push:
-    branches: ["devel"]
+    branches: ["stable-2.6"]
   pull_request:
-    branches: ["devel"]
+    branches: ["stable-2.6"]
 
 # Explicitly set read-only permissions for security
 permissions:
@@ -64,7 +64,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_MODE: test
         run: |
-          uv run pytest -s -v --cov --cov-report=xml
+          uv run pytest -s -v --cov --cov-branch --cov-report=xml
 
       - name: "Upload code coverage report"
         if: github.event_name == 'pull_request'
@@ -88,7 +88,7 @@ jobs:
 
       - name: "Send code coverage report to SonarCloud (on push)"
         if: github.event_name == 'push'
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible
