@@ -365,12 +365,33 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# Indirect Node Collection Group - automation-reports integration
+# Feature flag: INDIRECT_NODE_COLLECTION (default: False — customer opt-in)
+# Enable via METRICS_SERVICE_FEATURE__INDIRECT_NODE_COLLECTION, installer top-level
+# FEATURE_INDIRECT_NODE_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
+    name="indirect_node_collection",
+    description="Indirect managed node hourly collection (INDIRECT_NODE_COLLECTION feature flag)",
+    feature_flag="INDIRECT_NODE_COLLECTION",
+    tasks=[
+        {
+            "task_id": "hourly_collect_indirect_nodes",
+            "function": "collect_indirect_nodes",
+            "cron": "30 * * * *",  # Every hour at XX:30
+            "args": {},
+            "enabled": True,
+            "description": "Collect indirect managed node audit data every hour",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    INDIRECT_NODE_COLLECTION_GROUP,
 ]
 
 
