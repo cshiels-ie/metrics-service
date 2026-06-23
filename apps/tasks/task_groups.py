@@ -224,7 +224,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
-            "enabled": False,  # NOT enabled by default, for performance
+            "enabled": True,
             "description": "Collect job events (event modules) metrics every hour",
         },
         # Daily Snapshot Collection

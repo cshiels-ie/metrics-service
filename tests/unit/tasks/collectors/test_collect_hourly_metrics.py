@@ -397,6 +397,53 @@ class TestGenericCollectMetricsHook:
 
 
 @pytest.mark.unit
+class TestCollectHourlyMetricsRowLimit:
+    """Cover the row_limit injection branch added for main_jobevent_service."""
+
+    def _run(self, collector_type, mock_generic, hour_ts=None):
+        """Call collect_hourly_metrics with all heavy deps patched out."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        with (
+            patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+            patch(
+                "apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors",
+                return_value={
+                    collector_type: {"collector_func": MagicMock(), "rollup_processor": None},
+                },
+            ),
+            patch("apps.tasks.collectors.collect_hourly_metrics.generic_collect_metrics", mock_generic),
+            patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings,
+        ):
+            mock_settings.JOBEVENT_ROW_LIMIT = 2_000_000
+            kwargs = {"collector_type": collector_type}
+            if hour_ts:
+                kwargs["hour_timestamp"] = hour_ts.isoformat()
+            collect_hourly_metrics(**kwargs)
+
+    def test_row_limit_injected_for_main_jobevent_service(self):
+        """row_limit must be added to collector_kwargs for main_jobevent_service."""
+        mock_generic = MagicMock(return_value={"status": "success"})
+        self._run("main_jobevent_service", mock_generic, hour_ts=datetime(2024, 1, 1, tzinfo=UTC))
+
+        _, call_kwargs = mock_generic.call_args
+        assert "row_limit" in call_kwargs["collector_kwargs"], (
+            "row_limit should be injected into collector_kwargs for main_jobevent_service"
+        )
+        assert call_kwargs["collector_kwargs"]["row_limit"] == 2_000_000
+
+    def test_row_limit_not_injected_for_other_collectors(self):
+        """row_limit must NOT appear in collector_kwargs for other collector types."""
+        mock_generic = MagicMock(return_value={"status": "success"})
+        self._run("unified_jobs", mock_generic, hour_ts=datetime(2024, 1, 1, tzinfo=UTC))
+
+        _, call_kwargs = mock_generic.call_args
+        assert "row_limit" not in call_kwargs["collector_kwargs"], (
+            "row_limit should not be injected for non-jobevent collectors"
+        )
+
+
+@pytest.mark.unit
 class TestHourlyCollectorRegistry:
     """Pin the registry wiring so a key rename doesn't silently drop the hook."""
 

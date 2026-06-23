@@ -99,7 +99,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     from metrics_utility.anonymized_rollups import (  # EventModulesAnonymizedRollup,
         ControllerVersionAnonymizedRollup,
         CredentialsAnonymizedRollup,
-        # EventModulesAnonymizedRollup,
+        EventModulesAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
         FeatureFlagsAnonymizedRollup,
         IndirectManagedNodesAnonymizedRollup,
@@ -114,7 +114,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     hourly_rollup_processors = {
         "credentials_service": CredentialsAnonymizedRollup(),
         "job_host_summary_service": JobHostSummaryAnonymizedRollup(),
-        # "main_jobevent_service": EventModulesAnonymizedRollup(),  # Disabled - hourly_job_events task disabled by default
+        "main_jobevent_service": EventModulesAnonymizedRollup(),
         "unified_jobs": JobsAnonymizedRollup(),
     }
 
