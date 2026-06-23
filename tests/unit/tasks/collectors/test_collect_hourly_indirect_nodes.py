@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from metrics_utility.metric_utils import INDIRECT
 from psycopg2 import errors as pg_errors
 
 from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors, collect_hourly_metrics
@@ -26,8 +25,8 @@ class TestIndirectManagedNodesCollector:
         assert "indirect" in entry.get("description", "").lower()
 
     @pytest.mark.django_db
-    def test_successful_collection_adds_managed_node_type_tag(self):
-        """Collector adds managed_node_type = INDIRECT to all records."""
+    def test_successful_collection_stores_deduplicated_host_ids(self):
+        """Collector stores deduplicated host_remote_ids as a rollup dict."""
         sample_data = pd.DataFrame(
             {
                 "id": [1, 2],
@@ -40,10 +39,16 @@ class TestIndirectManagedNodesCollector:
         mock_collector = MagicMock()
         mock_collector.gather.return_value = sample_data
 
+        mock_rollup_processor = MagicMock()
+        mock_rollup_processor.return_value.prepare.return_value = {
+            "indirect_node_ids": ["remote1", "remote2"],
+            "indirect_nodes_total": 2,
+        }
+
         mock_registry = {
             "indirect_managed_nodes": {
                 "collector_func": MagicMock(return_value=mock_collector),
-                "rollup_processor": _get_hourly_collectors()["indirect_managed_nodes"]["rollup_processor"],
+                "rollup_processor": mock_rollup_processor,
                 "description": "Test collector",
             }
         }
@@ -63,11 +68,9 @@ class TestIndirectManagedNodesCollector:
         collection = HourlyMetricsCollection.objects.get(id=result["collection_id"])
         raw_data = collection.raw_data
 
-        # raw_data should be a list of records
-        assert isinstance(raw_data, list)
-        assert len(raw_data) == 2
-        assert all("managed_node_type" in record for record in raw_data)
-        assert all(record["managed_node_type"] == INDIRECT for record in raw_data)
+        assert isinstance(raw_data, dict)
+        assert raw_data["indirect_node_ids"] == ["remote1", "remote2"]
+        assert raw_data["indirect_nodes_total"] == 2
 
     @pytest.mark.django_db
     def test_empty_result_set_succeeds(self):

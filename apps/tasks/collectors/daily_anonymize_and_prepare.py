@@ -79,7 +79,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             controller_version_rollup=metrics.get("controller_version_service", {}),
             feature_flags_rollup=metrics.get("feature_flags_service", {}),
             task_executions_rollup=metrics.get("task_executions_service", []),
-            salt=kwargs.get("salt", generate_salt()),
+            indirect_managed_nodes_rollup=metrics.get("indirect_managed_nodes", {}),
         )
 
         # Add metadata
