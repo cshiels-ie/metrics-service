@@ -118,6 +118,7 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     collector_kwargs: dict[str, Any] = {"since": start_datetime, "until": end_datetime}
     if collector_type == "main_jobevent_service":
         collector_kwargs["row_limit"] = settings.JOBEVENT_ROW_LIMIT
+        collector_kwargs["job_limit"] = settings.JOBEVENT_JOB_LIMIT
 
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
