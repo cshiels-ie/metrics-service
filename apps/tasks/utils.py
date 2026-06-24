@@ -295,6 +295,22 @@ def parse_datetime_string(date_str: str | None) -> Any:
         return None
 
 
+_AWX_PROBE_TABLES = ("main_unifiedjob",)
+
+
+def _check_db_ready(connection, probe_tables):
+    """Return True if at least one probe table exists in the database."""
+    with connection.cursor() as cursor:
+        for table in probe_tables:
+            cursor.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
+                [table],
+            )
+            if cursor.fetchone()[0]:
+                return True
+    return False
+
+
 def get_db_connection(db_name: str = "awx"):
     """
     Get a raw database connection that supports PostgreSQL COPY commands.
@@ -329,6 +345,27 @@ def get_db_connection(db_name: str = "awx"):
 
     # Return the raw psycopg2 connection
     return django_connection.connection
+
+
+def awx_db_ready() -> bool:
+    """
+    Check if AWX controller database tables are available.
+
+    This prevents scheduling collector tasks before controller migrations complete,
+    avoiding startup race conditions. Useful for any component that needs to wait
+    for controller DB initialization.
+
+    Returns:
+        True if at least one AWX probe table exists, False otherwise
+    """
+    try:
+        # Use get_db_connection() to inherit stale-connection recovery logic
+        # (SELECT 1 probe + reconnect), preventing false negatives on transient stale connections
+        raw_conn = get_db_connection("awx")
+        return _check_db_ready(raw_conn, _AWX_PROBE_TABLES)
+    except Exception as e:
+        logger.debug(f"AWX DB readiness check failed: {e}")
+        return False
 
 
 def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):

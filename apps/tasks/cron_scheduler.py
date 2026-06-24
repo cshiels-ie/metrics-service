@@ -72,6 +72,48 @@ class UnifiedTaskScheduler:
         # Database task tracking
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
 
+        # DB readiness tracking for error escalation
+        self._db_not_ready_since = None  # Timestamp when DB first became unready
+        self._db_ready_grace_period = timedelta(minutes=10)  # Grace period before escalating to ERROR
+
+    def _check_db_readiness_and_log(self) -> bool:
+        """
+        Check DB readiness and log appropriate messages based on grace period.
+
+        Returns:
+            True if DB is ready, False otherwise
+        """
+        from apps.tasks.utils import awx_db_ready
+
+        if not awx_db_ready():
+            # Track when DB first became unready
+            if self._db_not_ready_since is None:
+                self._db_not_ready_since = timezone.now()
+
+            # Check if we've exceeded the grace period
+            elapsed = timezone.now() - self._db_not_ready_since
+            if elapsed > self._db_ready_grace_period:
+                logger.error(
+                    f"AWX database still not ready after {elapsed.total_seconds():.0f}s "
+                    f"(grace period: {self._db_ready_grace_period.total_seconds():.0f}s). "
+                    "This likely indicates controller migrations failed. "
+                    "Skipping task scheduling (will retry in 30s)"
+                )
+            else:
+                logger.warning(
+                    f"AWX database not ready yet ({elapsed.total_seconds():.0f}s elapsed), "
+                    f"skipping task scheduling (will retry in 30s)"
+                )
+            return False
+
+        # DB is ready - clear the tracking timestamp
+        if self._db_not_ready_since is not None:
+            elapsed = timezone.now() - self._db_not_ready_since
+            logger.info(f"AWX database is now ready (was unready for {elapsed.total_seconds():.0f}s)")
+            self._db_not_ready_since = None
+
+        return True
+
     def start(self):
         """Start the cron scheduler."""
         with self._lock:
@@ -161,6 +203,21 @@ class UnifiedTaskScheduler:
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
+
+        # Always check for stuck tasks, regardless of AWX DB readiness.
+        # Stuck task timeout reconciliation should not be paused during controller startup.
+        try:
+            self._fail_stuck_tasks()
+        except Exception as e:
+            logger.exception(f"Error failing stuck tasks: {e}")
+
+        # Early exit if AWX DB is not ready yet (during controller startup).
+        # This prevents collector tasks from being scheduled before migrations complete,
+        # without blocking API responses or individual tasks. The scheduler will retry
+        # every 30s until the database becomes available.
+        if not self._check_db_readiness_and_log():
+            return
+
         try:
             from .models import Task
 
@@ -206,9 +263,6 @@ class UnifiedTaskScheduler:
                 logger.info(
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
-
-            # Detect tasks stuck in running beyond their timeout
-            self._fail_stuck_tasks()
 
             # Clean up advisory locks held by sessions that outlived their process
             self._cleanup_stale_advisory_locks()

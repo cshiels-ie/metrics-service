@@ -281,12 +281,102 @@ class TestGetDbConnection(TestCase):
 
         result = utils.get_db_connection()
 
-        # Verify close_old_connections was NOT called
         mock_close_old.assert_not_called()
-        # Verify ensure_connection was still called
         mock_django_conn.ensure_connection.assert_called_once()
         self.assertEqual(result, mock_raw_conn)
 
+    @patch("django.db.connections")
+    def test_get_db_connection_live_connection_not_reconnected(self, mock_connections):
+        """Live connection (SELECT 1 succeeds) is returned as-is without closing."""
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection()
+
+        mock_raw_conn.execute.assert_called_once_with("SELECT 1")
+        mock_django_conn.close.assert_not_called()
+        mock_django_conn.ensure_connection.assert_called_once()
+        self.assertEqual(result, mock_django_conn.connection)
+
+    @patch("django.db.connections")
+    def test_get_db_connection_no_existing_connection_skips_probe(self, mock_connections):
+        """When no connection exists yet (None), SELECT 1 is not attempted."""
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = None
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        # Mock ensure_connection to set a valid connection after it's called
+        def set_connection():
+            mock_django_conn.connection = MagicMock()
+
+        mock_django_conn.ensure_connection.side_effect = set_connection
+
+        utils.get_db_connection()
+
+        mock_django_conn.close.assert_not_called()
+        mock_django_conn.ensure_connection.assert_called_once()
+
+    @patch("django.db.connections")
+    def test_get_db_connection_stale_connection_reconnects(self, mock_connections):
+        """When SELECT 1 raises, the stale connection is discarded and a fresh one opened."""
+        stale_conn = MagicMock()
+        stale_conn.execute.side_effect = Exception("connection closed")
+
+        fresh_conn = MagicMock()
+
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = stale_conn
+
+        # After close(), connection becomes the fresh one
+        def set_fresh_after_close():
+            mock_django_conn.connection = fresh_conn
+
+        mock_django_conn.close.side_effect = lambda: set_fresh_after_close()
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection()
+
+        stale_conn.execute.assert_called_once_with("SELECT 1")
+        mock_django_conn.close.assert_called_once()
+        mock_django_conn.ensure_connection.assert_called_once()
+        self.assertEqual(result, fresh_conn)
+
+    @patch("apps.tasks.utils.logger")
+    @patch("django.db.connections")
+    def test_get_db_connection_stale_connection_logs_warning(self, mock_connections, mock_logger):
+        """A stale connection triggers a WARNING log before reconnecting."""
+        mock_raw_conn = MagicMock()
+        mock_raw_conn.execute.side_effect = Exception("server closed the connection unexpectedly")
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        utils.get_db_connection("awx")
+
+        mock_logger.warning.assert_called_once()
+        warning_msg = mock_logger.warning.call_args[0][0]
+        self.assertIn("awx", warning_msg)
+        self.assertIn("stale", warning_msg)
+
+    @patch("django.db.connections")
+    def test_get_db_connection_reconnect_failure_propagates(self, mock_connections):
+        """If ensure_connection() raises after a stale probe, the exception propagates cleanly."""
+        from django.db.utils import OperationalError
+
+        mock_raw_conn = MagicMock()
+        mock_raw_conn.execute.side_effect = Exception("connection closed")
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_django_conn.ensure_connection.side_effect = OperationalError("could not connect to server")
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        with self.assertRaises(OperationalError):
+            utils.get_db_connection()
+
+        mock_django_conn.close.assert_called_once()
+        mock_django_conn.ensure_connection.assert_called_once()
 
 class TestRunWithLock(TestCase):
     """Test run_with_lock function."""
@@ -360,6 +450,44 @@ class TestGenerateSalt(TestCase):
         salt2 = utils.generate_salt()
 
         self.assertNotEqual(salt1, salt2)
+
+
+class TestCheckDbReady(TestCase):
+    """Test _check_db_ready function."""
+
+    def test_returns_true_when_table_exists(self):
+        """Test that _check_db_ready returns True when a probe table exists."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (True,)
+
+        result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
+
+        self.assertTrue(result)
+
+    def test_returns_false_when_no_tables_exist(self):
+        """Test that _check_db_ready returns False when no probe tables exist."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (False,)
+
+        result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
+
+        self.assertFalse(result)
+
+    def test_short_circuits_on_first_found(self):
+        """Test that _check_db_ready returns True on the first found table."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.side_effect = [(False,), (True,)]
+
+        result = utils._check_db_ready(mock_conn, ("table_a", "table_b"))
+
+        self.assertTrue(result)
+        self.assertEqual(mock_cursor.execute.call_count, 2)
 
 
 class TestSendToSegment(TestCase):
