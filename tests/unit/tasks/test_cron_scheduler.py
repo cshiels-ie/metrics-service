@@ -24,8 +24,9 @@ class TestPeriodicDatabaseSync:
     """Test _periodic_database_sync task discovery and routing."""
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    def test_discovers_and_executes_immediate_tasks(self, mock_execute, mock_task_model):
+    def test_discovers_and_executes_immediate_tasks(self, mock_execute, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new immediate tasks and executes them."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -50,8 +51,9 @@ class TestPeriodicDatabaseSync:
         assert scheduler._db_task_jobs[1] == "db_immediate_1"
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_scheduled_task")
-    def test_discovers_and_adds_scheduled_tasks(self, mock_add_scheduled, mock_task_model):
+    def test_discovers_and_adds_scheduled_tasks(self, mock_add_scheduled, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new scheduled tasks."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -73,8 +75,9 @@ class TestPeriodicDatabaseSync:
         mock_add_scheduled.assert_called_once_with(mock_scheduled_task)
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_recurring_task")
-    def test_discovers_and_adds_recurring_tasks(self, mock_add_recurring, mock_task_model):
+    def test_discovers_and_adds_recurring_tasks(self, mock_add_recurring, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new recurring tasks."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -187,8 +190,9 @@ class TestPeriodicDatabaseSync:
 
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True)
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_recurring_task")
-    def test_adds_recurring_task_when_flag_is_enabled(self, mock_add, mock_task_model, mock_flag):
+    def test_adds_recurring_task_when_flag_is_enabled(self, mock_add, _mock_db_ready, mock_task_model, mock_flag):
         """Recurring tasks are added once their feature flag is re-enabled."""
         scheduler = UnifiedTaskScheduler()
         scheduler.running = True
@@ -605,6 +609,7 @@ class TestStuckTaskDetection:
 
         with (
             patch("apps.tasks.cron_scheduler.close_old_connections"),
+            patch("apps.tasks.utils.awx_db_ready", return_value=True),
             patch.object(Task, "immediate_tasks", return_value=[]),
             patch.object(Task, "scheduled_tasks", return_value=[]),
             patch.object(Task, "recurring_tasks", return_value=[]),
