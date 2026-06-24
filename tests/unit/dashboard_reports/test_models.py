@@ -392,6 +392,46 @@ class TestJobData:
 
 @pytest.mark.unit
 @pytest.mark.django_db
+class TestMinTimestamp:
+    """Tests for JobData.min_timestamp() classmethod."""
+
+    def test_returns_none_when_no_records(self):
+        """min_timestamp returns None when JobData table is empty."""
+        assert JobData.min_timestamp() is None
+
+    def test_returns_none_when_all_finished_null(self):
+        """min_timestamp returns None when all records have finished=None."""
+        JobData.objects.create(job_id=100, template_name="T", elapsed=1, finished=None)
+        assert JobData.min_timestamp() is None
+
+    def test_returns_earliest_finished(self):
+        """min_timestamp returns the earliest finished timestamp."""
+        now = datetime.datetime.now().astimezone(datetime.UTC)
+        earlier = (now - datetime.timedelta(days=5)).astimezone(datetime.UTC)
+        oldest = (now - datetime.timedelta(days=10)).astimezone(datetime.UTC)
+        JobData.objects.create(job_id=101, template_name="T1", elapsed=1, finished=now)
+        JobData.objects.create(job_id=102, template_name="T2", elapsed=1, finished=earlier)
+        JobData.objects.create(job_id=103, template_name="T3", elapsed=1, finished=oldest)
+        assert JobData.min_timestamp() == oldest
+
+    def test_returns_single_record_finished(self):
+        """min_timestamp returns the only available finished timestamp."""
+        now = datetime.datetime.now().astimezone(datetime.UTC)
+        JobData.objects.create(job_id=104, template_name="T", elapsed=1, finished=now)
+        assert JobData.min_timestamp() == now
+
+    def test_ignores_null_finished_among_valid(self):
+        """min_timestamp ignores records with finished=None and returns min of non-null."""
+        now = datetime.datetime.now().astimezone(datetime.UTC)
+        earlier = (now - datetime.timedelta(days=3)).astimezone(datetime.UTC)
+        JobData.objects.create(job_id=105, template_name="T1", elapsed=1, finished=None)
+        JobData.objects.create(job_id=106, template_name="T2", elapsed=1, finished=now)
+        JobData.objects.create(job_id=107, template_name="T3", elapsed=1, finished=earlier)
+        assert JobData.min_timestamp() == earlier
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
 class TestJobStatusChoices:
     """Test cases for JobStatusChoices."""
 
