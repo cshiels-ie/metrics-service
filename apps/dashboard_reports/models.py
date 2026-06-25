@@ -803,3 +803,69 @@ class JobHostSummary(CommonModel):
             )
         )
         return queryset.values("stable_host").distinct().count()
+
+
+class DashboardTelemetry(CommonModel):
+    """
+    Stores dashboard telemetry information for the AAP telemetry, including collection duration in ms,
+    number of records processed, database query time in ms and cache hit rate.
+    This is used for telemetry in the dashboard reports.
+    """
+
+    task_name = models.CharField(
+        max_length=512,
+        null=True,
+        blank=True,
+        help_text="Name of the task that produced this telemetry entry",
+    )
+
+    collection_run_date = models.DateField(
+        help_text="UTC date on which the task ran",
+    )
+
+    success = models.BooleanField(
+        default=True,
+        help_text="Whether the task completed without an error",
+    )
+
+    collection_duration_ms = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(decimal.Decimal("0.00"))],
+        help_text="Collection duration (ms)",
+    )
+
+    number_of_records_processed = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Number of records processed",
+    )
+
+    database_query_time_ms = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(decimal.Decimal("0.00"))],
+        help_text="Database query time (ms)",
+        null=True,  # None when not tracked (e.g. batched backfill tasks)
+        blank=True,
+    )
+
+    cache_hit_rate = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(decimal.Decimal("0.00"))],
+        help_text="Cache hit rate",
+        null=True,  # some tasks don't create cache, in which case cache hit rate would be None
+        blank=True,
+    )
+
+    class Meta:
+        """Database and display configuration for DashboardTelemetry."""
+
+        db_table = "dashboard_telemetry"
+        verbose_name = "Dashboard Telemetry"
+        verbose_name_plural = "Dashboard Telemetry Entries"
+        indexes = [models.Index(fields=["collection_run_date", "task_name"], name="dash_tel_run_task_idx")]
+
+    def __str__(self) -> str:
+        """Return a string representation showing task name, collection duration, and records processed."""
+        return f"DashboardTelemetry: Collection Duration (ms)={self.collection_duration_ms}, Number of Records Processed={self.number_of_records_processed}, DB Query Time (ms)={self.database_query_time_ms}, Cache Hit Rate={self.cache_hit_rate}"
