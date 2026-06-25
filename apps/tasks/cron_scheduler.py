@@ -72,6 +72,48 @@ class UnifiedTaskScheduler:
         # Database task tracking
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
 
+        # DB readiness tracking for error escalation
+        self._db_not_ready_since = None  # Timestamp when DB first became unready
+        self._db_ready_grace_period = timedelta(minutes=10)  # Grace period before escalating to ERROR
+
+    def _check_db_readiness_and_log(self) -> bool:
+        """
+        Check DB readiness and log appropriate messages based on grace period.
+
+        Returns:
+            True if DB is ready, False otherwise
+        """
+        from apps.tasks.utils import awx_db_ready
+
+        if not awx_db_ready():
+            # Track when DB first became unready
+            if self._db_not_ready_since is None:
+                self._db_not_ready_since = timezone.now()
+
+            # Check if we've exceeded the grace period
+            elapsed = timezone.now() - self._db_not_ready_since
+            if elapsed > self._db_ready_grace_period:
+                logger.error(
+                    f"AWX database still not ready after {elapsed.total_seconds():.0f}s "
+                    f"(grace period: {self._db_ready_grace_period.total_seconds():.0f}s). "
+                    "This likely indicates controller migrations failed. "
+                    "Skipping task scheduling (will retry in 30s)"
+                )
+            else:
+                logger.warning(
+                    f"AWX database not ready yet ({elapsed.total_seconds():.0f}s elapsed), "
+                    f"skipping task scheduling (will retry in 30s)"
+                )
+            return False
+
+        # DB is ready - clear the tracking timestamp
+        if self._db_not_ready_since is not None:
+            elapsed = timezone.now() - self._db_not_ready_since
+            logger.info(f"AWX database is now ready (was unready for {elapsed.total_seconds():.0f}s)")
+            self._db_not_ready_since = None
+
+        return True
+
     def start(self):
         """Start the cron scheduler."""
         with self._lock:
@@ -161,6 +203,21 @@ class UnifiedTaskScheduler:
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
+
+        # Always check for stuck tasks, regardless of AWX DB readiness.
+        # Stuck task timeout reconciliation should not be paused during controller startup.
+        try:
+            self._fail_stuck_tasks()
+        except Exception as e:
+            logger.exception(f"Error failing stuck tasks: {e}")
+
+        # Early exit if AWX DB is not ready yet (during controller startup).
+        # This prevents collector tasks from being scheduled before migrations complete,
+        # without blocking API responses or individual tasks. The scheduler will retry
+        # every 30s until the database becomes available.
+        if not self._check_db_readiness_and_log():
+            return
+
         try:
             from .models import Task
 
@@ -207,27 +264,78 @@ class UnifiedTaskScheduler:
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
 
-            # Detect tasks stuck in running beyond their timeout
-            from .models import TaskExecution
-
-            now = timezone.now()
-            stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            )
-            if stuck_to_fail:
-                ids = [t.id for t in stuck_to_fail]
-                error_msg = "Task timed out — worker died before completion"
-                with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                    Task.objects.filter(id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+            # Clean up advisory locks held by sessions that outlived their process
+            self._cleanup_stale_advisory_locks()
 
         except Exception as e:
-            logger.error(f"Error in periodic database sync: {e}")
+            logger.exception(f"Error in periodic database sync: {e}")
+
+    def _fail_stuck_tasks(self):
+        """Mark tasks stuck in running status as failed after their timeout."""
+        from .models import Task, TaskExecution
+
+        now = timezone.now()
+        stuck_to_fail = Task.objects.filter(
+            status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+        )
+        if stuck_to_fail:
+            ids = [t.id for t in stuck_to_fail]
+            error_msg = "Task timed out — worker died before completion"
+            with transaction.atomic():
+                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+                Task.objects.filter(id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+
+    def _cleanup_stale_advisory_locks(self):
+        """Terminate database sessions holding advisory locks that appear stale.
+
+        A session is considered stale when it has been idle longer than the task
+        timeout — at that point the corresponding Task has already been marked
+        failed by the stuck-task detector above, but a network partition can keep
+        the PostgreSQL session (and its lock) alive for hours.
+
+        Only cleans up locks matching TASK_LOCKS function names, not arbitrary
+        advisory locks that other applications might hold.
+        """
+        from django.db import connection
+
+        from .tasks import TASK_LOCKS
+
+        try:
+            with connection.cursor() as cursor:
+                # Compute our lock IDs the same way lock.py does:
+                # hashtext(name)::bigint, then Python-style modulo 2**63
+                cursor.execute("SELECT hashtext(name)::bigint FROM unnest(%s::text[]) AS name", [list(TASK_LOCKS)])
+                our_lock_ids = [row[0] % (2**63) for row in cursor.fetchall()]
+
+                cursor.execute(
+                    """
+                    SELECT l.pid
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON l.pid = a.pid
+                    WHERE l.locktype = 'advisory'
+                      AND l.granted = true
+                      AND a.pid != pg_backend_pid()
+                      AND a.state = 'idle'
+                      AND a.state_change < NOW() - interval '1 second' * %s
+                      AND ((l.classid::bigint << 32) | (l.objid::bigint & x'ffffffff'::bigint)) = ANY(%s)
+                    """,
+                    [STUCK_TASK_TIMEOUT_SECONDS, our_lock_ids],
+                )
+                stale_pids = [row[0] for row in cursor.fetchall()]
+
+                for pid in stale_pids:
+                    cursor.execute("SELECT pg_terminate_backend(%s)", [pid])
+                    logger.warning(f"Terminated stale session {pid} holding an advisory lock")
+
+                if stale_pids:
+                    logger.warning(f"Cleaned up {len(stale_pids)} stale advisory lock(s)")
+        except Exception as e:
+            logger.exception(f"Error cleaning up stale advisory locks: {e}")
 
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""

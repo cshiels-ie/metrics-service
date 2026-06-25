@@ -3,7 +3,7 @@ Coverage-focused test fixtures supplementing tests/conftest.py.
 """
 
 from contextlib import contextmanager
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -44,3 +44,13 @@ def mock_lock_not_acquired():
 
     with patch("metrics_utility.library.lock.lock", side_effect=_fake_lock):
         yield
+
+
+@pytest.fixture
+def mock_apscheduler():
+    """Mock BackgroundScheduler so no real threads are spawned."""
+    with patch("apps.tasks.cron_scheduler.BackgroundScheduler") as mock_cls:
+        mock_instance = MagicMock()
+        mock_instance.running = True
+        mock_cls.return_value = mock_instance
+        yield mock_instance

@@ -23,8 +23,9 @@ class TestPeriodicDatabaseSync:
     """Test _periodic_database_sync task discovery and routing."""
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    def test_discovers_and_executes_immediate_tasks(self, mock_execute, mock_task_model):
+    def test_discovers_and_executes_immediate_tasks(self, mock_execute, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new immediate tasks and executes them."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -49,8 +50,9 @@ class TestPeriodicDatabaseSync:
         assert scheduler._db_task_jobs[1] == "db_immediate_1"
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_scheduled_task")
-    def test_discovers_and_adds_scheduled_tasks(self, mock_add_scheduled, mock_task_model):
+    def test_discovers_and_adds_scheduled_tasks(self, mock_add_scheduled, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new scheduled tasks."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -72,8 +74,9 @@ class TestPeriodicDatabaseSync:
         mock_add_scheduled.assert_called_once_with(mock_scheduled_task)
 
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_recurring_task")
-    def test_discovers_and_adds_recurring_tasks(self, mock_add_recurring, mock_task_model):
+    def test_discovers_and_adds_recurring_tasks(self, mock_add_recurring, _mock_db_ready, mock_task_model):
         """Test periodic sync discovers new recurring tasks."""
         # Arrange
         scheduler = UnifiedTaskScheduler()
@@ -186,8 +189,9 @@ class TestPeriodicDatabaseSync:
 
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True)
     @patch("apps.tasks.models.Task")
+    @patch("apps.tasks.utils.awx_db_ready", return_value=True)
     @patch.object(UnifiedTaskScheduler, "_add_database_recurring_task")
-    def test_adds_recurring_task_when_flag_is_enabled(self, mock_add, mock_task_model, mock_flag):
+    def test_adds_recurring_task_when_flag_is_enabled(self, mock_add, _mock_db_ready, mock_task_model, mock_flag):
         """Recurring tasks are added once their feature flag is re-enabled."""
         scheduler = UnifiedTaskScheduler()
         scheduler.running = True
@@ -446,6 +450,83 @@ class TestRemoveDatabaseTask:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
+class TestCleanupStaleAdvisoryLocks:
+    """Test _cleanup_stale_advisory_locks in the scheduler."""
+
+    def test_terminates_stale_sessions(self):
+        """Sessions holding advisory locks idle beyond the timeout are terminated."""
+        scheduler = UnifiedTaskScheduler()
+
+        fake_hash_values = [(999000,), (999001,)]
+        stale_pids = [(201,), (202,)]
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.side_effect = [fake_hash_values, stale_pids]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.return_value = mock_cursor
+            scheduler._cleanup_stale_advisory_locks()
+
+        calls = mock_cursor.execute.call_args_list
+        expected_lock_ids = [h % (2**63) for (h,) in fake_hash_values]
+        pid_query_call = [c for c in calls if "pg_locks" in str(c)]
+        assert len(pid_query_call) == 1
+        assert pid_query_call[0][0][1][1] == expected_lock_ids
+
+        assert any("pg_terminate_backend" in str(c) and 201 in c[0][1] for c in calls)
+        assert any("pg_terminate_backend" in str(c) and 202 in c[0][1] for c in calls)
+
+    def test_skips_when_no_stale_locks(self):
+        """No termination calls when there are no stale advisory locks."""
+        scheduler = UnifiedTaskScheduler()
+
+        fake_hash_values = [(999000,)]
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.side_effect = [fake_hash_values, []]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.return_value = mock_cursor
+            scheduler._cleanup_stale_advisory_locks()
+
+        calls = mock_cursor.execute.call_args_list
+        assert not any("pg_terminate_backend" in str(c) for c in calls)
+
+    def test_only_targets_known_task_lock_names(self):
+        """The hashtext query is scoped to TASK_LOCKS names, not arbitrary locks."""
+        from apps.tasks.tasks import TASK_LOCKS
+
+        scheduler = UnifiedTaskScheduler()
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.side_effect = [[(1,)], []]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.return_value = mock_cursor
+            scheduler._cleanup_stale_advisory_locks()
+
+        hashtext_call = mock_cursor.execute.call_args_list[0]
+        assert "hashtext" in hashtext_call[0][0]
+        passed_names = set(hashtext_call[0][1][0])
+        assert passed_names == TASK_LOCKS
+
+    def test_handles_db_error_gracefully(self):
+        """Database errors in lock cleanup are caught and logged, not raised."""
+        scheduler = UnifiedTaskScheduler()
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.side_effect = Exception("connection lost")
+            scheduler._cleanup_stale_advisory_locks()
+
+
+@pytest.mark.unit
 class TestInjectDispatchTimestamps:
     """
     Test that _inject_dispatch_timestamps pins the correct time-window key into
@@ -527,6 +608,7 @@ class TestStuckTaskDetection:
 
         with (
             patch("apps.tasks.cron_scheduler.close_old_connections"),
+            patch("apps.tasks.utils.awx_db_ready", return_value=True),
             patch.object(Task, "immediate_tasks", return_value=[]),
             patch.object(Task, "scheduled_tasks", return_value=[]),
             patch.object(Task, "recurring_tasks", return_value=[]),
