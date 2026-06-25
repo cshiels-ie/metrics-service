@@ -31,3 +31,13 @@ def mock_lock_not_acquired():
     mock_lock.__exit__ = MagicMock(return_value=False)
     with patch("metrics_utility.library.lock.lock", return_value=mock_lock):
         yield
+
+
+@pytest.fixture
+def mock_apscheduler():
+    """Mock BackgroundScheduler so no real threads are spawned."""
+    with patch("apps.tasks.cron_scheduler.BackgroundScheduler") as mock_cls:
+        mock_instance = MagicMock()
+        mock_instance.running = True
+        mock_cls.return_value = mock_instance
+        yield mock_instance

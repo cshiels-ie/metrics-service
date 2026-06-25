@@ -281,9 +281,7 @@ class TestGetDbConnection(TestCase):
 
         result = utils.get_db_connection()
 
-        # Verify close_old_connections was NOT called
         mock_close_old.assert_not_called()
-        # Verify ensure_connection was still called
         mock_django_conn.ensure_connection.assert_called_once()
         self.assertEqual(result, mock_raw_conn)
 
@@ -360,6 +358,44 @@ class TestGenerateSalt(TestCase):
         salt2 = utils.generate_salt()
 
         self.assertNotEqual(salt1, salt2)
+
+
+class TestCheckDbReady(TestCase):
+    """Test _check_db_ready function."""
+
+    def test_returns_true_when_table_exists(self):
+        """Test that _check_db_ready returns True when a probe table exists."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (True,)
+
+        result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
+
+        self.assertTrue(result)
+
+    def test_returns_false_when_no_tables_exist(self):
+        """Test that _check_db_ready returns False when no probe tables exist."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (False,)
+
+        result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
+
+        self.assertFalse(result)
+
+    def test_short_circuits_on_first_found(self):
+        """Test that _check_db_ready returns True on the first found table."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.side_effect = [(False,), (True,)]
+
+        result = utils._check_db_ready(mock_conn, ("table_a", "table_b"))
+
+        self.assertTrue(result)
+        self.assertEqual(mock_cursor.execute.call_count, 2)
 
 
 class TestSendToSegment(TestCase):
