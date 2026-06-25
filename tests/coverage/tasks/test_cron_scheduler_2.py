@@ -30,7 +30,7 @@ def test_stop_scheduler_stops_instance(mock_apscheduler):
 
     cs._scheduler_instance = None
     with patch.object(cs.UnifiedTaskScheduler, "_sync_database_tasks"):
-        scheduler = cs.start_scheduler()
+        cs.start_scheduler()
 
     assert cs._scheduler_instance is not None
     cs.stop_scheduler()
