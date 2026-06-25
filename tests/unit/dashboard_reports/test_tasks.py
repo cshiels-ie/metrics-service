@@ -420,6 +420,27 @@ class TestSyncDashboardJobRecords:
         assembled = mock_sync.call_args[0][0]
         assert assembled[0]["host_summaries"] is None
 
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_column_absent_sets_labels_none(self, mock_result, mock_log, mock_sync):
+        """When label_ids key is absent from the row (older metrics_utility), labels=None to preserve existing records."""
+        raw_job = self._raw_job()
+        raw_job.pop("label_ids")  # simulate column not returned by older collector
+        sync_dashboard_job_records(raw_jobs=[raw_job], hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] is None
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_null_in_row_sets_labels_empty_list(self, mock_result, mock_log, mock_sync):
+        """When label_ids key is present but None (job has no labels in AWX), labels=[] to clear stale records."""
+        raw_jobs = [self._raw_job(label_ids=None)]
+        sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] == []
+
 
 @pytest.mark.unit
 class TestCollectDataConnectionHandling:

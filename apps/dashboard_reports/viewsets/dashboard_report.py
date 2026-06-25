@@ -23,8 +23,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.dashboard_reports.filters import CustomReportFilter, DateFilter
-from apps.dashboard_reports.models import JobData, JobHostSummary, JobStatusChoices, SubscriptionCost
+from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
+from apps.dashboard_reports.models import JobData, JobHostSummary, JobLabel, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
@@ -376,12 +376,43 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
 
+    def _inject_label_ids(self, rows: list[dict], base_qs: QuerySet[JobData]) -> None:
+        """Add a label_ids list to each aggregated row by querying JobLabel.
+
+        Runs a single batch query scoped to the same filtered JobData queryset used
+        to build the report, so labels only reflect jobs actually included in the
+        current date range / org / project / label filters. Mutates each row dict in
+        place. Avoids annotating the ValuesQuerySet (which would inflate aggregates
+        via the FK JOIN).
+        """
+        label_map: dict[int, list[int]] = {}
+        for item in (
+            JobLabel.objects.filter(job_data__in=base_qs, label_id__isnull=False)
+            .values("job_data__template_metadata_id", "label_id")
+            .distinct()
+        ):
+            tid = item["job_data__template_metadata_id"]
+            if tid is not None:
+                label_map.setdefault(tid, []).append(item["label_id"])
+        for row in rows:
+            row["label_ids"] = label_map.get(row.get("template_metadata_id"), [])
+
     @require_date_range
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
-        Returns paginated report data for dashboard.
+        Returns paginated report data for dashboard, including label IDs per template row.
         """
-        return super().list(request, *args, **kwargs)
+        base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
+        queryset = self.filter_queryset(self._build_aggregated_queryset(base_qs))
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            self._inject_label_ids(page, base_qs)
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        rows = list(queryset)
+        self._inject_label_ids(rows, base_qs)
+        serializer = self.get_serializer(rows, many=True)
+        return Response(serializer.data)
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """

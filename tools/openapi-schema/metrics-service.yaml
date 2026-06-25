@@ -8308,6 +8308,13 @@ components:
           pattern: ^-?\d{0,18}(?:\.\d{0,2})?$
           readOnly: true
           description: Estimated cost savings by automating this job template
+        label_ids:
+          type: array
+          items:
+            type: integer
+          readOnly: true
+          description: AWX label IDs associated with jobs of this template in the
+            selected date range
       required:
       - elapsed
     ReportChart:

@@ -684,7 +684,9 @@ class JobData(CommonModel):
         template_metadata = TemplateMetadata.get_by_awx_id_or_name(
             name=awx_job["name"], awx_id=awx_job["unified_job_template_id"], elapsed=awx_job["elapsed"]
         )
-        labels = awx_job.get("labels", [])
+        # None signals "column was not available in collected data — preserve existing labels".
+        # [] signals "job currently has no labels in AWX — remove any stale records".
+        labels = awx_job.get("labels")
         host_summaries = awx_job.get("host_summaries", [])
 
         job_data, created = cls.objects.update_or_create(
@@ -710,8 +712,9 @@ class JobData(CommonModel):
         )
         logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 
-        existing_labels = {} if created else {o.label_id: o for o in JobLabel.objects.filter(job_data=job_data)}
-        cls._sync_labels(job_data, labels, existing_labels)
+        if labels is not None:
+            existing_labels = {} if created else {o.label_id: o for o in JobLabel.objects.filter(job_data=job_data)}
+            cls._sync_labels(job_data, labels, existing_labels)
         if host_summaries is not None:
             existing_summaries = (
                 {} if created else {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}

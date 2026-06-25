@@ -75,6 +75,12 @@ class ReportSerializer(_ReportSerializerBase):
         read_only=True,
         help_text="Estimated cost savings by automating this job template",
     )
+    label_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        default=list,
+        read_only=True,
+        help_text="AWX label IDs associated with jobs of this template in the selected date range",
+    )
 
     class Meta:
         """Serializer meta configuration for ReportSerializer."""
@@ -95,6 +101,7 @@ class ReportSerializer(_ReportSerializerBase):
             "time_savings",
             "time_savings_str",
             "savings",
+            "label_ids",
         )
 
     def _get_time_str(self, obj: dict[str, Any], key: str) -> str:

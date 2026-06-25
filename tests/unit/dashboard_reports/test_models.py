@@ -696,3 +696,55 @@ class TestCreateOrUpdateFromAwxHostSummaries:
         job = {**self._AWX_JOB, "id": 9002, "host_summaries": []}
         JobData.create_or_update_from_awx(job)
         mock_sync_host_summaries.assert_called_once()
+
+
+@pytest.mark.unit
+class TestCreateOrUpdateFromAwxLabels:
+    """Tests for the labels=None guard in create_or_update_from_awx (AAP-79243)."""
+
+    _AWX_JOB = {
+        "id": 9100,
+        "name": "Label Guard Job",
+        "unified_job_template_id": 1,
+        "project_id": 1,
+        "project_name": "Proj",
+        "organization_id": 1,
+        "organization_name": "Org",
+        "status": "successful",
+        "started": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "finished": datetime.datetime(2024, 1, 1, 1, tzinfo=datetime.UTC),
+        "elapsed": 60.0,
+        "launched_by_id": 1,
+        "launched_by_username": "user",
+        "created": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "modified": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+        "num_hosts": 0,
+        "host_summaries": None,
+    }
+
+    @patch("apps.dashboard_reports.models.JobData._sync_labels")
+    @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
+    @pytest.mark.django_db
+    def test_labels_none_skips_sync(self, _mock_template_metadata, mock_sync_labels):
+        """When labels=None (column absent in collected data), _sync_labels is never called."""
+        job = {**self._AWX_JOB, "labels": None}
+        JobData.create_or_update_from_awx(job)
+        mock_sync_labels.assert_not_called()
+
+    @patch("apps.dashboard_reports.models.JobData._sync_labels")
+    @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
+    @pytest.mark.django_db
+    def test_labels_empty_list_calls_sync(self, _mock_template_metadata, mock_sync_labels):
+        """When labels=[] (job has no labels in AWX), _sync_labels is called to clear stale records."""
+        job = {**self._AWX_JOB, "id": 9101, "labels": []}
+        JobData.create_or_update_from_awx(job)
+        mock_sync_labels.assert_called_once()
+
+    @patch("apps.dashboard_reports.models.JobData._sync_labels")
+    @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
+    @pytest.mark.django_db
+    def test_labels_list_calls_sync(self, _mock_template_metadata, mock_sync_labels):
+        """When labels=[3, 7], _sync_labels is called with the provided IDs."""
+        job = {**self._AWX_JOB, "id": 9102, "labels": [3, 7]}
+        JobData.create_or_update_from_awx(job)
+        mock_sync_labels.assert_called_once()

@@ -338,6 +338,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     task_name = "sync_dashboard_job_records"
     hour_timestamp = kwargs.get("hour_timestamp", "unknown")
     raw_jobs = kwargs.get("raw_jobs", [])
+    start_time = time.monotonic()
 
     log_task_execution(
         task_name=task_name,
@@ -347,13 +348,19 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
 
     assembled = []
     for row in raw_jobs:
-        label_ids_raw = row.get("label_ids")
-        if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
-            labels = []
-        elif isinstance(label_ids_raw, str):
-            labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
+        if "label_ids" not in row:
+            # Column was absent in collected data (older metrics_utility without label support).
+            # Use None to signal that create_or_update_from_awx should preserve existing labels
+            # rather than clearing them.
+            labels: list[int] | None = None
         else:
-            labels = [int(label_ids_raw)]
+            label_ids_raw = row["label_ids"]
+            if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
+                labels = []
+            elif isinstance(label_ids_raw, str):
+                labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
+            else:
+                labels = [int(label_ids_raw)]
         assembled.append(
             {
                 "id": row["id"],
@@ -380,6 +387,17 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
         )
 
     failed_jobs = _sync_jobs_atomically(assembled)
+
+    duration_ms = (time.monotonic() - start_time) * 1000
+    success = not failed_jobs
+    _save_telemetry_details(
+        task_name=task_name,
+        success=success,
+        collection_duration_ms=duration_ms,
+        number_of_records_processed=len(assembled) - len(failed_jobs),
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
 
     if failed_jobs:
         return create_task_result("error", error=f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}")
