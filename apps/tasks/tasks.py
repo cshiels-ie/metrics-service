@@ -62,8 +62,8 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
-    "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
     "sync_dashboard_job_records": sync_dashboard_job_records,
+    "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -78,6 +78,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 }
 
 
@@ -403,7 +404,66 @@ TASK_METADATA = {
                 "description": "Serialised unified_jobs rows from the hourly collector hook",
             },
         },
-        "examples": [],
+        "examples": [
+            {
+                "name": "Sync one hour of job records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_jobs": [
+                        {
+                            "id": 1,
+                            "name": "Demo Job Template",
+                            "unified_job_template_id": 10,
+                            "organization_id": 1,
+                            "organization_name": "Default",
+                            "started": "2024-01-01T00:01:00+00:00",
+                            "finished": "2024-01-01T00:02:30+00:00",
+                            "status": "successful",
+                            "elapsed": 90.0,
+                            "launched_by_id": 1,
+                            "launched_by_username": "admin",
+                            "project_id": 5,
+                            "project_name": "Demo Project",
+                            "created": "2024-01-01T00:00:50+00:00",
+                            "modified": "2024-01-01T00:02:30+00:00",
+                            "label_ids": None,
+                            "num_hosts": 3,
+                        }
+                    ],
+                },
+            },
+        ],
+    },
+    "sync_dashboard_host_summaries": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Write job_host_summary_service data collected during the hourly rollup to the dashboard JobHostSummary table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_host_summaries": {
+                "type": "array",
+                "description": "Serialised job_host_summary_service rows from the hourly collector hook",
+            },
+        },
+        "examples": [
+            {
+                "name": "Sync one hour of host summary records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_host_summaries": [
+                        {
+                            "id": 1,
+                            "host_name": "web01",
+                            "host_remote_id": 10,
+                            "job_remote_id": 42,
+                        }
+                    ],
+                },
+            },
+        ],
     },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",

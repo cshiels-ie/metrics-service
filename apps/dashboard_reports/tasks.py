@@ -1,10 +1,11 @@
 """
 Background tasks for dashboard reports data collection and cleanup.
 
-Provides four dispatcherd tasks:
+Provides five dispatcherd tasks:
 - collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
+- sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
