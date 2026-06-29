@@ -150,6 +150,7 @@ _DASHBOARD_COLUMNS = [
 
 
 _INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
+_STRING_FIELDS = ("name", "organization_name", "status", "launched_by_username", "project_name", "label_ids")
 
 
 def _serialize_dashboard_record(row: dict) -> None:
@@ -163,6 +164,10 @@ def _serialize_dashboard_record(row: dict) -> None:
     Nullable FK columns (organization_id, project_id, etc.) are upcast to float64 by pandas
     when NaN coexists with integers; .where(notna(), other=None) leaves NaN as float nan
     rather than None, so int(nan) would raise ValueError without the explicit nan guard here.
+
+    Nullable string columns (organization_name, project_name, etc.) can also arrive as
+    float nan from pandas when the entire column contains NaN values; they must be coerced
+    to None to produce valid JSON.
     """
     for field in ("started", "finished", "created", "modified"):
         val = row.get(field)
@@ -174,6 +179,10 @@ def _serialize_dashboard_record(row: dict) -> None:
             row[field] = None
         else:
             row[field] = int(val)
+    for field in _STRING_FIELDS:
+        val = row.get(field)
+        if isinstance(val, float) and math.isnan(val):
+            row[field] = None
     val = row.get("elapsed")
     if val is None or (isinstance(val, float) and math.isnan(val)):
         row["elapsed"] = None
