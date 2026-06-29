@@ -14,7 +14,7 @@ from apps.core.models import Organization, Team, User
 class APIConfig(ServiceAPIConfig):
     """API configuration for the resource registry."""
 
-    service_type = "metrics_service"
+    service_type = "metrics"
 
 
 RESOURCE_LIST = [
