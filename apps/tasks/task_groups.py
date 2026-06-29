@@ -376,9 +376,9 @@ INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     tasks=[
         {
             "task_id": "hourly_collect_indirect_nodes",
-            "function": "collect_indirect_nodes",
+            "function": "collect_hourly_metrics",
             "cron": "30 * * * *",  # Every hour at XX:30
-            "args": {},
+            "args": {"collector_type": "indirect_managed_nodes"},
             "enabled": True,
             "description": "Collect indirect managed node audit data every hour",
         },

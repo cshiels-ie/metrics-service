@@ -353,10 +353,11 @@ class TestIndirectNodeCollectionGroup(TestCase):
         assert "hourly_collect_indirect_nodes" in task_ids
 
     def test_indirect_node_collection_group_uses_correct_cron(self):
-        """collect_indirect_nodes task is scheduled at 30 * * * *."""
+        """hourly_collect_indirect_nodes task is scheduled at 30 * * * * via collect_hourly_metrics."""
         task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "hourly_collect_indirect_nodes")
         assert task["cron"] == "30 * * * *"
-        assert task["function"] == "collect_indirect_nodes"
+        assert task["function"] == "collect_hourly_metrics"
+        assert task["args"]["collector_type"] == "indirect_managed_nodes"
 
 
 class TestTaskGroupIntegration(TestCase):

@@ -598,20 +598,22 @@ class TestInjectDispatchTimestamps:
         assert result["hour_timestamp"] == fixed_ts
 
     def test_injects_hour_timestamp_for_indirect_nodes_collector(self):
-        """collect_indirect_nodes tasks get hour_timestamp set to the previous full hour."""
+        """collect_hourly_metrics indirect_managed_nodes tasks get hour_timestamp set to the previous full hour."""
         fixed_now = timezone.now().replace(minute=45, second=0, microsecond=0)
         expected = (fixed_now.replace(minute=0) - timedelta(hours=1)).isoformat()
 
         with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
             mock_tz.now.return_value = fixed_now
-            result = _inject_dispatch_timestamps("collect_indirect_nodes", {})
+            result = _inject_dispatch_timestamps("collect_hourly_metrics", {"collector_type": "indirect_managed_nodes"})
 
         assert result["hour_timestamp"] == expected
 
     def test_does_not_overwrite_existing_hour_timestamp_for_indirect_nodes(self):
-        """An explicit hour_timestamp already in indirect nodes task_data must not be replaced."""
+        """An explicit hour_timestamp in indirect_managed_nodes task_data must not be replaced."""
         fixed_ts = "2024-01-15T09:00:00+00:00"
-        result = _inject_dispatch_timestamps("collect_indirect_nodes", {"hour_timestamp": fixed_ts})
+        result = _inject_dispatch_timestamps(
+            "collect_hourly_metrics", {"collector_type": "indirect_managed_nodes", "hour_timestamp": fixed_ts}
+        )
         assert result["hour_timestamp"] == fixed_ts
 
 

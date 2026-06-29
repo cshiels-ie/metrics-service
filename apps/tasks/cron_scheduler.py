@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 
 # Functions that pin hour_timestamp to the previous full hour at dispatch time.
-_PREVIOUS_HOUR_FUNCTIONS = {"collect_hourly_metrics", "collect_indirect_nodes"}
+_PREVIOUS_HOUR_FUNCTIONS = {"collect_hourly_metrics"}
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
