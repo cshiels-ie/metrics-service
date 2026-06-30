@@ -40,6 +40,7 @@ dependencies = [
     "whitenoise>=6.6",
     "pip>=25.2",
     "packaging>=20.0",  # Required for setuptools-scm during source builds
+    "urllib3==2.7.0",
 ]
 
 [project.optional-dependencies]
