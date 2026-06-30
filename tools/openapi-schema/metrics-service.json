@@ -51,29 +51,6 @@
                 "x-ai-description": "Retrieve single api"
             }
         },
-        "/api/metrics": {
-            "get": {
-                "operationId": "api_metrics_retrieve",
-                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
-                "tags": [
-                    "api"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Retrieve single api metric"
-            }
-        },
         "/api/v1/": {
             "get": {
                 "operationId": "root_retrieve_2",
@@ -2329,6 +2306,29 @@
                     }
                 },
                 "x-ai-description": "Retrieve single feature flags state"
+            }
+        },
+        "/api/v1/metrics": {
+            "get": {
+                "operationId": "metrics_retrieve",
+                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "tags": [
+                    "metrics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Retrieve single metric"
             }
         },
         "/api/v1/organizations/": {

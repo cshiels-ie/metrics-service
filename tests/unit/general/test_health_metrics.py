@@ -138,11 +138,11 @@ class TestHealthEndpoint:
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestMetricsEndpoint:
-    """Test cases for /api/metrics endpoint."""
+    """Test cases for /api/v1/metrics endpoint."""
 
     def test_metrics_endpoint_requires_authentication(self):
         """Unauthenticated requests must be denied."""
-        response = APIClient().get("/api/metrics")
+        response = APIClient().get("/api/v1/metrics")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_metrics_endpoint_denies_unprivileged_user(self):
@@ -153,12 +153,12 @@ class TestMetricsEndpoint:
         with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
             client = APIClient()
             client.force_authenticate(user=user)
-            response = client.get("/api/metrics")
+            response = client.get("/api/v1/metrics")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_metrics_endpoint_allows_system_admin(self, admin_client):
         """System admin (is_superuser) must receive Prometheus output."""
-        response = admin_client.get("/api/metrics")
+        response = admin_client.get("/api/v1/metrics")
         assert response.status_code == status.HTTP_200_OK
 
     def test_metrics_endpoint_allows_system_auditor(self):
@@ -169,22 +169,28 @@ class TestMetricsEndpoint:
         with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True):
             client = APIClient()
             client.force_authenticate(user=auditor)
-            response = client.get("/api/metrics")
+            response = client.get("/api/v1/metrics")
         assert response.status_code == status.HTTP_200_OK
 
     def test_metrics_endpoint_returns_prometheus_format(self, admin_client):
         """Response content type must be text/plain."""
-        response = admin_client.get("/api/metrics")
+        response = admin_client.get("/api/v1/metrics")
         assert response.status_code == status.HTTP_200_OK
         assert "text/plain" in response["Content-Type"]
 
     def test_metrics_endpoint_contains_django_metrics(self, admin_client):
         """Response body must contain Django metric names."""
-        response = admin_client.get("/api/metrics")
+        response = admin_client.get("/api/v1/metrics")
         assert "django_" in response.content.decode()
 
     def test_metrics_legacy_path_redirects(self, client):
-        """GET /metrics must redirect to /api/metrics for backwards compatibility."""
+        """GET /metrics must redirect to /api/v1/metrics for backwards compatibility."""
         response = client.get("/metrics")
         assert response.status_code == status.HTTP_302_FOUND
-        assert response["Location"] == "/api/metrics"
+        assert response["Location"] == "/api/v1/metrics"
+
+    def test_metrics_old_api_path_redirects(self, client):
+        """GET /api/metrics must permanently redirect to /api/v1/metrics."""
+        response = client.get("/api/metrics")
+        assert response.status_code == status.HTTP_301_MOVED_PERMANENTLY
+        assert response["Location"] == "/api/v1/metrics"
