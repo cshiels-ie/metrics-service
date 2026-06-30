@@ -29,9 +29,10 @@ from apps.core.views.metrics import PrometheusMetricsView
 
 urlpatterns = [
     # Prometheus metrics endpoint — requires system admin or auditor
-    path("api/metrics", PrometheusMetricsView.as_view(), name="prometheus-django-metrics"),
-    # Redirect /metrics to canonical /api/metrics for backwards compatibility
-    path("metrics", RedirectView.as_view(url="/api/metrics", permanent=False)),
+    path("api/v1/metrics", PrometheusMetricsView.as_view(), name="prometheus-django-metrics"),
+    # Backwards-compat redirects for old paths
+    path("api/metrics", RedirectView.as_view(url="/api/v1/metrics", permanent=True)),
+    path("metrics", RedirectView.as_view(url="/api/v1/metrics", permanent=False)),
     # Redirect bare feature_flags/ to the canonical states list
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
 ]
