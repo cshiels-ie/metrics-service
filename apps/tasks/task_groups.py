@@ -227,14 +227,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
-        {
-            "task_id": "hourly_indirect_managed_nodes",
-            "function": "collect_hourly_metrics",
-            "cron": "25 * * * *",  # Every hour at XX:25
-            "args": {"collector_type": "indirect_managed_nodes"},
-            "enabled": True,
-            "description": "Collect indirect managed node audit metrics every hour",
-        },
         # Daily Snapshot Collection
         {
             "task_id": "daily_execution_environments",
@@ -371,16 +363,16 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
 # FEATURE_INDIRECT_NODE_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     name="indirect_node_collection",
-    description="Indirect managed node hourly collection (INDIRECT_NODE_COLLECTION feature flag)",
+    description="Indirect managed node daily collection (INDIRECT_NODE_COLLECTION feature flag)",
     feature_flag="INDIRECT_NODE_COLLECTION",
     tasks=[
         {
-            "task_id": "hourly_collect_indirect_nodes",
-            "function": "collect_hourly_metrics",
-            "cron": "30 * * * *",  # Every hour at XX:30
+            "task_id": "daily_collect_indirect_nodes",
+            "function": "collect_snapshot_metrics",
+            "cron": "55 1 * * *",  # Daily at 1:55 AM
             "args": {"collector_type": "indirect_managed_nodes"},
             "enabled": True,
-            "description": "Collect indirect managed node audit data every hour",
+            "description": "Collect indirect managed node audit data daily",
         },
     ],
 )

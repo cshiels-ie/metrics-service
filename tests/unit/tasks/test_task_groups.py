@@ -348,16 +348,25 @@ class TestIndirectNodeCollectionGroup(TestCase):
 
     @override_settings(FEATURE={"INDIRECT_NODE_COLLECTION": True})
     def test_indirect_node_collection_group_enabled(self):
-        """When INDIRECT_NODE_COLLECTION is true, hourly_collect_indirect_nodes is returned."""
+        """When INDIRECT_NODE_COLLECTION is true, daily_collect_indirect_nodes is returned."""
         task_ids = [t["task_id"] for t in INDIRECT_NODE_COLLECTION_GROUP.get_enabled_tasks()]
-        assert "hourly_collect_indirect_nodes" in task_ids
+        assert "daily_collect_indirect_nodes" in task_ids
 
     def test_indirect_node_collection_group_uses_correct_cron(self):
-        """hourly_collect_indirect_nodes task is scheduled at 30 * * * * via collect_hourly_metrics."""
-        task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "hourly_collect_indirect_nodes")
-        assert task["cron"] == "30 * * * *"
-        assert task["function"] == "collect_hourly_metrics"
+        """daily_collect_indirect_nodes task is scheduled at 55 1 * * * via collect_snapshot_metrics."""
+        task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "daily_collect_indirect_nodes")
+        assert task["cron"] == "55 1 * * *"
+        assert task["function"] == "collect_snapshot_metrics"
         assert task["args"]["collector_type"] == "indirect_managed_nodes"
+
+    def test_indirect_managed_nodes_not_in_metrics_collection_group(self):
+        """indirect_managed_nodes must not be scheduled by METRICS_COLLECTION_GROUP.
+
+        Prevents a duplicate snapshot run at 55 1 * * * when both groups are active.
+        INDIRECT_NODE_COLLECTION_GROUP is the sole, feature-flag-gated owner.
+        """
+        task_ids = [t["task_id"] for t in METRICS_COLLECTION_GROUP.tasks]
+        assert "daily_indirect_managed_nodes" not in task_ids
 
 
 class TestTaskGroupIntegration(TestCase):
