@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import psycopg2
 import pytest
 from psycopg2 import errors as pg_errors
 
@@ -202,6 +203,45 @@ class TestIndirectManagedNodesCollector:
 
         assert result["status"] == "error"
         assert "collector_type" in result["error"]
+
+    @pytest.mark.django_db
+    def test_db_connection_failure_records_error(self):
+        """OperationalError from DB connection failure is recorded as failed, not silently dropped.
+
+        Distinct from ProgrammingError (missing table): ProgrammingError is caught and logged
+        as a warning in the metrics-utility CLI layer. OperationalError bypasses that catch
+        and must not be silently swallowed by the metrics-service task layer.
+        """
+
+        def raise_connection_error(**kwargs):
+            raise psycopg2.OperationalError("could not connect to server")
+
+        mock_registry = {
+            "indirect_managed_nodes": {
+                "collector_func": raise_connection_error,
+                "rollup_processor": _get_hourly_collectors()["indirect_managed_nodes"]["rollup_processor"],
+                "description": "Test collector",
+            }
+        }
+
+        ts = datetime(2024, 1, 1, tzinfo=UTC)
+        with (
+            patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=mock_registry),
+            patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+        ):
+            result = collect_hourly_metrics(
+                collector_type="indirect_managed_nodes",
+                hour_timestamp=ts.isoformat(),
+            )
+
+        assert result["status"] == "error"
+
+        collection = HourlyMetricsCollection.objects.get(
+            collector_type="indirect_managed_nodes",
+            collection_timestamp=ts,
+        )
+        assert collection.status == "failed"
+        assert "could not connect to server" in collection.error_message
 
     @pytest.mark.django_db
     def test_default_timestamp_when_not_provided(self):
