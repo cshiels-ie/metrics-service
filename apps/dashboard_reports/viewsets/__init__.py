@@ -2,6 +2,7 @@
 
 from .collection_status import DashboardCollectionStatusViewSet
 from .dashboard_report import DashboardReportViewSet
+from .dashboard_telemetry import DashboardTelemetryViewSet
 from .filter_options import FilterOptionsViewSet
 from .filter_sets import FilterSetsViewSet
 from .job_templates import JobTemplatesViewSet
@@ -22,4 +23,5 @@ __all__ = [
     "TemplateMetadataViewSet",
     "FilterOptionsViewSet",
     "FilterSetsViewSet",
+    "DashboardTelemetryViewSet",
 ]

@@ -75,33 +75,38 @@ validators.append(
     ),
 )
 
-# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 RESOURCE_SERVER__SECRET_KEY = ""
-# validators.append(
-#     Validator(
-#         "RESOURCE_SERVER__SECRET_KEY",
-#         must_exist=True,
-#         ne="",
-#         messages={"operations": "RESOURCE_SERVER__SECRET_KEY must be set."},
-#     ),
-# )
+validators.append(
+    Validator(
+        "RESOURCE_SERVER__SECRET_KEY",
+        must_exist=True,
+        ne="",
+        messages={
+            "operations": (
+                "RESOURCE_SERVER__SECRET_KEY must be set. "
+                "Set METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY environment variable."
+            )
+        },
+    ),
+)
 
 # =============================================================================
 # Authentication
 # =============================================================================
 
-# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 ANSIBLE_BASE_JWT_KEY = ""
-# validators.append(
-#     Validator(
-#         "ANSIBLE_BASE_JWT_KEY",
-#         must_exist=True,
-#         ne="",
-#         messages={
-#             "operations": ("ANSIBLE_BASE_JWT_KEY must be set. "),
-#         },
-#     ),
-# )
+validators.append(
+    Validator(
+        "ANSIBLE_BASE_JWT_KEY",
+        must_exist=True,
+        ne="",
+        messages={
+            "operations": (
+                "ANSIBLE_BASE_JWT_KEY must be set. Set METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY environment variable."
+            )
+        },
+    ),
+)
 
 REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
     "apps.core.authentication.ServiceJWTAuthentication",
@@ -202,16 +207,26 @@ validators.append(
 # External Services
 # =============================================================================
 
-# Optional until gateway APIs are implemented; uncomment validator when re-adding.
+# Loaded from file at startup via _load_segment_write_key_from_file().
+# Default path: /etc/ansible-automation-platform/metrics/segment-write-key
+# Override path via METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE
+# Key is baked into container image at build time - always present even in air-gapped environments.
 SEGMENT_WRITE_KEY = ""
-# validators.append(
-#     Validator(
-#         "SEGMENT_WRITE_KEY",
-#         must_exist=True,
-#         ne="",
-#         messages={"operations": "SEGMENT_WRITE_KEY must be set."},
-#     ),
-# )
+validators.append(
+    Validator(
+        "SEGMENT_WRITE_KEY",
+        must_exist=True,
+        ne="",
+        messages={
+            "operations": (
+                "SEGMENT_WRITE_KEY must be set. "
+                "Either set METRICS_SERVICE_SEGMENT_WRITE_KEY environment variable "
+                "or provide the key file at /etc/ansible-automation-platform/metrics/segment-write-key "
+                "(or path specified in METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE)."
+            )
+        },
+    ),
+)
 
 # =============================================================================
 # Static Files
@@ -232,16 +247,21 @@ LOGOUT_URL = "/api/gateway/v1/logout/"
 # =============================================================================
 # Allowed Hosts
 # =============================================================================
-# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 # Set via METRICS_SERVICE_ALLOWED_HOSTS (comma-separated or JSON array).
 # Example: METRICS_SERVICE_ALLOWED_HOSTS=metrics.example.com,api.example.com
 # Or:      METRICS_SERVICE_ALLOWED_HOSTS='["metrics.example.com","api.example.com"]'
 ALLOWED_HOSTS = []
-# validators.append(
-#     Validator(
-#         "ALLOWED_HOSTS",
-#         must_exist=True,
-#         condition=lambda v: isinstance(v, list) and len(v) > 0,
-#         messages={"condition": "ALLOWED_HOSTS must be set via METRICS_SERVICE_ALLOWED_HOSTS in production."},
-#     ),
-# )
+validators.append(
+    Validator(
+        "ALLOWED_HOSTS",
+        must_exist=True,
+        condition=lambda v: isinstance(v, list) and len(v) > 0,
+        messages={
+            "condition": (
+                "ALLOWED_HOSTS must be set via METRICS_SERVICE_ALLOWED_HOSTS in production. "
+                "Django will reject all requests with an empty ALLOWED_HOSTS list. "
+                "Set METRICS_SERVICE_ALLOWED_HOSTS to a comma-separated list or JSON array of hostnames."
+            )
+        },
+    ),
+)

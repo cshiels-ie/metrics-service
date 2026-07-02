@@ -327,6 +327,14 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "enabled": True,
             "description": "Clean up old dashboard report data based on retention policy",
         },
+        {
+            "task_id": "cleanup_dashboard_telemetry",
+            "function": "cleanup_dashboard_telemetry",
+            "cron": "45 5 * * *",  # Daily at 5:45 AM
+            "args": {},  # retention_period_days defaults to 60
+            "enabled": True,
+            "description": "Delete DashboardTelemetry rows older than 60 days to prevent unbounded table growth",
+        },
     ],
 )
 

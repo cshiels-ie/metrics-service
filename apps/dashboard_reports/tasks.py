@@ -10,6 +10,7 @@ Provides four dispatcherd tasks:
 
 import logging
 import math
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,7 +21,7 @@ from metrics_utility.library.collectors.dashboard import (
     dashboard_jobs,
 )
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.models import DashboardTelemetry, JobData, JobHostSummary
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 DEFAULT_DB_NAME = "awx"
@@ -88,6 +89,7 @@ def _sync_jobs_atomically(job_results: list) -> list:
     Returns the list of job IDs that failed to sync.  If any job fails every
     save made in this call is rolled back, keeping JobData.last_timestamp()
     unchanged so the next incremental run retries from the same watermark.
+
 
     Note: retry behaviour for the outer Task is handled by the Task model's max_attempts
     mechanism (default: 3 attempts). When this function signals failure the calling task
@@ -241,6 +243,28 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     return result
 
 
+def _save_telemetry_details(
+    task_name: str,
+    success: bool,
+    collection_duration_ms: float,
+    number_of_records_processed: int,
+    database_query_time_ms: float | None,
+    cache_hit_rate: float | None,
+) -> None:
+    try:
+        DashboardTelemetry.objects.create(
+            task_name=task_name,
+            collection_run_date=datetime.now(UTC).date(),
+            success=success,
+            collection_duration_ms=collection_duration_ms,
+            number_of_records_processed=number_of_records_processed,
+            database_query_time_ms=database_query_time_ms,
+            cache_hit_rate=cache_hit_rate,
+        )
+    except Exception:
+        logger.exception("Failed to record dashboard telemetry")
+
+
 def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     """
     Collect historical AWX job data as a one-time backfill.
@@ -252,9 +276,22 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     Returns a task result dict with status, data, and any error details.
     """
     task_name = "collect_dashboard_reports_initial_data"
+    start_time = time.monotonic()
     result = _collect_data(task_name=task_name, **kwargs)
 
     error = result.get("error", False)
+
+    duration_ms = (time.monotonic() - start_time) * 1000
+    records_processed = result.get("data", {}).get("job_count", 0)
+
+    _save_telemetry_details(
+        task_name=task_name,
+        success=not error,
+        collection_duration_ms=duration_ms,
+        number_of_records_processed=records_processed,
+        database_query_time_ms=None,  # DB time not tracked for batched backfill
+        cache_hit_rate=None,
+    )
 
     if error:
         return create_task_result(
@@ -353,6 +390,80 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     )
 
 
+def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
+    """Write job_host_summary_service data to JobHostSummary records in the dashboard tables.
+
+    Scheduled automatically by the hourly job_host_summary_service hook so no extra Controller
+    DB queries are needed — the raw data is passed in task_data. Jobs not present in JobData
+    (e.g. sync-type or non-terminal jobs filtered out by the dashboard collector) are silently
+    skipped.
+    """
+    task_name = "sync_dashboard_host_summaries"
+    hour_timestamp = kwargs.get("hour_timestamp", "unknown")
+    raw_host_summaries = kwargs.get("raw_host_summaries", [])
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Syncing host summaries for {len(raw_host_summaries)} records ({hour_timestamp})",
+    )
+
+    # Group by job_remote_id; the hook's serializer already maps host_remote_id → host_id.
+    by_job: dict[int, list] = {}
+    for row in raw_host_summaries:
+        job_id = row.get("job_remote_id")
+        if job_id is None:
+            continue
+        summary_id = row.get("id")
+        if summary_id is None:
+            continue
+        by_job.setdefault(job_id, []).append(
+            {
+                "id": summary_id,
+                "host_id": row.get("host_id"),
+                "host_name": row.get("host_name"),
+            }
+        )
+
+    # Batch-fetch all matching JobData and their existing JobHostSummary records in two queries
+    # rather than 2N queries (one get + one filter per job).
+    job_data_by_id: dict[int, Any] = {}
+    existing_by_job_data_pk: dict[int, dict] = {}
+    if by_job:
+        job_data_by_id = {jd.job_id: jd for jd in JobData.objects.filter(job_id__in=by_job.keys())}
+        for hs in JobHostSummary.objects.filter(job_data__in=job_data_by_id.values()):
+            existing_by_job_data_pk.setdefault(hs.job_data_id, {})[hs.host_summary_id] = hs
+
+    synced = 0
+    failed = 0
+    for job_remote_id, host_summaries in by_job.items():
+        job_data = job_data_by_id.get(job_remote_id)
+        if job_data is None:
+            continue  # sync/non-terminal job — no matching JobData record
+        try:
+            with transaction.atomic():
+                existing = existing_by_job_data_pk.get(job_data.pk, {})
+                JobData._sync_host_summaries(job_data, host_summaries, existing)
+            synced += 1
+        except Exception:
+            logger.exception("Error syncing host summaries for job %s", job_remote_id)
+            failed += 1
+
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=f"Synced host summaries for {synced} jobs, {failed} failed ({hour_timestamp})",
+    )
+    if failed:
+        return create_task_result(
+            "error",
+            data={"task_type": task_name, "job_count": synced, "failed": failed, "hour_timestamp": hour_timestamp},
+        )
+    return create_task_result(
+        "success", data={"task_type": task_name, "job_count": synced, "hour_timestamp": hour_timestamp}
+    )
+
+
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
     Delete JobData records with a finished date older than retention_period_days.
@@ -397,16 +508,32 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
         details=f"Cleaning up JobData records older than {cutoff_date_str} (retention period: {retention_period_days} days)",
     )
 
+    start_time = time.monotonic()
+    duration_db_ms = 0
+    jobdata_count = 0
+    task_name = "cleanup_dashboard_reports_old_data"
     try:
+        start_db_time = time.monotonic()
         queryset = JobData.objects.filter(finished__lt=cutoff_date)
         # Count JobData rows before deletion — delete() returns the total across all
         # cascaded models (JobLabel, JobHostSummary, etc.) which inflates the count.
         jobdata_count = queryset.count()
         queryset.delete()
+        duration_db_ms = (time.monotonic() - start_db_time) * 1000
         log_task_execution(
-            task_name="cleanup_dashboard_reports_old_data",
+            task_name=task_name,
             operation="completed",
             details=f"Deleted {jobdata_count} JobData records finished before {cutoff_date_str}",
+        )
+        duration_ms = (time.monotonic() - start_time) * 1000
+
+        _save_telemetry_details(
+            task_name=task_name,
+            success=True,
+            collection_duration_ms=duration_ms,
+            number_of_records_processed=jobdata_count,
+            database_query_time_ms=duration_db_ms,
+            cache_hit_rate=None,
         )
         return create_task_result(
             "success",
@@ -417,5 +544,68 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
             },
         )
     except Exception as e:
+        duration_ms = (time.monotonic() - start_time) * 1000
         logger.error(f"Error during cleanup of old JobData records: {str(e)}")
+        _save_telemetry_details(
+            task_name=task_name,
+            success=False,
+            collection_duration_ms=duration_ms,
+            number_of_records_processed=jobdata_count,
+            database_query_time_ms=duration_db_ms,
+            cache_hit_rate=None,
+        )
+        return create_task_result("error", error=f"Cleanup failed: {str(e)}")
+
+
+def cleanup_dashboard_telemetry(**kwargs) -> dict[str, Any]:
+    """
+    Delete DashboardTelemetry rows older than retention_period_days (default: 60).
+
+    Keeps the telemetry table bounded; the API window is 30 days so rows beyond
+    60 days are no longer surfaced and can safely be purged.
+    Returns a task result dict with the number of deleted rows and cutoff date.
+    """
+    task_name = "cleanup_dashboard_telemetry"
+    retention_period_days = kwargs.get("retention_period_days", 60)
+    try:
+        retention_period_days = int(retention_period_days)
+    except (TypeError, ValueError):
+        logger.error(
+            "%s: retention_period_days=%r is not a valid integer; aborting cleanup",
+            task_name,
+            retention_period_days,
+        )
+        return create_task_result("error", error=f"Invalid retention_period_days value: {retention_period_days!r}")
+    if retention_period_days < 0:
+        logger.warning(
+            "%s: retention_period_days=%d is negative; clamping to 0",
+            task_name,
+            retention_period_days,
+        )
+        retention_period_days = 0
+
+    cutoff_date = (datetime.now(tz=UTC) - timedelta(days=retention_period_days)).date()
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Deleting DashboardTelemetry rows with collection_run_date < {cutoff_date} (retention: {retention_period_days} days)",
+    )
+
+    try:
+        deleted_count, _ = DashboardTelemetry.objects.filter(collection_run_date__lt=cutoff_date).delete()
+        log_task_execution(
+            task_name=task_name,
+            operation="completed",
+            details=f"Deleted {deleted_count} DashboardTelemetry rows before {cutoff_date}",
+        )
+        return create_task_result(
+            "success",
+            data={
+                "deleted_records": deleted_count,
+                "cutoff_date": str(cutoff_date),
+                "retention_period_days": retention_period_days,
+            },
+        )
+    except Exception as e:
+        logger.exception("Error during cleanup of DashboardTelemetry rows")
         return create_task_result("error", error=f"Cleanup failed: {str(e)}")

@@ -5,7 +5,6 @@ import decimal
 from unittest.mock import patch
 
 import pytest
-import pytz
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -376,16 +375,16 @@ class TestJobData:
         assert JobData.last_timestamp() is None
 
     def test_returns_latest_awx_modified(self):
-        now = datetime.datetime.now().astimezone(pytz.utc)
-        earlier = (now - datetime.timedelta(days=1)).astimezone(pytz.utc)
-        later = (now + datetime.timedelta(days=1)).astimezone(pytz.utc)
+        now = datetime.datetime.now().astimezone(datetime.UTC)
+        earlier = (now - datetime.timedelta(days=1)).astimezone(datetime.UTC)
+        later = (now + datetime.timedelta(days=1)).astimezone(datetime.UTC)
         JobData.objects.create(job_id=3, template_name="T3", elapsed=3, awx_modified=earlier)
         JobData.objects.create(job_id=4, template_name="T4", elapsed=4, awx_modified=now)
         JobData.objects.create(job_id=5, template_name="T5", elapsed=5, awx_modified=later)
         assert JobData.last_timestamp() == later
 
     def test_mixed_null_and_valid_awx_modified(self):
-        now = datetime.datetime.now().astimezone(pytz.utc)
+        now = datetime.datetime.now().astimezone(datetime.UTC)
         JobData.objects.create(job_id=6, template_name="T6", elapsed=6, awx_modified=None)
         JobData.objects.create(job_id=7, template_name="T7", elapsed=7, awx_modified=now)
         assert JobData.last_timestamp() == now

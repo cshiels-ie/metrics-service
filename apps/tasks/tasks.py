@@ -16,6 +16,7 @@ import logging
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
+    cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
     sync_dashboard_job_records,
@@ -37,10 +38,7 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
-from .tasks_system import (
-    create_system_tasks,
-    submit_task_to_dispatcher,
-)
+from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +219,7 @@ TASK_METADATA = {
             {"name": "Unified jobs", "data": {"collector_type": "unified_jobs"}},
             {"name": "Credentials", "data": {"collector_type": "credentials_service"}},
             {"name": "Job events", "data": {"collector_type": "main_jobevent_service"}},
+            {"name": "Indirect managed nodes", "data": {"collector_type": "indirect_managed_nodes"}},
             {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
@@ -302,15 +301,10 @@ TASK_METADATA = {
                 "type": "string",
                 "description": "ISO date for the summary to anonymize (defaults to yesterday)",
             },
-            "salt": {
-                "type": "string",
-                "description": "Anonymization salt for hashing (auto-generated if not provided)",
-            },
         },
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
             {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
-            {"name": "With custom salt", "data": {"summary_date": "2024-01-01", "salt": "my-custom-salt"}},
         ],
     },
     "send_anonymized_to_segment": {
@@ -427,6 +421,24 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    "cleanup_dashboard_telemetry": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Delete DashboardTelemetry rows older than retention_period_days (default: 60) to prevent unbounded table growth.",
+        "parameters": {
+            "retention_period_days": {
+                "type": "integer",
+                "default": 60,
+                "description": "Number of days to retain telemetry rows. Rows with collection_run_date older than this are deleted.",
+                "min": 0,
+                "max": 365,
+            },
+        },
+        "examples": [
+            {"name": "Default (60 days)", "data": {}},
+            {"name": "30-day retention", "data": {"retention_period_days": 30}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -455,4 +467,7 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "cleanup_dashboard_telemetry",
+    "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 ]

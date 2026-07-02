@@ -6,6 +6,7 @@ from django.urls import include, path
 from apps.dashboard_reports.viewsets import (
     DashboardCollectionStatusViewSet,
     DashboardReportViewSet,
+    DashboardTelemetryViewSet,
     FilterSetsViewSet,
     JobTemplatesViewSet,
     LabelsViewSet,
@@ -25,6 +26,7 @@ router.register(r"subscription_costs", SubscriptionCostViewSet, basename="subscr
 router.register(r"template_metadata", TemplateMetadataViewSet, basename="template_metadata")
 router.register(r"filter_sets", FilterSetsViewSet, basename="filter_sets")
 router.register(r"collection_status", DashboardCollectionStatusViewSet, basename="collection_status")
+router.register(r"collection_telemetry", DashboardTelemetryViewSet, basename="collection_telemetry")
 
 urlpatterns = [
     path(

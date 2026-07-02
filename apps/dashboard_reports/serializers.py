@@ -10,23 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from rest_framework import serializers
 
-from apps.dashboard_reports.models import FilterSet, JobData, SubscriptionCost, TemplateMetadata
+from apps.dashboard_reports.models import DashboardTelemetry, FilterSet, JobData, SubscriptionCost, TemplateMetadata
+from apps.dashboard_reports.utils import sec2time
 
 if TYPE_CHECKING:
     _ReportSerializerBase = serializers.ModelSerializer[JobData]
 else:
     _ReportSerializerBase = serializers.ModelSerializer
-
-
-def sec2time(sec: decimal.Decimal | int | float) -> str:
-    """
-    Convert a number of seconds into a human-readable string (e.g. "2h 5min 30sec").
-    Rounds to whole seconds before splitting to avoid rollover like "59min 60sec".
-    """
-    total_seconds = int(decimal.Decimal(str(sec)).quantize(decimal.Decimal("1"), rounding=decimal.ROUND_HALF_UP))
-    hours, remainder = divmod(abs(total_seconds), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours}h {minutes}min {seconds}sec" if hours > 0 else f"{minutes}min {seconds}sec"
 
 
 class FilterOptionWithIdSerializer(serializers.Serializer):
@@ -318,3 +308,53 @@ class FilterSetSerializer(serializers.ModelSerializer):
                 "help_text": "Indicates whether this filter set is the default for the user (only one default per user allowed)"
             },
         }
+
+
+class DashboardTelemetrySerializer(serializers.ModelSerializer):
+    """Serializer for DashboardTelemetry"""
+
+    task_name = serializers.CharField(
+        max_length=512,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text="Name of the task that produced this telemetry entry",
+    )
+    collection_run_date = serializers.DateField(help_text="UTC date on which the task ran")
+    collection_duration_ms = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text="Collection duration (ms)",
+    )
+    number_of_records_processed = serializers.IntegerField(help_text="Number of records processed")
+    database_query_time_ms = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        allow_null=True,
+        help_text="Database query time (ms)",
+    )
+    cache_hit_rate = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        help_text="Cache hit rate",
+    )
+    success = serializers.BooleanField(
+        default=True,
+        help_text="Whether the task completed without an error",
+    )
+
+    class Meta:
+        """Serializer meta configuration for DashboardTelemetrySerializer."""
+
+        model = DashboardTelemetry
+        fields = [
+            "task_name",
+            "collection_run_date",
+            "collection_duration_ms",
+            "number_of_records_processed",
+            "database_query_time_ms",
+            "cache_hit_rate",
+            "success",
+        ]
