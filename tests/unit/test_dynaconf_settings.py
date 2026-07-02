@@ -87,27 +87,33 @@ class TestDynaconfValidators:
         db_validators = [v for v in validators if any("DATABASES" in str(name) for name in v.names)]
         assert len(db_validators) > 0
 
-    def test_optional_production_settings_have_no_validators(self):
-        """Test that optional production settings are not required by validators.
+    def test_required_production_settings_have_validators(self):
+        """Test that required production settings have validators.
 
         RESOURCE_SERVER__SECRET_KEY, ANSIBLE_BASE_JWT_KEY, SEGMENT_WRITE_KEY, and
-        ALLOWED_HOSTS are optional in production so deployments can start without
-        gateway auth, Segment, or explicit allowed hosts when not needed.
+        ALLOWED_HOSTS are now required in production to ensure proper AAP gateway
+        integration and prevent misconfigured deployments.
+
+        SEGMENT_WRITE_KEY is baked into the container image at build time, so it
+        should always be present even in air-gapped environments.
         """
         from apps.settings.production import validators
 
-        optional_settings = {
+        required_settings = {
             "RESOURCE_SERVER__SECRET_KEY",
             "ANSIBLE_BASE_JWT_KEY",
             "SEGMENT_WRITE_KEY",
             "ALLOWED_HOSTS",
         }
+
+        found_validators = set()
         for v in validators:
             for name in v.names:
-                assert name not in optional_settings, (
-                    f"Setting {name!r} should be optional (no validator); "
-                    "remove its validator from apps/settings/production.py"
-                )
+                if name in required_settings:
+                    found_validators.add(name)
+
+        # All required settings should have validators
+        assert found_validators == required_settings, f"Missing validators for: {required_settings - found_validators}"
 
     def test_settings_pass_validation(self):
         """Test that current settings pass validation (since we're running)."""
