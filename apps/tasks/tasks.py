@@ -350,7 +350,7 @@ TASK_METADATA = {
         "parameters": {
             "since": {
                 "type": "string",
-                "description": "Start datetime for collection (ISO format, defaults to last collected timestamp or 90 days ago)",
+                "description": "Start datetime for collection (ISO format, defaults to last collected timestamp or the Controller's retention period)",
                 "pattern": "datetime",
             },
             "until": {
@@ -360,7 +360,7 @@ TASK_METADATA = {
             },
         },
         "examples": [
-            {"name": "Default collection (last 90 days)", "data": {}},
+            {"name": "Default collection (last collected timestamp or Controller retention period)", "data": {}},
             {
                 "name": "Custom date range",
                 "data": {"since": "2024-01-30T00:00:00Z", "until": "2024-01-31T23:59:59Z"},
@@ -371,11 +371,11 @@ TASK_METADATA = {
     "collect_dashboard_reports_initial_data": {
         "queue": "dashboard",
         "category": _DASHBOARD_REPORTS_CATEGORY,
-        "description": "One-time backfill of historical AWX job data (window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days). Ongoing incremental sync is driven automatically by the hourly_unified_jobs hook after this completes.",
+        "description": "One-time backfill of historical AWX job data (window controlled by the Controller's cleanup_jobs retention schedule, default 90 days). Ongoing incremental sync is driven automatically by the hourly_unified_jobs hook after this completes.",
         "parameters": {
             "since": {
                 "type": "string",
-                "description": "Start datetime for collection (ISO format, defaults to 90 days ago)",
+                "description": "Start datetime for collection (ISO format, defaults to the Controller's retention period, or 90 days ago if unavailable)",
                 "pattern": "datetime",
             },
             "until": {
@@ -385,7 +385,7 @@ TASK_METADATA = {
             },
         },
         "examples": [
-            {"name": "Default (last 90 days)", "data": {}},
+            {"name": "Default (Controller retention period)", "data": {}},
             {
                 "name": "Custom date range",
                 "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-03-31T23:59:59Z"},
@@ -470,27 +470,27 @@ TASK_METADATA = {
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
-        "description": "Delete dashboard report JobData records older than the retention period (defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS)",
+        "description": "Delete dashboard report JobData records older than the retention period (defaults to the Controller's cleanup_jobs retention schedule)",
         "parameters": {
-            "retention_period_days": {
+            "retention_days": {
                 "type": "integer",
                 "default": None,
-                "description": "Number of days to retain dashboard report data. Defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS (or 90 if unset).",
+                "description": "Number of days to retain dashboard report data. Defaults to the Controller's cleanup_jobs retention schedule (or 90 if unavailable).",
                 "min": 0,
                 "max": 365,
             },
         },
         "examples": [
-            {"name": "Default (matches INITIAL_BACKFILL_DAYS)", "data": {}},
-            {"name": "Extended retention", "data": {"retention_period_days": 180}},
+            {"name": "Default (matches Controller retention schedule)", "data": {}},
+            {"name": "Extended retention", "data": {"retention_days": 180}},
         ],
     },
     "cleanup_dashboard_telemetry": {
         "queue": "dashboard",
         "category": _DASHBOARD_REPORTS_CATEGORY,
-        "description": "Delete DashboardTelemetry rows older than retention_period_days (default: 60) to prevent unbounded table growth.",
+        "description": "Delete DashboardTelemetry rows older than retention_days (default: 60) to prevent unbounded table growth.",
         "parameters": {
-            "retention_period_days": {
+            "retention_days": {
                 "type": "integer",
                 "default": 60,
                 "description": "Number of days to retain telemetry rows. Rows with collection_run_date older than this are deleted.",
@@ -500,7 +500,7 @@ TASK_METADATA = {
         },
         "examples": [
             {"name": "Default (60 days)", "data": {}},
-            {"name": "30-day retention", "data": {"retention_period_days": 30}},
+            {"name": "30-day retention", "data": {"retention_days": 30}},
         ],
     },
 }

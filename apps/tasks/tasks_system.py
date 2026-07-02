@@ -274,6 +274,18 @@ def create_system_tasks() -> dict[str, Any]:
 
     results = {"created": 0, "removed": 0, "tasks": []}
 
+    # Snapshot completed one-shot tasks before deletion so that upgrades don't re-trigger
+    # tasks (e.g. initial_dashboard_collection) that have already run successfully.
+    # Only one-shot tasks (cron_expression=None) are preserved — recurring tasks are always
+    # recreated as pending so their schedules stay in sync with updated cron expressions.
+    completed_oneshots = set(
+        Task.objects.filter(
+            is_system_task=True,
+            cron_expression__isnull=True,
+            status="completed",
+        ).values_list("name", flat=True)
+    )
+
     # Remove all existing system tasks
     _, deletion_info = Task.objects.filter(is_system_task=True).delete()
     removed_count = deletion_info.get("tasks.Task", 0)
@@ -296,6 +308,17 @@ def create_system_tasks() -> dict[str, Any]:
         except Exception as e:
             results["tasks"].append(f"Error with {task_id}: {str(e)}")
             logger.error(f"Failed to create task {task_id}: {e}")
+
+    # Restore completed status for one-shot tasks that already ran successfully,
+    # preventing them from re-running on the next upgrade.
+    if completed_oneshots:
+        restored = Task.objects.filter(
+            is_system_task=True,
+            cron_expression__isnull=True,
+            name__in=completed_oneshots,
+        ).update(status="completed")
+        if restored:
+            logger.info(f"Preserved completed status for {restored} one-shot task(s): {sorted(completed_oneshots)}")
 
     return results
 

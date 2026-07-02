@@ -655,6 +655,18 @@ class JobData(CommonModel):
         return latest_awx_modified
 
     @classmethod
+    def last_finished_timestamp(cls) -> datetime | None:
+        """Returns the latest 'finished' timestamp from JobData, or None if no records exist.
+
+        Use this as the incremental watermark for queries that filter on ``finished``
+        (date_field='finished') so the watermark field matches the query field and
+        the Controller DB index (main_unifiedjob_finished_*) is used correctly.
+        Using MAX(awx_modified) as a watermark for a finished-based query can miss
+        jobs that completed in the gap between MAX(finished) and MAX(awx_modified).
+        """
+        return cls.objects.filter(finished__isnull=False).aggregate(models.Max("finished"))["finished__max"]
+
+    @classmethod
     def min_timestamp(cls) -> datetime | None:
         """Returns the earliest 'finished' timestamp from JobData, or None if no records exist."""
         earliest_finished = cls.objects.filter(finished__isnull=False).aggregate(models.Min("finished"))[

@@ -156,7 +156,7 @@ def test_cleanup_dashboard_reports_old_data_removes_old():
     from apps.dashboard_reports.tasks import cleanup_dashboard_reports_old_data
 
     # If JobData has any records, cleanup should run successfully
-    result = cleanup_dashboard_reports_old_data(retention_period_days=90)
+    result = cleanup_dashboard_reports_old_data(retention_days=90)
     assert result["status"] == "success"
 
 
