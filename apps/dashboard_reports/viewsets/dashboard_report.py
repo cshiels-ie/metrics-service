@@ -1,5 +1,6 @@
 """ViewSet for the main dashboard report endpoint, providing job run metrics and cost analytics."""
 
+import csv
 import decimal
 import logging
 from datetime import UTC, datetime
@@ -11,11 +12,13 @@ from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
 from django.db.models.functions import Cast, Coalesce, Trunc
+from django.http import HttpResponse, JsonResponse
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import filters, status
 from rest_framework.decorators import action
+from rest_framework.renderers import BaseRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
@@ -26,9 +29,40 @@ from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
 )
+from apps.dashboard_reports.utils import sec2time
 from apps.tasks.api_utils import build_error_response
 
 logger = logging.getLogger(__name__)
+
+
+PAGINATION_QUERY_PARAMETERS = [
+    OpenApiParameter(
+        name="page",
+        type=OpenApiTypes.INT,
+        default=1,
+        location=OpenApiParameter.QUERY,
+        required=True,
+        description="Page number (default: 1)",
+    ),
+    OpenApiParameter(
+        name="page_size",
+        type=OpenApiTypes.INT,
+        default=10,
+        location=OpenApiParameter.QUERY,
+        required=True,
+        description="Results per page (default: 10)",
+    ),
+]
+
+
+class PassthroughRenderer(BaseRenderer):
+    """Renderer that returns data as-is, used for HttpResponse actions that bypass DRF serialization."""
+
+    media_type = "text/csv"
+    format = "csv"
+
+    def render(self, data: Any, accepted_media_type: str | None = None, renderer_context: dict | None = None) -> Any:
+        return data
 
 
 def parse_period_param(
@@ -98,6 +132,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     Endpoints:
         GET /api/v1/dashboard_reports/report/ - List all data (paginated)
         GET /api/v1/dashboard_reports/report/details/ - Get  report summary, chart data, and top users/projects
+        GET /api/v1/dashboard_reports/report/export/ - Export report data as CSV
 
     Query Parameters:
         page (int): Page number (default: 1)
@@ -109,28 +144,14 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         label (int): Filter by label ID (multiple allowed)
         project (int): Filter by project ID (multiple allowed)
         ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", etc.)
-
+        report_type (string): Type of report to export. Options: 'summary', 'roi', 'trends' (default: 'summary', used for export endpoint)
+        export_format (string): Export file format. Options: 'csv' (default: 'csv', used for export endpoint)
     """
 
     permission_classes = [IsSystemAdminOrAuditor]
 
     detail_query_parameters = [
-        OpenApiParameter(
-            name="page",
-            type=OpenApiTypes.INT,
-            default=1,
-            location=OpenApiParameter.QUERY,
-            required=True,
-            description="Page number (default: 1)",
-        ),
-        OpenApiParameter(
-            name="page_size",
-            type=OpenApiTypes.INT,
-            default=10,
-            location=OpenApiParameter.QUERY,
-            required=True,
-            description="Results per page (default: 10)",
-        ),
+        *PAGINATION_QUERY_PARAMETERS,
         OpenApiParameter(
             name="period",
             type=OpenApiTypes.STR,
@@ -217,6 +238,28 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             location=OpenApiParameter.QUERY,
             required=False,
             description="Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', etc.)",
+        ),
+    ]
+
+    export_query_parameters = [
+        *[p for p in detail_query_parameters if p not in PAGINATION_QUERY_PARAMETERS],
+        OpenApiParameter(
+            name="report_type",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            default="summary",
+            enum=["summary", "roi", "trends"],
+            description="Type of report to export. Options: 'summary', 'roi', 'trends'.",
+        ),
+        OpenApiParameter(
+            name="export_format",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            default="csv",
+            enum=["csv"],
+            description="Export file format. Options: 'csv'.",
         ),
     ]
 
@@ -459,6 +502,155 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         result["job_chart"]["kind"] = kind
         return result
 
+    @staticmethod
+    def _csv_safe(value: Any) -> Any:
+        """
+        Prepend a single quote to any string value that starts with special
+        characters to prevent CSV injection.
+        """
+        if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+            return f"'{value}"
+        return value
+
+    def _write_summary_csv(self, response: HttpResponse, qs: QuerySet[JobData]) -> None:
+        """
+        Write summary data to CSV, including template name, number of job executions,
+        hosts executed on, time taken to execute manually, time taken to create
+        automation (if enabled), running time, automated costs, manual costs, and savings.
+        """
+        enable_template_creation_time = SubscriptionCost.get().include_template_creation_time_in_costs
+
+        writer = csv.writer(response)
+        headers = [
+            "Name",
+            "Number of job executions",
+            "Hosts executions",
+            "Time taken to manually execute (minutes)",
+        ]
+
+        if enable_template_creation_time:
+            headers.append("Time taken to create automation (minutes)")
+
+        headers += [
+            "Running time (seconds)",
+            "Running time",
+            "Automated costs",
+            "Manual costs",
+            "Savings",
+        ]
+
+        writer.writerow(headers)
+        for job in qs:
+            row = [
+                self._csv_safe(
+                    job["template_metadata__template_name"]
+                ),  # Escape template name to prevent CSV injection
+                job["runs"],
+                job["num_hosts"],
+                job["time_taken_manually_execute_minutes"],
+            ]
+            if enable_template_creation_time:
+                row.append(job["time_taken_create_automation_minutes"])
+            row += [
+                job["elapsed"],
+                sec2time(job["elapsed"]),
+                round(job["automated_costs"], 2),
+                round(job["manual_costs"], 2),
+                round(job["savings"], 2),
+            ]
+            writer.writerow(row)
+
+    def _write_roi_csv(self, response: HttpResponse, qs: QuerySet[JobData]) -> None:
+        """
+        Write ROI data to CSV, including total cost savings, time savings, automation
+        cost, manual cost equivalent, and ROI percentage.
+        """
+        aggregate = qs.aggregate(
+            total_automated_costs=Coalesce(Sum("automated_costs"), Value(decimal.Decimal("0"))),
+            total_manual_costs=Coalesce(Sum("manual_costs"), Value(decimal.Decimal("0"))),
+            total_savings=Coalesce(Sum("savings"), Value(decimal.Decimal("0"))),
+            total_time_savings=Coalesce(Sum("time_savings"), Value(decimal.Decimal("0"))),
+        )
+
+        automated_costs = aggregate["total_automated_costs"]
+        manual_costs = aggregate["total_manual_costs"]
+        savings = aggregate["total_savings"]
+        time_saved_hours = round(aggregate["total_time_savings"] / 3600, 2)
+        roi_percentage = round((savings / automated_costs) * 100, 2) if automated_costs else decimal.Decimal("0")
+        automation_value = manual_costs + savings  # manual_cost_equivalent + cost_savings
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Cost Savings",
+                "Time Saved (hours)",
+                "Automation Cost",
+                "Manual Cost Equivalent",
+                "ROI Percentage",
+                "Automation Value",
+            ]
+        )
+        writer.writerow(
+            [
+                round(savings, 2),
+                time_saved_hours,
+                round(automated_costs, 2),
+                round(manual_costs, 2),
+                roi_percentage,
+                round(automation_value, 2),
+            ]
+        )
+
+    def _write_trends_csv(self, response: HttpResponse, base_qs: QuerySet[JobData]) -> None:
+        """Write trends data to CSV, grouped by the time granularity derived from the date range."""
+        _, _, kind = self._get_date_range_and_kind()
+        if not kind:
+            logger.warning("Could not determine time granularity for trends report; defaulting to 'day'.")
+            kind = "day"
+
+        trends_qs = (
+            base_qs.values(date=Trunc(expression="finished", kind=kind, output_field=models.DateTimeField()))
+            .annotate(
+                runs=Count("id"),
+                successful_runs=Count("id", filter=Q(status=JobStatusChoices.SUCCESSFUL)),
+                failed_runs=Count("id", filter=Q(status=JobStatusChoices.FAILED)),
+                total_elapsed=Sum("elapsed"),
+                total_hosts=Sum("num_hosts"),
+            )
+            .order_by("date")
+        )
+
+        writer = csv.writer(response)
+
+        date_formats = {
+            "hour": "%Y-%m-%d %H:00",
+            "day": "%Y-%m-%d",
+            "week": "%Y-%m-%d",
+            "month": "%Y-%m",
+            "year": "%Y",
+        }
+        writer.writerow(
+            [
+                "Date",
+                "Number of Job Executions",
+                "Successful Runs",
+                "Failed Runs",
+                "Total Elapsed (seconds)",
+                "Total Hosts",
+            ]
+        )
+        for row in trends_qs:
+            writer.writerow(
+                [
+                    row["date"].strftime(date_formats[kind]),
+                    row["runs"],
+                    row["successful_runs"],
+                    row["failed_runs"],
+                    row["total_elapsed"],
+                    row["total_hosts"],
+                ]
+            )
+
     @extend_schema(parameters=detail_query_parameters)
     @action(detail=False, methods=["get"], url_path="details")
     @require_date_range
@@ -470,7 +662,6 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
          - Top users and projects identify the most active users and projects in the given date range.
          All data is filtered by the provided date range and any additional filters (organization, template, label, project).
         """
-
         filtered_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
 
         ### TOP USERS ###
@@ -539,3 +730,48 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         ).data
 
         return Response(report_data, status=status.HTTP_200_OK)
+
+    @extend_schema(parameters=export_query_parameters, responses={(200, "text/csv; charset=UTF-8"): str})
+    @action(methods=["get"], detail=False, url_path="export", renderer_classes=[PassthroughRenderer])
+    @require_date_range
+    def export(self, request: Request, *args: Any, **kwargs: Any) -> HttpResponse | JsonResponse:
+        """Exports report data as CSV based on the specified report type and format query parameters."""
+
+        # Validate report_type and export_format parameters
+        report_type = request.query_params.get("report_type", "summary")
+        export_format = request.query_params.get("export_format", "csv")
+
+        if export_format != "csv":
+            return JsonResponse(
+                {"detail": f"Invalid export format: {export_format}. Only 'csv' is supported."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if report_type not in ("summary", "roi", "trends"):
+            return JsonResponse(
+                {"detail": f"Invalid report_type: {report_type}. Must be one of: summary, roi, trends."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Do the export logic
+        end_date = self.kwargs.get("end_date")
+        filename = f"automation-dashboard-{report_type}-{end_date.date().isoformat()}.csv"
+        response = HttpResponse(
+            content_type="text/csv; charset=UTF-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+        base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
+        qs = self.filter_queryset(self._build_aggregated_queryset(base_qs))
+
+        if export_format == "csv":  # This check is here for future extensibility when we add PDF export
+            if report_type == "summary":
+                self._write_summary_csv(response, qs)  # summary report is based on the aggregated queryset
+            elif report_type == "roi":
+                self._write_roi_csv(response, qs)  # roi report is also based on the aggregated queryset
+            elif report_type == "trends":
+                self._write_trends_csv(
+                    response, base_qs
+                )  # trends report needs to be based on the filtered but not yet aggregated queryset to group by time periods
+
+        # TODO: handle PDF export (add in another PR)
+
+        return response

@@ -10,8 +10,8 @@ from apps.dashboard_reports.serializers import (
     ReportSerializer,
     TopProjectSerializer,
     TopUserSerializer,
-    sec2time,
 )
+from apps.dashboard_reports.utils import sec2time
 
 
 @pytest.mark.unit
