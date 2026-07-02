@@ -26,6 +26,7 @@ _VALID_PERIOD_DAYS = frozenset({7, 14, 30, 60, 90})
 # which causes test failures in months with fewer days (e.g. April=30, February=28).
 # 161.29 = 5000 (default monthly_subscription_cost) / 31 days — matches the expected cost constants.
 FIXED_DAILY_SUBSCRIPTION_COST = decimal.Decimal("161.29")
+FIXED_PER_SECOND_SUBSCRIPTION_COST = FIXED_DAILY_SUBSCRIPTION_COST / decimal.Decimal(86400)
 
 
 def get_now() -> datetime.datetime:
@@ -500,8 +501,8 @@ class TestReportViewData:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_SUBSCRIPTION_COST,
         ):
             yield
 
@@ -611,8 +612,8 @@ class TestDashboardReportViewSetEndpoints:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_SUBSCRIPTION_COST,
         ):
             yield
 
@@ -849,8 +850,8 @@ class TestReportViewDataNoCreationTime:
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
-            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_SUBSCRIPTION_COST,
         ):
             yield
 

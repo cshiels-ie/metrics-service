@@ -15,7 +15,7 @@ from typing import Any, Self
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Case, F, When
+from django.db.models import Case, F, Sum, When
 from django.db.models.functions import Cast
 from metrics_utility.library.collectors.dashboard import AWXJobType
 
@@ -200,10 +200,61 @@ class SubscriptionCost(CommonModel):
         self, start: datetime | None = None, end: datetime | None = None
     ) -> decimal.Decimal:
         """
-        Calculate and return the per-second subscription cost based on the daily subscription cost.
+        Calculates the weighted subscription cost per elapsed second for a given date range.
+        Distributes the proportional monthly cost across all job elapsed seconds in the period.
+
+        Returns a value in units of (currency / second), suitable for direct multiplication
+        by a job's elapsed field (which is in seconds) to produce the job's share of the
+        subscription cost.
+
+        Formula: cost_per_elapsed_second = period_cost / sum(elapsed_seconds_in_period)
+        Verification: sum(job.elapsed * cost_per_elapsed_second) == period_cost
         """
-        daily_cost = self.daily_subscription_cost(start=start, end=end)
-        return daily_cost / decimal.Decimal(86400)  # 86400 seconds in a day
+        monthly_cost = decimal.Decimal(str(self.monthly_subscription_cost))
+
+        if start is None or end is None:
+            now = datetime.now(UTC)
+            days_in_month = calendar.monthrange(now.year, now.month)[1]
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = now.replace(day=days_in_month, hour=23, minute=59, second=59, microsecond=999999)
+
+        if start > end:
+            start, end = end, start
+
+        # Normalize end to end-of-day to ensure the filter matches the day-count formula
+        end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        elapsed_result = JobData.objects.filter(
+            status__in=[JobStatusChoices.SUCCESSFUL, JobStatusChoices.FAILED],
+            finished__gte=start,
+            finished__lte=end,
+        ).aggregate(total_seconds=Sum("elapsed"))
+
+        total_elapsed_raw = elapsed_result["total_seconds"]
+        if total_elapsed_raw is None or total_elapsed_raw == 0:
+            # Return a near-zero sentinel rather than 0 to avoid ZeroDivisionError at call
+            # sites that multiply this rate by elapsed seconds. In practice this path is
+            # only hit when no successful/failed jobs exist in the period, so the rate is
+            # never applied to any real job.
+            return decimal.Decimal("0").quantize(decimal.Decimal("0.0000000001"))
+
+        total_elapsed_decimal = decimal.Decimal(str(total_elapsed_raw))
+
+        if start.year == end.year and start.month == end.month:
+            days_in_month = decimal.Decimal(str(calendar.monthrange(start.year, start.month)[1]))
+            total_period_days = decimal.Decimal(str((end.date() - start.date()).days + 1))
+            period_cost = monthly_cost * total_period_days / days_in_month
+        else:
+            period_cost = decimal.Decimal("0")
+            for current_year, current_month in _month_range_iter(start, end):
+                _, month_start_day, month_end_day = _get_month_overlap_days(current_year, current_month, start, end)
+                overlap_days = month_end_day - month_start_day + 1
+                if overlap_days > 0:
+                    days_in_month_dec = decimal.Decimal(str(calendar.monthrange(current_year, current_month)[1]))
+                    period_cost += monthly_cost * (decimal.Decimal(str(overlap_days)) / days_in_month_dec)
+
+        cost_per_unit = period_cost / total_elapsed_decimal
+        return cost_per_unit.quantize(decimal.Decimal("0.0000000001"), rounding=decimal.ROUND_HALF_UP)
 
 
 class FilterSet(CommonModel):

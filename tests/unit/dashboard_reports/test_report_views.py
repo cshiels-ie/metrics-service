@@ -1,3 +1,4 @@
+import decimal
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -431,16 +432,22 @@ class TestDashboardReportViewSet:
         assert result["job_chart"]["items"][0]["value"] == 5
 
     # Test details endpoint logic with mocks
+    @patch("apps.dashboard_reports.viewsets.dashboard_report.SubscriptionCost.get")
     @patch("apps.dashboard_reports.viewsets.dashboard_report.JobData.objects")
     @patch("apps.dashboard_reports.viewsets.dashboard_report.JobHostSummary.objects")
     @patch.object(DashboardReportViewSet, "get_chart_data")
     @patch.object(DashboardReportViewSet, "get_serializer")
-    def test_details(self, mock_serializer, mock_chart, mock_host_objects, mock_jobdata, viewset, factory):
+    def test_details(
+        self, mock_serializer, mock_chart, mock_host_objects, mock_jobdata, mock_subcost, viewset, factory
+    ):
         class TestViewSet(DashboardReportViewSet):
             def details(self, request, *args, **kwargs):
                 return super().details.__wrapped__(self, request, *args, **kwargs)
 
         test_viewset = TestViewSet()
+        mock_subcost.return_value.cost_employee_per_minute = 1
+        mock_subcost.return_value.per_second_subscription_cost.return_value = decimal.Decimal("0.001")
+        mock_subcost.return_value.include_template_creation_time_in_costs = True
         mock_jobdata.all.return_value = MagicMock()
         # unique hosts: JobHostSummary.objects.filter(...).values(...).distinct().count()
         mock_host_objects.filter.return_value.values.return_value.distinct.return_value.count.return_value = 2
