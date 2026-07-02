@@ -16,8 +16,11 @@ import logging
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
+    cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_host_summaries,
+    sync_dashboard_job_records,
 )
 
 # Import cleanup tasks
@@ -36,10 +39,7 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
-from .tasks_system import (
-    create_system_tasks,
-    submit_task_to_dispatcher,
-)
+from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,9 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
+    "sync_dashboard_job_records": sync_dashboard_job_records,
+    "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -73,9 +76,11 @@ TASK_LOCKS = {
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
-    "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "cleanup_dashboard_telemetry",
+    "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 }
 
 
@@ -84,6 +89,8 @@ def get_queue_for_function(function_name: str) -> str:
     metadata = TASK_METADATA.get(function_name)
     return (metadata and metadata.get("queue", None)) or "maintenance"
 
+
+_DASHBOARD_REPORTS_CATEGORY = "Dashboard Reports"
 
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
@@ -217,6 +224,7 @@ TASK_METADATA = {
             {"name": "Unified jobs", "data": {"collector_type": "unified_jobs"}},
             {"name": "Credentials", "data": {"collector_type": "credentials_service"}},
             {"name": "Job events", "data": {"collector_type": "main_jobevent_service"}},
+            {"name": "Indirect managed nodes", "data": {"collector_type": "indirect_managed_nodes"}},
             {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
@@ -298,15 +306,10 @@ TASK_METADATA = {
                 "type": "string",
                 "description": "ISO date for the summary to anonymize (defaults to yesterday)",
             },
-            "salt": {
-                "type": "string",
-                "description": "Anonymization salt for hashing (auto-generated if not provided)",
-            },
         },
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
             {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
-            {"name": "With custom salt", "data": {"summary_date": "2024-01-01", "salt": "my-custom-salt"}},
         ],
     },
     "send_anonymized_to_segment": {
@@ -342,7 +345,7 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
         "parameters": {
             "since": {
@@ -367,8 +370,8 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_initial_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
-        "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "One-time backfill of historical AWX job data (window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days). Ongoing incremental sync is driven automatically by the hourly_unified_jobs hook after this completes.",
         "parameters": {
             "since": {
                 "type": "string",
@@ -389,22 +392,115 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_job_records": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Write unified_jobs data collected during the hourly rollup to the dashboard JobData table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_jobs": {
+                "type": "array",
+                "description": "Serialised unified_jobs rows from the hourly collector hook",
+            },
+        },
+        "examples": [
+            {
+                "name": "Sync one hour of job records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_jobs": [
+                        {
+                            "id": 1,
+                            "name": "Demo Job Template",
+                            "unified_job_template_id": 10,
+                            "organization_id": 1,
+                            "organization_name": "Default",
+                            "started": "2024-01-01T00:01:00+00:00",
+                            "finished": "2024-01-01T00:02:30+00:00",
+                            "status": "successful",
+                            "elapsed": 90.0,
+                            "launched_by_id": 1,
+                            "launched_by_username": "admin",
+                            "project_id": 5,
+                            "project_name": "Demo Project",
+                            "created": "2024-01-01T00:00:50+00:00",
+                            "modified": "2024-01-01T00:02:30+00:00",
+                            "label_ids": None,
+                            "num_hosts": 3,
+                        }
+                    ],
+                },
+            },
+        ],
+    },
+    "sync_dashboard_host_summaries": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Write job_host_summary_service data collected during the hourly rollup to the dashboard JobHostSummary table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_host_summaries": {
+                "type": "array",
+                "description": "Serialised job_host_summary_service rows from the hourly collector hook",
+            },
+        },
+        "examples": [
+            {
+                "name": "Sync one hour of host summary records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_host_summaries": [
+                        {
+                            "id": 1,
+                            "host_name": "web01",
+                            "host_remote_id": 10,
+                            "job_remote_id": 42,
+                        }
+                    ],
+                },
+            },
+        ],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
-        "description": "Delete dashboard report JobData records older than the retention period",
+        "description": "Delete dashboard report JobData records older than the retention period (defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS)",
         "parameters": {
             "retention_period_days": {
                 "type": "integer",
-                "default": 90,
-                "description": "Number of days to retain dashboard report data",
+                "default": None,
+                "description": "Number of days to retain dashboard report data. Defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS (or 90 if unset).",
                 "min": 0,
                 "max": 365,
             },
         },
         "examples": [
-            {"name": "Default retention (90 days)", "data": {}},
+            {"name": "Default (matches INITIAL_BACKFILL_DAYS)", "data": {}},
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
+        ],
+    },
+    "cleanup_dashboard_telemetry": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Delete DashboardTelemetry rows older than retention_period_days (default: 60) to prevent unbounded table growth.",
+        "parameters": {
+            "retention_period_days": {
+                "type": "integer",
+                "default": 60,
+                "description": "Number of days to retain telemetry rows. Rows with collection_run_date older than this are deleted.",
+                "min": 0,
+                "max": 365,
+            },
+        },
+        "examples": [
+            {"name": "Default (60 days)", "data": {}},
+            {"name": "30-day retention", "data": {"retention_period_days": 30}},
         ],
     },
 }
@@ -435,4 +531,7 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "cleanup_dashboard_telemetry",
+    "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 ]

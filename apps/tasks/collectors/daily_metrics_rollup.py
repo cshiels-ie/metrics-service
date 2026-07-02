@@ -12,6 +12,8 @@ from typing import Any
 
 from django.utils import timezone
 
+from apps.dashboard_reports.models import DashboardTelemetry
+
 from ..utils import (
     create_task_result,
     log_task_execution,
@@ -94,7 +96,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     Returns:
         tuple: (daily_rollup dict, missing_hours list)
     """
-    from metrics_utility.anonymized_rollups import (
+    from metrics_utility.anonymized_rollups import (  # EventModulesAnonymizedRollup,
         ControllerVersionAnonymizedRollup,
         CredentialsAnonymizedRollup,
         # EventModulesAnonymizedRollup,
@@ -213,6 +215,31 @@ def _save_daily_summary(
     return daily_summary, created, hourly_collections_count
 
 
+def _aggregate_dashboard_telemetry(summary_date: date) -> list[dict]:
+    """
+    Query DashboardTelemetry rows for summary_date and return
+    an anonymized, aggregate-only list (no org/user/job details).
+    """
+    try:
+        rows = DashboardTelemetry.objects.filter(collection_run_date=summary_date)
+        return [
+            {
+                "task_name": row.task_name,
+                "success": row.success,
+                "collection_duration_ms": float(row.collection_duration_ms),
+                "number_of_records_processed": row.number_of_records_processed,
+                "database_query_time_ms": float(row.database_query_time_ms)
+                if row.database_query_time_ms is not None
+                else None,
+                "cache_hit_rate": float(row.cache_hit_rate) if row.cache_hit_rate is not None else None,
+            }
+            for row in rows
+        ]
+    except Exception:
+        logger.exception("Failed to aggregate dashboard telemetry for rollup - skipping")
+        return []
+
+
 def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     """
     Create daily summary from hourly rollups
@@ -267,6 +294,9 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
         # Merge hourly rollups into daily rollups
         daily_rollup, missing_hours = _merge_hourly_rollups(collections_by_type)
+
+        # Append dashboard telemetry
+        daily_rollup["dashboard_telemetry"] = _aggregate_dashboard_telemetry(summary_date)
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
