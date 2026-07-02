@@ -119,7 +119,8 @@ class TestDashboardCollectionStatusViewSet:
 
     @patch(PATCH_FLAG, return_value=True)
     @patch(PATCH_TASK)
-    def test_queries_correct_function_names(self, mock_task_class, mock_flag):
+    def test_queries_correct_tasks(self, mock_task_class, mock_flag):
+        """next_run comes from hourly_unified_jobs (the hook driver), not the removed data task."""
         mock_task_class.objects.filter.return_value.first.return_value = None
 
         self._get()
@@ -127,7 +128,7 @@ class TestDashboardCollectionStatusViewSet:
         calls = mock_task_class.objects.filter.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs == {
-            "function_name": "collect_dashboard_reports_data",
+            "name": "hourly_unified_jobs",
             "is_system_task": True,
         }
         assert calls[1].kwargs == {

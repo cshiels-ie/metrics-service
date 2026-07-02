@@ -1,11 +1,10 @@
 """
 Background tasks for dashboard reports data collection and cleanup.
 
-Provides five dispatcherd tasks:
+Provides four dispatcherd tasks:
 - collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
-- sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
@@ -272,6 +271,8 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
 
     The backfill window defaults to 90 days and can be overridden via
     settings.DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS']. After this task
+    completes, ongoing incremental collection is driven automatically by the
+    hourly_unified_jobs hook which schedules sync_dashboard_job_records each hour.
     Returns a task result dict with status, data, and any error details.
     """
     task_name = "collect_dashboard_reports_initial_data"
@@ -333,7 +334,6 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     task_name = "sync_dashboard_job_records"
     hour_timestamp = kwargs.get("hour_timestamp", "unknown")
     raw_jobs = kwargs.get("raw_jobs", [])
-    start_time = time.monotonic()
 
     log_task_execution(
         task_name=task_name,
@@ -376,17 +376,6 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
         )
 
     failed_jobs = _sync_jobs_atomically(assembled)
-
-    duration_ms = (time.monotonic() - start_time) * 1000
-    success = not failed_jobs
-    _save_telemetry_details(
-        task_name=task_name,
-        success=success,
-        collection_duration_ms=duration_ms,
-        number_of_records_processed=len(assembled) - len(failed_jobs),
-        database_query_time_ms=None,
-        cache_hit_rate=None,
-    )
 
     if failed_jobs:
         return create_task_result("error", error=f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}")

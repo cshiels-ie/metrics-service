@@ -691,11 +691,12 @@ class JobData(CommonModel):
         logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 
         existing_labels = {} if created else {o.label_id: o for o in JobLabel.objects.filter(job_data=job_data)}
-        existing_summaries = (
-            {} if created else {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
-        )
         cls._sync_labels(job_data, labels, existing_labels)
-        cls._sync_host_summaries(job_data, host_summaries, existing_summaries)
+        if host_summaries is not None:
+            existing_summaries = (
+                {} if created else {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
+            )
+            cls._sync_host_summaries(job_data, host_summaries, existing_summaries)
 
     @classmethod
     def _sync_labels(cls, job_data: "JobData", awx_label_ids: list, existing: dict) -> None:
