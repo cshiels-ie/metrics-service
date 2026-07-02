@@ -584,6 +584,167 @@ def _normalize_retention_days(task_name: str, retention_days: Any) -> tuple[int,
     return retention_days, None
 
 
+def sync_dashboard_jobs_manual(**kwargs) -> dict[str, Any]:
+    """On-demand dashboard job sync triggered by an operator outside the hourly schedule.
+
+    Accepts optional 'since' and 'until' ISO datetime strings via task_data.
+    Falls back to JobData.last_finished_timestamp() → get_retention_days() when not provided.
+    Uses create_or_update_from_awx (upsert on job_id) — safe to run at any time without duplicating data.
+    """
+    task_name = "sync_dashboard_jobs_manual"
+    start_time = time.monotonic()
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details="Starting manual dashboard job sync",
+    )
+
+    result = _collect_data(task_name=task_name, **kwargs)
+    error = result.get("error", False)
+    job_count = result.get("data", {}).get("job_count", 0)
+    duration_ms = (time.monotonic() - start_time) * 1000
+
+    _save_telemetry_details(
+        task_name=task_name,
+        success=not error,
+        collection_duration_ms=duration_ms,
+        number_of_records_processed=job_count,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
+
+    if error:
+        return create_task_result("error", error=result.get("message", "Manual sync failed"))
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=f"Manual sync completed: {job_count} job records",
+    )
+    return create_task_result("success", data=result.get("data", {}))
+
+
+def _count_controller_jobs(db_connection, since: datetime, until: datetime) -> int:
+    """Return the number of terminal jobs in the Controller DB with finished in [since, until).
+
+    Uses the same filter as the main collection query (launch_type, status, finished range)
+    so the Controller's finished index is exploited and the count is directly comparable
+    to a local JobData.objects.filter(finished__gte=since, finished__lt=until).count().
+    """
+    query = """
+        SELECT COUNT(*)
+        FROM main_unifiedjob uj
+        WHERE uj.launch_type != %s
+          AND uj.status IN (%s, %s)
+          AND uj.finished >= %s
+          AND uj.finished < %s
+    """
+    params = ["sync", "failed", "successful", since.isoformat(), until.isoformat()]
+    with db_connection.cursor() as cursor:
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+    return row[0] if row else 0
+
+
+def reconcile_dashboard_data(**kwargs) -> dict[str, Any]:
+    """Re-sync recent JobData from the Controller DB to fill gaps from failed hourly syncs.
+
+    Checks first (cheap min/max ID scan + count comparison) before pulling any records.
+    Only runs the full sync when the local count is lower than the Controller count for
+    the reconcile window. Runs the incremental collector over the last RECONCILE_DAYS
+    days (default 2). Uses create_or_update_from_awx (upsert on job_id) — safe to run
+    repeatedly without duplicating data.
+    """
+    task_name = "reconcile_dashboard_data"
+    start_time = time.monotonic()
+
+    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
+    default_days = int(dashboard_cfg.get("RECONCILE_DAYS", 2))
+    reconcile_days = int(kwargs.get("reconcile_days", default_days))
+
+    until = datetime.now(tz=UTC)
+    since = until - timedelta(days=reconcile_days)
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Checking reconciliation for {since.isoformat()} to {until.isoformat()}",
+    )
+
+    try:
+        db_connection = get_db_connection()
+    except Exception as e:
+        duration_ms = (time.monotonic() - start_time) * 1000
+        _save_telemetry_details(
+            task_name=task_name, success=False, collection_duration_ms=duration_ms,
+            number_of_records_processed=0, database_query_time_ms=None, cache_hit_rate=None,
+        )
+        return create_task_result("error", error=f"Controller DB connection failed: {e}")
+
+    min_id, _ = _get_job_id_range(db_connection, since, until)
+    if min_id is None:
+        duration_ms = (time.monotonic() - start_time) * 1000
+        _save_telemetry_details(
+            task_name=task_name, success=True, collection_duration_ms=duration_ms,
+            number_of_records_processed=0, database_query_time_ms=None, cache_hit_rate=None,
+        )
+        log_task_execution(
+            task_name=task_name, operation="completed",
+            details="No jobs in Controller for the reconcile window, nothing to do",
+        )
+        return create_task_result("success", data={"task_type": task_name, "job_count": 0, "skipped": True})
+
+    controller_count = _count_controller_jobs(db_connection, since, until)
+    local_count = JobData.objects.filter(finished__gte=since, finished__lt=until).count()
+
+    if local_count >= controller_count:
+        duration_ms = (time.monotonic() - start_time) * 1000
+        _save_telemetry_details(
+            task_name=task_name, success=True, collection_duration_ms=duration_ms,
+            number_of_records_processed=0, database_query_time_ms=None, cache_hit_rate=None,
+        )
+        log_task_execution(
+            task_name=task_name, operation="completed",
+            details=f"Local data up to date ({local_count}/{controller_count}), skipping sync",
+        )
+        return create_task_result(
+            "success",
+            data={"task_type": task_name, "job_count": 0, "skipped": True,
+                  "local_count": local_count, "controller_count": controller_count},
+        )
+
+    gap = controller_count - local_count
+    log_task_execution(
+        task_name=task_name, operation="processing",
+        details=f"Gap detected: {local_count} local vs {controller_count} in Controller ({gap} missing), syncing",
+    )
+
+    result = _collect_data(task_name=task_name, since=since, until=until)
+    error = result.get("error", False)
+    job_count = result.get("data", {}).get("job_count", 0)
+    duration_ms = (time.monotonic() - start_time) * 1000
+
+    _save_telemetry_details(
+        task_name=task_name,
+        success=not error,
+        collection_duration_ms=duration_ms,
+        number_of_records_processed=job_count,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
+
+    if error:
+        return create_task_result("error", error=result.get("message", "Reconciliation failed"))
+    log_task_execution(
+        task_name=task_name, operation="completed",
+        details=f"Reconciled {job_count} job records over the last {reconcile_days} day(s)",
+    )
+    return create_task_result(
+        "success",
+        data={"task_type": task_name, "job_count": job_count, "since": since.isoformat(), "until": until.isoformat()},
+    )
+
+
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
     Delete JobData records with a finished date older than retention_days.

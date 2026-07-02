@@ -22,8 +22,10 @@ from apps.dashboard_reports.tasks import (
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
     get_retention_days,
+    reconcile_dashboard_data,
     sync_dashboard_host_summaries,
     sync_dashboard_job_records,
+    sync_dashboard_jobs_manual,
 )
 
 
@@ -1236,3 +1238,163 @@ class TestSyncDashboardHostSummaries:
         passed_existing = mock_sync.call_args[0][2]
         assert 99 in passed_existing
         assert passed_existing[99] is existing_hs
+
+
+@pytest.mark.unit
+class TestReconcileDashboardData:
+    """Tests for reconcile_dashboard_data — the daily gap-filling task."""
+
+    @pytest.fixture(autouse=True)
+    def mock_save_telemetry(self):
+        with patch("apps.dashboard_reports.tasks._save_telemetry_details") as mock:
+            yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_db_connection(self):
+        with patch("apps.dashboard_reports.tasks.get_db_connection") as mock:
+            yield mock.return_value
+
+    @pytest.fixture(autouse=True)
+    def mock_id_range(self):
+        with patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(1, 100)) as mock:
+            yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_controller_count(self):
+        with patch("apps.dashboard_reports.tasks._count_controller_jobs", return_value=10) as mock:
+            yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_jobdata_count(self):
+        with patch("apps.dashboard_reports.tasks.JobData") as mock:
+            mock.objects.filter.return_value.count.return_value = 5  # local < controller → gap
+            yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_collect_data(self):
+        with patch("apps.dashboard_reports.tasks._collect_data") as mock:
+            mock.return_value = {"error": False, "data": {"job_count": 10}}
+            yield mock
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_gap_detected_runs_sync(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                    mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """When local count < controller count, _collect_data is called and telemetry saved."""
+        result = reconcile_dashboard_data()
+        assert result["status"] == "success"
+        assert result["job_count"] == 10
+        mock_collect_data.assert_called_once()
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["task_name"] == "reconcile_dashboard_data"
+        assert kwargs["success"] is True
+        assert kwargs["number_of_records_processed"] == 10
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_no_gap_skips_sync(self, mock_log, mock_save_telemetry, mock_collect_data,
+                               mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """When local count >= controller count, _collect_data is NOT called."""
+        mock_jobdata_count.objects.filter.return_value.count.return_value = 10
+        result = reconcile_dashboard_data()
+        assert result["status"] == "success"
+        assert result["skipped"] is True
+        mock_collect_data.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_no_controller_records_skips_sync(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                              mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """When _get_job_id_range returns (None, None), task returns early without syncing."""
+        mock_id_range.return_value = (None, None)
+        result = reconcile_dashboard_data()
+        assert result["status"] == "success"
+        assert result["skipped"] is True
+        mock_collect_data.assert_not_called()
+        mock_controller_count.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_db_connection_failure_returns_error(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                                 mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """A DB connection failure is caught and returned as an error result."""
+        with patch("apps.dashboard_reports.tasks.get_db_connection", side_effect=Exception("refused")):
+            result = reconcile_dashboard_data()
+        assert result["status"] == "error"
+        mock_collect_data.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_collect_data_error_propagates(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                           mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """When _collect_data returns an error, telemetry is saved with success=False."""
+        mock_collect_data.return_value = {"error": True, "message": "query failed"}
+        result = reconcile_dashboard_data()
+        assert result["status"] == "error"
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["success"] is False
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_default_window_is_2_days(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                      mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """Without kwargs, the since/until window spans ~2 days."""
+        reconcile_dashboard_data()
+        _, kwargs = mock_collect_data.call_args
+        delta = kwargs["until"] - kwargs["since"]
+        assert 1 <= delta.days <= 2
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_reconcile_days_kwarg_overrides_default(self, mock_log, mock_save_telemetry, mock_collect_data,
+                                                    mock_jobdata_count, mock_controller_count, mock_id_range, mock_db_connection):
+        """Passing reconcile_days=7 extends the window to ~7 days."""
+        reconcile_dashboard_data(reconcile_days=7)
+        _, kwargs = mock_collect_data.call_args
+        delta = kwargs["until"] - kwargs["since"]
+        assert 6 <= delta.days <= 7
+
+
+@pytest.mark.unit
+class TestSyncDashboardJobsManual:
+    """Tests for sync_dashboard_jobs_manual — the operator-triggered on-demand sync task."""
+
+    @pytest.fixture(autouse=True)
+    def mock_save_telemetry(self):
+        with patch("apps.dashboard_reports.tasks._save_telemetry_details") as mock:
+            yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_collect_data(self):
+        with patch("apps.dashboard_reports.tasks._collect_data") as mock:
+            mock.return_value = {"error": False, "data": {"job_count": 25}}
+            yield mock
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_success_path(self, mock_log, mock_save_telemetry, mock_collect_data):
+        """Successful _collect_data call saves telemetry with success=True."""
+        result = sync_dashboard_jobs_manual()
+        assert result["status"] == "success"
+        mock_save_telemetry.assert_called_once()
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["task_name"] == "sync_dashboard_jobs_manual"
+        assert kwargs["success"] is True
+        assert kwargs["number_of_records_processed"] == 25
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_error_path(self, mock_log, mock_save_telemetry, mock_collect_data):
+        """When _collect_data returns an error, telemetry is saved with success=False."""
+        mock_collect_data.return_value = {"error": True, "message": "connection refused"}
+        result = sync_dashboard_jobs_manual()
+        assert result["status"] == "error"
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["success"] is False
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_passes_since_until_through_to_collect_data(self, mock_log, mock_save_telemetry, mock_collect_data):
+        """Explicit since/until kwargs are forwarded to _collect_data unchanged."""
+        sync_dashboard_jobs_manual(since="2024-06-01T00:00:00Z", until="2024-06-02T00:00:00Z")
+        _, kwargs = mock_collect_data.call_args
+        assert kwargs["since"] == "2024-06-01T00:00:00Z"
+        assert kwargs["until"] == "2024-06-02T00:00:00Z"
+
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_no_kwargs_delegates_watermark_to_collect_data(self, mock_log, mock_save_telemetry, mock_collect_data):
+        """With no kwargs, _collect_data is called without since/until so it uses last_finished_timestamp()."""
+        sync_dashboard_jobs_manual()
+        _, kwargs = mock_collect_data.call_args
+        assert "since" not in kwargs
+        assert "until" not in kwargs

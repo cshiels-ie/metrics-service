@@ -341,6 +341,14 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "enabled": True,
             "description": "Delete DashboardTelemetry rows older than 60 days to prevent unbounded table growth",
         },
+        {
+            "task_id": "daily_reconcile_dashboard_data",
+            "function": "reconcile_dashboard_data",
+            "cron": "0 3 * * *",  # Daily at 3:00 AM — after rollup (2 AM), before cleanup (5:30 AM)
+            "args": {},  # reconcile_days defaults to DASHBOARD_COLLECTION.RECONCILE_DAYS (2)
+            "enabled": True,
+            "description": "Re-sync recent dashboard job records from Controller DB to fill gaps from failed hourly syncs",
+        },
     ],
 )
 

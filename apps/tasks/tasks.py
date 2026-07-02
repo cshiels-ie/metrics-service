@@ -19,8 +19,10 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    reconcile_dashboard_data,
     sync_dashboard_host_summaries,
     sync_dashboard_job_records,
+    sync_dashboard_jobs_manual,
 )
 
 # Import cleanup tasks
@@ -65,6 +67,8 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
+    "reconcile_dashboard_data": reconcile_dashboard_data,
+    "sync_dashboard_jobs_manual": sync_dashboard_jobs_manual,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -81,6 +85,8 @@ TASK_LOCKS = {
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "reconcile_dashboard_data",
+    "sync_dashboard_jobs_manual",
 }
 
 
@@ -501,6 +507,54 @@ TASK_METADATA = {
         "examples": [
             {"name": "Default (60 days)", "data": {}},
             {"name": "30-day retention", "data": {"retention_days": 30}},
+        ],
+    },
+    "reconcile_dashboard_data": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": (
+            "Re-sync recent dashboard job records from the Controller DB to fill gaps caused by "
+            "failed hourly syncs (NaT errors, timing races). Checks first via a min/max ID scan "
+            "and count comparison — only pulls records when a gap is detected. Uses "
+            "create_or_update_from_awx so existing rows are updated and missing rows are "
+            "created — safe to run repeatedly."
+        ),
+        "parameters": {
+            "reconcile_days": {
+                "type": "integer",
+                "default": None,
+                "description": "Number of days back to re-sync. Defaults to DASHBOARD_COLLECTION.RECONCILE_DAYS (2).",
+                "min": 1,
+                "max": 90,
+            },
+        },
+        "examples": [
+            {"name": "Default (2-day window)", "data": {}},
+            {"name": "Extended reconciliation", "data": {"reconcile_days": 7}},
+        ],
+    },
+    "sync_dashboard_jobs_manual": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": (
+            "On-demand dashboard job sync triggered by an operator outside the hourly schedule. "
+            "Accepts optional 'since' and 'until' ISO datetime strings; falls back to the "
+            "last-known finished timestamp watermark. Uses create_or_update_from_awx (upsert on "
+            "job_id) so it is safe to run at any time without duplicating data."
+        ),
+        "parameters": {
+            "since": {
+                "type": "string",
+                "description": "ISO 8601 datetime — start of the sync window. Defaults to JobData.last_finished_timestamp() or retention window.",
+            },
+            "until": {
+                "type": "string",
+                "description": "ISO 8601 datetime — end of the sync window. Defaults to now.",
+            },
+        },
+        "examples": [
+            {"name": "Incremental (from last known timestamp)", "data": {}},
+            {"name": "Explicit range", "data": {"since": "2024-06-01T00:00:00Z", "until": "2024-06-02T00:00:00Z"}},
         ],
     },
 }
