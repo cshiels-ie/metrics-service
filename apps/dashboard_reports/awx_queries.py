@@ -28,6 +28,23 @@ class AWXQuery(enum.Enum):
     )
     LABELS = "SELECT id, name FROM main_label"
 
+    RETENTION_SETTINGS = (
+        "SELECT "
+        "sjt.job_type, "
+        "ujt.name AS template_name, "
+        "s.name AS schedule_name, "
+        "s.enabled AS schedule_enabled, "
+        "s.rrule, "
+        "s.next_run, "
+        "(s.extra_data::jsonb ->> 'days')::int AS retention_days "
+        "FROM main_systemjobtemplate sjt "
+        "JOIN main_unifiedjobtemplate ujt "
+        "ON ujt.id = sjt.unifiedjobtemplate_ptr_id "
+        "LEFT JOIN main_schedule s "
+        "ON s.unified_job_template_id = ujt.id "
+        "WHERE sjt.job_type IN ('cleanup_jobs', 'cleanup_activitystream')"
+    )
+
 
 def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tuple[str, list[Any]]:
     """Build WHERE clause and parameters for SQL query."""
@@ -139,3 +156,28 @@ def fetch_projects(**kwargs) -> tuple[list[dict[str, Any]], int]:
 def fetch_labels(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch labels from DB, returning ``(items, total_count)``."""
     return fetch_id_name(AWXQuery.LABELS, error_msg="Error fetching labels from AWX database", **kwargs)
+
+
+def fetch_retention_settings(**kwargs) -> tuple[list[dict[str, Any]], int]:
+    """Fetch retention settings from DB, returning ``(items, total_count)``."""
+    rows, total = fetch_data_from_db(
+        AWXQuery.RETENTION_SETTINGS,
+        join_alias="s.",
+        db_connection=kwargs.get("db_connection"),
+    )
+    items = sorted(
+        [
+            {
+                "job_type": row[0],
+                "template_name": row[1],
+                "schedule_name": row[2],
+                "schedule_enabled": row[3],
+                "rrule": row[4],
+                "next_run": row[5],
+                "retention_days": row[6],
+            }
+            for row in rows
+        ],
+        key=lambda r: (r["job_type"] or "", r["schedule_name"] or ""),
+    )
+    return items, total

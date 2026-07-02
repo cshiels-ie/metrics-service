@@ -201,7 +201,7 @@ class TestTelemetryEndToEnd(TestCase):
             mock_model.objects.create.side_effect = Exception("telemetry DB failure")
             mock_jobdata.objects.filter.return_value.count.return_value = 0
 
-            result = cleanup_dashboard_reports_old_data(retention_period_days=90)
+            result = cleanup_dashboard_reports_old_data(retention_days=90)
 
         assert result["status"] == "success"
 
