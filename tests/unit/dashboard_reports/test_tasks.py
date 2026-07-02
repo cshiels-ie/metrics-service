@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-import pytz
 
 from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.tasks import (
@@ -410,7 +409,7 @@ class TestDashboardReportsTasks:
         """Test cleanup_dashboard_reports_old_data with real JobData records in the database."""
 
         # Create 2 old and 2 recent records
-        cutoff = datetime.now().astimezone(pytz.utc) - timedelta(days=90)
+        cutoff = datetime.now().astimezone(UTC) - timedelta(days=90)
         old_job1 = JobData.objects.create(
             job_id=1001, finished=cutoff - timedelta(days=1), status="successful", elapsed=1.0
         )

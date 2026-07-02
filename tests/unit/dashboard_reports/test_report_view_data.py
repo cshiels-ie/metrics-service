@@ -4,7 +4,6 @@ import unittest.mock
 from unittest.mock import patch
 
 import pytest
-import pytz
 from django.urls import reverse
 
 from apps.dashboard_reports.models import (
@@ -31,7 +30,7 @@ FIXED_DAILY_SUBSCRIPTION_COST = decimal.Decimal("161.29")
 
 def get_now() -> datetime.datetime:
     """Get current datetime with UTC timezone."""
-    return datetime.datetime.now().astimezone(pytz.UTC)
+    return datetime.datetime.now().astimezone(datetime.UTC)
 
 
 def build_date_query(days_back: int = 10, days_forward: int = 1, hours_forward: int = 0, **extra_filters) -> dict:
@@ -485,7 +484,7 @@ def assert_chart_data(
 @pytest.mark.unit
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
 class TestReportViewData:
-    FIXED_NOW = datetime.datetime(2026, 6, 15, 12, 0, 0, tzinfo=pytz.UTC)
+    FIXED_NOW = datetime.datetime(2026, 6, 15, 12, 0, 0, tzinfo=datetime.UTC)
 
     @pytest.fixture(autouse=True)
     def fixed_now(self):
