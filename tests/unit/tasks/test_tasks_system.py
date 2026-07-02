@@ -385,6 +385,71 @@ class TestSystemTaskCreation(TestCase):
         task = Task.objects.get(name="test_default_task")
         assert task.max_attempts == 3
 
+    @pytest.mark.django_db(transaction=True)
+    def test_completed_oneshot_preserved_across_reinit(self):
+        """A completed one-shot task retains completed status after create_system_tasks()."""
+        Task.objects.create(
+            name="initial_dashboard_collection",
+            function_name="hello_world",
+            is_system_task=True,
+            cron_expression=None,
+            status="completed",
+        )
+        one_shot_config = {
+            "initial_dashboard_collection": {
+                "function": "hello_world",
+                "description": "one-shot",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=one_shot_config):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_dashboard_collection", is_system_task=True)
+        assert task.status == "completed"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_failed_oneshot_is_reset_to_pending(self):
+        """A failed one-shot task is recreated as pending so it can retry on next init."""
+        Task.objects.create(
+            name="initial_dashboard_collection",
+            function_name="hello_world",
+            is_system_task=True,
+            cron_expression=None,
+            status="failed",
+        )
+        one_shot_config = {
+            "initial_dashboard_collection": {
+                "function": "hello_world",
+                "description": "one-shot",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=one_shot_config):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_dashboard_collection", is_system_task=True)
+        assert task.status == "pending"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_fresh_install_oneshot_starts_pending(self):
+        """With no prior tasks (fresh install), one-shot tasks are created as pending."""
+        one_shot_config = {
+            "initial_dashboard_collection": {
+                "function": "hello_world",
+                "description": "one-shot",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=one_shot_config):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_dashboard_collection", is_system_task=True)
+        assert task.status == "pending"
+
 
 # =============================================================================
 # System Task Helper Functions Tests
