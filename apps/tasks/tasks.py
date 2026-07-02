@@ -19,6 +19,7 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_host_summaries,
     sync_dashboard_job_records,
 )
 
@@ -61,6 +62,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
     "sync_dashboard_job_records": sync_dashboard_job_records,
 }
 
