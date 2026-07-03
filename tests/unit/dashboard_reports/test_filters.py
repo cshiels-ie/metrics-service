@@ -26,9 +26,9 @@ class TestDateFilter:
     """Tests for DateFilter enum methods."""
 
     def test_to_list_returns_all_values(self):
-        """to_list returns all five period strings."""
+        """to_list returns all six period strings including 'custom'."""
         result = DateFilter.to_list()
-        assert result == ["last_7_days", "last_14_days", "last_30_days", "last_60_days", "last_90_days"]
+        assert result == ["last_7_days", "last_14_days", "last_30_days", "last_60_days", "last_90_days", "custom"]
 
     @pytest.mark.parametrize(
         "value,expected",
@@ -72,6 +72,107 @@ class TestDateFilter:
         start, end = DateFilter.to_start_date_end_date(None, "UTC")
         assert start is None
         assert end is None
+
+
+@pytest.mark.unit
+class TestDateFilterGetTimezone:
+    """Tests for DateFilter.get_timezone staticmethod (new in this branch)."""
+
+    def test_valid_utc_timezone(self):
+        """get_timezone returns a ZoneInfo for 'UTC'."""
+        from zoneinfo import ZoneInfo
+
+        tz = DateFilter.get_timezone("UTC")
+        assert tz == ZoneInfo("UTC")
+
+    def test_valid_us_eastern_timezone(self):
+        """get_timezone returns a ZoneInfo for 'US/Eastern'."""
+        from zoneinfo import ZoneInfo
+
+        tz = DateFilter.get_timezone("US/Eastern")
+        assert tz == ZoneInfo("US/Eastern")
+
+    def test_invalid_timezone_raises_value_error(self):
+        """get_timezone raises ValueError for an unknown timezone string."""
+        with pytest.raises(ValueError, match="Invalid timezone"):
+            DateFilter.get_timezone("Not/AReal_Zone")
+
+    def test_invalid_timezone_error_message_contains_tz_string(self):
+        """ValueError message contains the offending timezone string and helpful info."""
+        bad_tz = "Garbage/Zone"
+        with pytest.raises(ValueError, match=bad_tz):
+            DateFilter.get_timezone(bad_tz)
+
+        # Also verify the helpful message is included
+        with pytest.raises(ValueError, match="valid IANA timezone"):
+            DateFilter.get_timezone(bad_tz)
+
+
+@pytest.mark.unit
+class TestDateFilterCustomRange:
+    """Tests for DateFilter.custom_range_to_start_date_end_date (new in this branch)."""
+
+    def test_returns_datetime_tuple(self):
+        """Returns a tuple of two datetime objects."""
+        import datetime
+
+        start, end = DateFilter.custom_range_to_start_date_end_date("2024-03-01", "2024-03-31", "UTC")
+        assert isinstance(start, datetime.datetime)
+        assert isinstance(end, datetime.datetime)
+
+    def test_start_is_beginning_of_day(self):
+        """start datetime is set to midnight (00:00:00)."""
+        start, _ = DateFilter.custom_range_to_start_date_end_date("2024-06-15", "2024-06-20", "UTC")
+        assert start.hour == 0
+        assert start.minute == 0
+        assert start.second == 0
+        assert start.microsecond == 0
+
+    def test_end_is_end_of_day(self):
+        """end datetime is set to 23:59:59.999999."""
+        _, end = DateFilter.custom_range_to_start_date_end_date("2024-06-15", "2024-06-20", "UTC")
+        assert end.hour == 23
+        assert end.minute == 59
+        assert end.second == 59
+        assert end.microsecond == 999999
+
+    def test_result_is_timezone_aware(self):
+        """Both datetimes are timezone-aware."""
+        start, end = DateFilter.custom_range_to_start_date_end_date("2024-01-01", "2024-01-31", "Europe/London")
+        assert start.tzinfo is not None
+        assert end.tzinfo is not None
+
+    def test_invalid_start_date_raises_value_error(self):
+        """ValueError is raised for an invalid start_date format."""
+        with pytest.raises(ValueError, match="Invalid date format"):
+            DateFilter.custom_range_to_start_date_end_date("not-a-date", "2024-03-31", "UTC")
+
+    def test_invalid_end_date_raises_value_error(self):
+        """ValueError is raised for an invalid end_date format."""
+        with pytest.raises(ValueError, match="Invalid date format"):
+            DateFilter.custom_range_to_start_date_end_date("2024-03-01", "bad-date", "UTC")
+
+    def test_invalid_timezone_raises_value_error(self):
+        """ValueError is raised when tz_string is not a valid IANA timezone."""
+        with pytest.raises(ValueError, match="Invalid timezone"):
+            DateFilter.custom_range_to_start_date_end_date("2024-03-01", "2024-03-31", "Bad/Zone")
+
+    def test_error_message_contains_both_dates(self):
+        """ValueError message includes both start and end date strings."""
+        with pytest.raises(ValueError, match="start_date="):
+            DateFilter.custom_range_to_start_date_end_date("bad-start", "bad-end", "UTC")
+
+    def test_start_date_after_end_date_raises_value_error(self):
+        """ValueError is raised when start_date is after end_date."""
+        with pytest.raises(ValueError, match="must be before or equal to"):
+            DateFilter.custom_range_to_start_date_end_date("2024-03-31", "2024-03-01", "UTC")
+
+    def test_same_day_query(self):
+        """Custom range with same start and end date returns full day span."""
+        start, end = DateFilter.custom_range_to_start_date_end_date("2024-06-15", "2024-06-15", "UTC")
+        assert start.date() == end.date()
+        assert start.hour == 0 and start.minute == 0 and start.second == 0
+        assert end.hour == 23 and end.minute == 59 and end.second == 59
 
 
 @pytest.mark.unit
@@ -691,3 +792,132 @@ class TestCustomReportFilter:
         result = filter_backend.filter_queryset(request, mock_queryset, mock_view)
 
         assert result is mock_queryset
+
+
+@pytest.mark.unit
+class TestCustomReportFilterCustomPeriod:
+    """Tests for the new custom period branch in CustomReportFilter (new in this branch)."""
+
+    @pytest.fixture
+    def filter_backend(self):
+        return CustomReportFilter()
+
+    @pytest.fixture
+    def mock_queryset(self):
+        mock_qs = MagicMock()
+        mock_qs.after_date.return_value = mock_qs
+        mock_qs.before_date.return_value = mock_qs
+        mock_qs.organizations.return_value = mock_qs
+        mock_qs.projects.return_value = mock_qs
+        mock_qs.templates.return_value = mock_qs
+        mock_qs.labels.return_value = mock_qs
+        return mock_qs
+
+    @pytest.fixture
+    def mock_view(self):
+        mock_view = MagicMock()
+        mock_view.kwargs = {}
+        return mock_view
+
+    def _mock_request(self, query_params: dict) -> MagicMock:
+        mock_request = MagicMock()
+        mock_request.query_params.getlist = lambda field: query_params.get(field, [])
+        mock_request.query_params.get = lambda key, default=None: (
+            query_params[key][0] if key in query_params and query_params[key] else default
+        )
+        return mock_request
+
+    def test_custom_period_missing_start_date_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValueError is raised when period=custom but start_date is missing."""
+        request = self._mock_request({"period": ["custom"], "end_date": ["2024-06-30"]})
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValueError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "start_date and end_date are required" in str(exc_info.value)
+
+    def test_custom_period_missing_end_date_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValueError is raised when period=custom but end_date is missing."""
+        request = self._mock_request({"period": ["custom"], "start_date": ["2024-06-01"]})
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValueError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "start_date and end_date are required" in str(exc_info.value)
+
+    def test_custom_period_missing_both_dates_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValueError is raised when period=custom and both dates are missing."""
+        request = self._mock_request({"period": ["custom"]})
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValueError):
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+    @patch("apps.dashboard_reports.filters.DateFilter.custom_range_to_start_date_end_date")
+    def test_custom_period_with_valid_dates_calls_custom_range(
+        self, mock_custom_range, filter_backend, mock_queryset, mock_view
+    ):
+        """When period=custom and both dates are provided, custom_range_to_start_date_end_date is called."""
+        import datetime
+        from zoneinfo import ZoneInfo
+
+        mock_start = datetime.datetime(2024, 6, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
+        mock_end = datetime.datetime(2024, 6, 30, 23, 59, 59, tzinfo=ZoneInfo("UTC"))
+        mock_custom_range.return_value = (mock_start, mock_end)
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["2024-06-01"], "end_date": ["2024-06-30"], "tz": ["UTC"]}
+        )
+        mock_view.kwargs = {}
+
+        filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        mock_custom_range.assert_called_once_with(
+            start_date_str="2024-06-01", end_date_str="2024-06-30", tz_string="UTC"
+        )
+        mock_queryset.after_date.assert_called_once_with(mock_start)
+        mock_queryset.before_date.assert_called_once_with(mock_end)
+
+    def test_custom_period_invalid_date_format_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when custom_range_to_start_date_end_date raises ValueError for invalid date format."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["not-a-date"], "end_date": ["2024-06-30"], "tz": ["UTC"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "Invalid date format" in str(exc_info.value.detail)
+
+    def test_custom_period_invalid_timezone_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when custom_range_to_start_date_end_date raises ValueError for invalid timezone."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["2024-06-01"], "end_date": ["2024-06-30"], "tz": ["Bad/Zone"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "Invalid timezone" in str(exc_info.value.detail)
+
+    def test_custom_period_start_after_end_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when start_date is after end_date."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["2024-06-30"], "end_date": ["2024-06-01"], "tz": ["UTC"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "must be before or equal to" in str(exc_info.value.detail)

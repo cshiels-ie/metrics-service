@@ -25,7 +25,7 @@ class TestParsePeriodParam:
         mock_to_dates.return_value = mock_start, mock_end
         period_str = "last_7_days"
 
-        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC", None, None)
         assert isinstance(start_date, datetime)
         assert isinstance(end_date, datetime)
         assert msg == ""
@@ -35,21 +35,24 @@ class TestParsePeriodParam:
     # Test invalid date string
     def test_invalid_period(self):
         period_str = "not-a-period"
-        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC", None, None)
         assert start_date is None
         assert end_date is None
-        assert "Must be one of: ['last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days']" in msg
+        assert (
+            "Must be one of: ['last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days', 'custom']"
+            in msg
+        )
 
     # Test empty string
     def test_empty_string(self):
-        start_date, end_date, msg = parse_period_param("", "period", "UTC")
+        start_date, end_date, msg = parse_period_param("", "period", "UTC", None, None)
         assert start_date is None
         assert end_date is None
         assert msg == "period is required"
 
     # Test None as input
     def test_none_string(self):
-        start_date, end_date, msg = parse_period_param(None, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(None, "period", "UTC", None, None)
         assert start_date is None
         assert end_date is None
         assert msg == "period is required"
@@ -64,7 +67,7 @@ class TestParsePeriodParam:
         mock_to_dates.return_value = mock_start, mock_end
         period_str = "last_7_days"
 
-        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC", None, None)
         assert isinstance(start_date, datetime)
         assert isinstance(end_date, datetime)
         assert msg == ""
@@ -82,7 +85,7 @@ class TestParsePeriodParam:
         mock_to_dates.return_value = mock_start, mock_end
 
         period_str = "last_7_days"
-        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC", None, None)
         assert isinstance(start_date, datetime)
         assert isinstance(end_date, datetime)
         assert msg == ""
@@ -99,12 +102,80 @@ class TestParsePeriodParam:
         mock_to_dates.return_value = mock_start, mock_end
         period_str = "last_90_days"
 
-        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC")
+        start_date, end_date, msg = parse_period_param(period_str, "period", "UTC", None, None)
         assert isinstance(start_date, datetime)
         assert isinstance(end_date, datetime)
         assert msg == ""
         assert start_date == mock_start
         assert end_date == mock_end
+
+    @patch("apps.dashboard_reports.filters.DateFilter.custom_range_to_start_date_end_date")
+    def test_custom_period_with_valid_dates(self, mock_custom_range):
+        """parse_period_param returns dates when period=custom with valid start/end."""
+        mock_start = datetime(2024, 6, 1, 0, 0, tzinfo=UTC)
+        mock_end = datetime(2024, 6, 30, 23, 59, 59, tzinfo=UTC)
+        mock_custom_range.return_value = (mock_start, mock_end)
+
+        start_date, end_date, msg = parse_period_param("custom", "period", "UTC", "2024-06-01", "2024-06-30")
+
+        assert start_date == mock_start
+        assert end_date == mock_end
+        assert msg == ""
+        mock_custom_range.assert_called_once_with(
+            start_date_str="2024-06-01", end_date_str="2024-06-30", tz_string="UTC"
+        )
+
+    def test_custom_period_missing_start_date(self):
+        """parse_period_param returns error when period=custom and start_date is None."""
+        start_date, end_date, msg = parse_period_param("custom", "period", "UTC", None, "2024-06-30")
+
+        assert start_date is None
+        assert end_date is None
+        assert "start_date and end_date are required" in msg
+
+    def test_custom_period_missing_end_date(self):
+        """parse_period_param returns error when period=custom and end_date is None."""
+        start_date, end_date, msg = parse_period_param("custom", "period", "UTC", "2024-06-01", None)
+
+        assert start_date is None
+        assert end_date is None
+        assert "start_date and end_date are required" in msg
+
+    def test_custom_period_missing_both_dates(self):
+        """parse_period_param returns error when period=custom and both dates are None."""
+        start_date, end_date, msg = parse_period_param("custom", "period", "UTC", None, None)
+
+        assert start_date is None
+        assert end_date is None
+        assert "start_date and end_date are required" in msg
+
+    def test_custom_period_invalid_date_format_returns_error(self):
+        """parse_period_param returns error tuple when start_date has invalid format."""
+        start_date, end_date, msg = parse_period_param("custom", "period", "UTC", "not-a-date", "2024-06-30")
+
+        assert start_date is None
+        assert end_date is None
+        assert "Invalid start_date or end_date" in msg
+        assert "Invalid date format" in msg
+
+    def test_custom_period_invalid_timezone_returns_error(self):
+        """parse_period_param returns error tuple when timezone is invalid."""
+        start_date, end_date, msg = parse_period_param("custom", "period", "Bad/Zone", "2024-06-01", "2024-06-30")
+
+        assert start_date is None
+        assert end_date is None
+        assert "Invalid start_date or end_date" in msg
+        assert "Invalid timezone" in msg
+
+    def test_non_custom_period_invalid_timezone_returns_error(self):
+        """parse_period_param returns error tuple when timezone is invalid for non-custom period."""
+        start_date, end_date, msg = parse_period_param("last_7_days", "period", "Invalid/TZ", None, None)
+
+        assert start_date is None
+        assert end_date is None
+        assert "Invalid period: last_7_days" in msg
+        assert "Error:" in msg
+        assert "Invalid timezone" in msg
 
 
 # Unit tests for require_date_range decorator
@@ -153,7 +224,7 @@ class TestRequireDateRange:
         response = view.view(request)
         assert response.status_code == 400
         assert (
-            "Must be one of: ['last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days']"
+            "Must be one of: ['last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days', 'custom']"
             in response.data["error"]
         )
         assert not view.called
@@ -251,7 +322,63 @@ class TestRequireDateRange:
         mock_to_dates.assert_called_once_with(value="last_7_days", tz_string="UTC")
 
 
-# Unit tests for DashboardReportViewSet methods
+# Unit tests for require_date_range decorator — custom period branch (new in this branch)
+@pytest.mark.unit
+class TestRequireDateRangeCustomPeriod:
+    @pytest.fixture
+    def factory(self):
+        return APIRequestFactory()
+
+    @patch("apps.dashboard_reports.filters.DateFilter.custom_range_to_start_date_end_date")
+    def test_custom_period_with_valid_dates_returns_200(self, mock_custom_range, factory):
+        """require_date_range passes through and injects dates when period=custom with valid dates."""
+        mock_start = datetime(2024, 6, 1, 0, 0, tzinfo=UTC)
+        mock_end = datetime(2024, 6, 30, 23, 59, 59, tzinfo=UTC)
+        mock_custom_range.return_value = (mock_start, mock_end)
+
+        view = DummyView()
+        request = factory.get(
+            "/", {"period": "custom", "start_date": "2024-06-01", "end_date": "2024-06-30", "tz": "UTC"}
+        )
+        view.request = request
+        response = view.view(request)
+
+        assert response.status_code == 200
+        assert view.called
+
+    def test_custom_period_missing_start_date_returns_400(self, factory):
+        """require_date_range returns 400 when period=custom and start_date is missing."""
+        view = DummyView()
+        request = factory.get("/", {"period": "custom", "end_date": "2024-06-30"})
+        view.request = request
+        response = view.view(request)
+
+        assert response.status_code == 400
+        assert "start_date and end_date are required" in response.data["error"]
+        assert not view.called
+
+    def test_custom_period_missing_end_date_returns_400(self, factory):
+        """require_date_range returns 400 when period=custom and end_date is missing."""
+        view = DummyView()
+        request = factory.get("/", {"period": "custom", "start_date": "2024-06-01"})
+        view.request = request
+        response = view.view(request)
+
+        assert response.status_code == 400
+        assert "start_date and end_date are required" in response.data["error"]
+        assert not view.called
+
+    def test_custom_period_missing_both_dates_returns_400(self, factory):
+        """require_date_range returns 400 when period=custom and both dates are missing."""
+        view = DummyView()
+        request = factory.get("/", {"period": "custom"})
+        view.request = request
+        response = view.view(request)
+
+        assert response.status_code == 400
+        assert not view.called
+
+
 @pytest.mark.django_db
 @pytest.mark.unit
 class TestDashboardReportViewSet:
