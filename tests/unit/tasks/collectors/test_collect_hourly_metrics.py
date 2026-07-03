@@ -708,7 +708,6 @@ class TestBuildHostSummaryTaskChunks:
 
     def test_single_chunk_when_below_limit(self):
         """All records fit in one chunk when total count is below the limit."""
-        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
 
         by_job = {i: [{"id": i, "host_id": i, "host_name": f"h{i}", "job_remote_id": i}] for i in range(5)}
         result = _build_host_summary_task_chunks(by_job, "2024-01-01T00:00:00+00:00")

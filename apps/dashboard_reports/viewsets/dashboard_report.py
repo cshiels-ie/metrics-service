@@ -23,7 +23,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
+from apps.dashboard_reports.filters import CustomReportFilter, DateFilter
 from apps.dashboard_reports.models import JobData, JobHostSummary, JobLabel, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
