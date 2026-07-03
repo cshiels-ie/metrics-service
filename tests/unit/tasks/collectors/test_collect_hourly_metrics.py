@@ -1,5 +1,6 @@
 """Unit tests for collect_hourly_metrics — specifically _build_dashboard_sync_hook."""
 
+import sys
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -446,9 +447,19 @@ class TestCollectHourlyMetricsRowLimit:
 class TestHourlyCollectorRegistry:
     """Pin the registry wiring so a key rename doesn't silently drop the hook."""
 
+    def _metrics_utility_mocks(self):
+        """Context manager that stubs out metrics_utility sub-modules unavailable in CI."""
+        return patch.dict(
+            sys.modules,
+            {
+                "metrics_utility.anonymized_rollups": MagicMock(),
+                "metrics_utility.library.collectors.controller": MagicMock(),
+            },
+        )
+
     def test_unified_jobs_uses_dashboard_collector_and_has_hook_factory(self):
         """unified_jobs entry must use unified_jobs_dashboard and register a post_collect_hook_factory."""
-        with patch("metrics_utility.library.collectors.controller.unified_jobs_dashboard", create=True):
+        with self._metrics_utility_mocks():
             registry = _get_hourly_collectors()
 
         entry = registry.get("unified_jobs")
@@ -459,7 +470,8 @@ class TestHourlyCollectorRegistry:
 
     def test_job_host_summary_service_has_host_summary_hook_factory(self):
         """job_host_summary_service entry must register _build_dashboard_host_summary_sync_hook."""
-        registry = _get_hourly_collectors()
+        with self._metrics_utility_mocks():
+            registry = _get_hourly_collectors()
         entry = registry.get("job_host_summary_service")
         assert entry is not None, "job_host_summary_service key missing from hourly collector registry"
         assert entry.get("post_collect_hook_factory") is _build_dashboard_host_summary_sync_hook, (
