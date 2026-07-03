@@ -897,3 +897,110 @@ class TestReportViewDataNoCreationTime:
 
         # Verify chart structure
         assert_chart_structure(data)
+
+
+# =============================================================================
+# Tests for label_ids in report list response (AAP-79243)
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.django_db(transaction=True, reset_sequences=True)
+class TestReportViewLabelIds:
+    """label_ids field is injected into each aggregated report row without inflating other aggregates."""
+
+    FIXED_NOW = datetime.datetime(2026, 6, 15, 12, 0, 0, tzinfo=datetime.UTC)
+
+    @pytest.fixture(autouse=True)
+    def fixed_now(self):
+        mock_dt = unittest.mock.MagicMock(wraps=datetime)
+        mock_dt.datetime.now = unittest.mock.Mock(return_value=self.FIXED_NOW)
+        with (
+            patch(f"{__name__}.get_now", return_value=self.FIXED_NOW),
+            patch("apps.dashboard_reports.filters.datetime", mock_dt),
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def fixed_subscription_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_SUBSCRIPTION_COST,
+        ):
+            yield
+
+    def test_label_ids_in_report_response(self, job_data, admin_client):
+        """Report list response includes label_ids for each template row."""
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        results = response.data["results"]
+        # job_data fixture creates labels 1 and 2 for Template A jobs (jobs 1 and 2)
+        template_a_row = next(r for r in results if r["template_name"] == "Template A")
+        assert sorted(template_a_row["label_ids"]) == [1, 2]
+
+    def test_label_ids_empty_for_template_without_labels(self, job_data, admin_client):
+        """Template rows with no JobLabel records get label_ids=[]."""
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        results = response.data["results"]
+        template_b_row = next(r for r in results if r["template_name"] == "Template B")
+        assert template_b_row["label_ids"] == []
+
+    def test_label_ids_do_not_inflate_run_counts(self, job_data, admin_client):
+        """Adding label_ids via post-fetch injection must not inflate runs/successful_runs/failed_runs."""
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        template_a_row = next(r for r in response.data["results"] if r["template_name"] == "Template A")
+        # jobs 1 (successful) and 2 (failed) for Template A — each has 2 labels
+        # without distinct injection, runs would be inflated to 4 (2 jobs × 2 labels)
+        assert template_a_row["runs"] == 2
+        assert template_a_row["successful_runs"] == 1
+        assert template_a_row["failed_runs"] == 1
+
+    def test_null_label_ids_excluded(self, job_data, admin_client):
+        """JobLabel rows with label_id=None must not appear in label_ids (label_id is nullable)."""
+        # Add a null-label_id record for one of Template A's jobs
+        template_a_job = JobData.objects.get(job_id=1)
+        JobLabel.objects.create(job_data=template_a_job, label_id=None)
+
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        template_a_row = next(r for r in response.data["results"] if r["template_name"] == "Template A")
+        assert None not in template_a_row["label_ids"]
+        # Existing real labels (1, 2) still present
+        assert sorted(template_a_row["label_ids"]) == [1, 2]
+
+    def test_label_ids_scoped_to_report_date_range(self, job_data, template_metadata, admin_client):
+        """Labels from jobs outside the report date range must not appear in label_ids."""
+        # Create a job for Template A that finished 30 days ago (outside the 14-day window)
+        now = self.FIXED_NOW
+        old_job = JobData.objects.create(
+            job_id=999,
+            template_name="Template A",
+            template_id=template_metadata[0].template_id,
+            organization_id=1,
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(days=30, minutes=10),
+            finished=now - datetime.timedelta(days=30),
+            elapsed=60,
+            num_hosts=1,
+            template_metadata=template_metadata[0],
+        )
+        # Attach label 99 — should NOT appear in the 14-day report
+        JobLabel.objects.create(job_data=old_job, label_id=99)
+
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        template_a_row = next(r for r in response.data["results"] if r["template_name"] == "Template A")
+        assert 99 not in template_a_row["label_ids"]
+        assert sorted(template_a_row["label_ids"]) == [1, 2]

@@ -420,6 +420,27 @@ class TestSyncDashboardJobRecords:
         assembled = mock_sync.call_args[0][0]
         assert assembled[0]["host_summaries"] is None
 
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_column_absent_sets_labels_none(self, mock_result, mock_log, mock_sync):
+        """When label_ids key is absent from the row (older metrics_utility), labels=None to preserve existing records."""
+        raw_job = self._raw_job()
+        raw_job.pop("label_ids")  # simulate column not returned by older collector
+        sync_dashboard_job_records(raw_jobs=[raw_job], hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] is None
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_null_in_row_sets_labels_empty_list(self, mock_result, mock_log, mock_sync):
+        """When label_ids key is present but None (job has no labels in AWX), labels=[] to clear stale records."""
+        raw_jobs = [self._raw_job(label_ids=None)]
+        sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] == []
+
 
 @pytest.mark.unit
 class TestCollectDataConnectionHandling:
@@ -612,13 +633,13 @@ class TestResolveCollectionParams:
         assert got_since == since
         assert got_until == until
         assert db_name == "awx"
-        mock_jobdata.last_timestamp.assert_not_called()
+        mock_jobdata.last_finished_timestamp.assert_not_called()
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_since_falls_back_to_last_timestamp(self, mock_jobdata):
-        """When since is absent and last_timestamp() has a value, it is used as since."""
+        """When since is absent and last_finished_timestamp() has a value, it is used as since."""
         ts = datetime(2024, 3, 15, tzinfo=UTC)
-        mock_jobdata.last_timestamp.return_value = ts
+        mock_jobdata.last_finished_timestamp.return_value = ts
         _, got_since, _, _ = _resolve_collection_params({})
         assert got_since == ts
 
@@ -627,7 +648,7 @@ class TestResolveCollectionParams:
         """When since is absent and last_timestamp() is None, compute since from INITIAL_BACKFILL_DAYS."""
         from django.test import override_settings
 
-        mock_jobdata.last_timestamp.return_value = None
+        mock_jobdata.last_finished_timestamp.return_value = None
         until = datetime(2024, 6, 1, tzinfo=UTC)
 
         with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": 30, "BACKFILL_BATCH_SIZE": 500}):
@@ -640,14 +661,14 @@ class TestResolveCollectionParams:
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_custom_database_kwarg(self, mock_jobdata):
         """The 'database' kwarg overrides the DEFAULT_DB_NAME."""
-        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         db_name, *_ = _resolve_collection_params({"database": "custom_db"})
         assert db_name == "custom_db"
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_default_batch_size_applied(self, mock_jobdata):
         """BACKFILL_BATCH_SIZE defaults to 5_000 when not set."""
-        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         _, _, _, batch_size = _resolve_collection_params({})
         assert batch_size == 5_000
 
@@ -656,7 +677,7 @@ class TestResolveCollectionParams:
         """A non-integer BACKFILL_BATCH_SIZE raises ValueError with a descriptive message."""
         from django.test import override_settings
 
-        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         with (
             override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": "not-a-number"}),
             pytest.raises(ValueError, match="BACKFILL_BATCH_SIZE"),
@@ -668,7 +689,7 @@ class TestResolveCollectionParams:
         """A non-integer INITIAL_BACKFILL_DAYS raises ValueError with a descriptive message."""
         from django.test import override_settings
 
-        mock_jobdata.last_timestamp.return_value = None
+        mock_jobdata.last_finished_timestamp.return_value = None
         with (
             override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": "not-a-number"}),
             pytest.raises(ValueError, match="INITIAL_BACKFILL_DAYS"),
@@ -815,6 +836,12 @@ class TestProcessBatches:
 @pytest.mark.unit
 class TestSyncDashboardHostSummaries:
     """Tests for sync_dashboard_host_summaries — the hourly hook-driven host summary sync task."""
+
+    @pytest.fixture(autouse=True)
+    def mock_save_telemetry(self):
+        """Patch _save_telemetry_details so unit tests don't hit the DB."""
+        with patch("apps.dashboard_reports.tasks._save_telemetry_details") as mock:
+            yield mock
 
     def _raw_record(self, host_summary_id=1, host_name="web01", host_id=10, job_remote_id=42):
         """Return a minimal raw host summary dict as produced by the hook (wire format)."""
@@ -988,3 +1015,62 @@ class TestSyncDashboardHostSummaries:
         passed_existing = mock_sync.call_args[0][2]
         assert 99 in passed_existing
         assert passed_existing[99] is existing_hs
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
+    def test_telemetry_saved_on_success(
+        self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result, mock_save_telemetry
+    ):
+        """_save_telemetry_details is called with success=True and the synced count."""
+        job_data = self._make_job_data(job_id=42, pk=42)
+        mock_objects.filter.return_value = [job_data]
+        mock_jhs.objects.filter.return_value = []
+
+        sync_dashboard_host_summaries(raw_host_summaries=[self._raw_record()], hour_timestamp="2024-01-01T00:00:00")
+
+        mock_save_telemetry.assert_called_once()
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["task_name"] == "sync_dashboard_host_summaries"
+        assert kwargs["success"] is True
+        assert kwargs["number_of_records_processed"] == 1
+        assert kwargs["collection_duration_ms"] >= 0
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
+    def test_telemetry_saved_on_failure(
+        self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result, mock_save_telemetry
+    ):
+        """_save_telemetry_details is called with success=False when any job sync fails."""
+        job_data = self._make_job_data(job_id=42, pk=42)
+        mock_objects.filter.return_value = [job_data]
+        mock_jhs.objects.filter.return_value = []
+        mock_sync.side_effect = RuntimeError("db error")
+
+        sync_dashboard_host_summaries(raw_host_summaries=[self._raw_record()], hour_timestamp="2024-01-01T00:00:00")
+
+        mock_save_telemetry.assert_called_once()
+        _, kwargs = mock_save_telemetry.call_args
+        assert kwargs["success"] is False
+        assert kwargs["number_of_records_processed"] == 0
+
+
+@pytest.mark.unit
+class TestParseDtNaT:
+    """Test _parse_dt handling of pandas NaT serialised as the string 'NaT'."""
+
+    def test_nat_string_returns_none(self):
+        """_parse_dt treats the literal string 'NaT' (pandas NaT serialised) as a missing value."""
+        assert _parse_dt("NaT") is None
+
+    def test_valid_iso_string_still_parses(self):
+        """Non-NaT ISO strings are unaffected by the NaT guard."""
+        result = _parse_dt("2024-06-01T12:00:00+00:00")
+        assert result == datetime(2024, 6, 1, 12, 0, tzinfo=UTC)

@@ -177,20 +177,26 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     tasks=[
         # Hourly Collection Tasks
         {
-            "task_id": "hourly_job_host_summary",
-            "function": "collect_hourly_metrics",
-            "cron": "5 * * * *",  # Every hour at XX:05
-            "args": {"collector_type": "job_host_summary_service"},
-            "enabled": True,
-            "description": "Collect job host summary metrics every hour (service variant)",
-        },
-        {
+            # ORDERING: hourly_unified_jobs must fire before hourly_job_host_summary.
+            # The unified_jobs hook dispatches sync_dashboard_job_records which writes JobData rows.
+            # The job_host_summary hook dispatches sync_dashboard_host_summaries which looks up those
+            # rows by job_id. If host summaries run first, no matching JobData rows exist yet and all
+            # host summary records are silently skipped with no retry. The 5-minute gap (XX:05 vs XX:10)
+            # is sufficient because sync_dashboard_job_records completes in milliseconds to seconds.
             "task_id": "hourly_unified_jobs",
             "function": "collect_hourly_metrics",
-            "cron": "10 * * * *",  # Every hour at XX:10
+            "cron": "5 * * * *",  # Every hour at XX:05
             "args": {"collector_type": "unified_jobs"},
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
+        },
+        {
+            "task_id": "hourly_job_host_summary",
+            "function": "collect_hourly_metrics",
+            "cron": "10 * * * *",  # Every hour at XX:10 — after hourly_unified_jobs so JobData rows exist
+            "args": {"collector_type": "job_host_summary_service"},
+            "enabled": True,
+            "description": "Collect job host summary metrics every hour (service variant)",
         },
         {
             "task_id": "hourly_credentials",
