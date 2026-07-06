@@ -353,10 +353,10 @@ class TestIndirectNodeCollectionGroup(TestCase):
         assert "daily_collect_indirect_nodes" in task_ids
 
     def test_indirect_node_collection_group_uses_correct_cron(self):
-        """daily_collect_indirect_nodes task is scheduled at 55 1 * * * via collect_snapshot_metrics."""
+        """daily_collect_indirect_nodes task is scheduled at 55 1 * * * via collect_daily_metrics."""
         task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "daily_collect_indirect_nodes")
         assert task["cron"] == "55 1 * * *"
-        assert task["function"] == "collect_snapshot_metrics"
+        assert task["function"] == "collect_daily_metrics"
         assert task["args"]["collector_type"] == "indirect_managed_nodes"
 
     def test_indirect_managed_nodes_not_in_metrics_collection_group(self):

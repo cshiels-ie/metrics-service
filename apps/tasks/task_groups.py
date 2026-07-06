@@ -368,7 +368,7 @@ INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     tasks=[
         {
             "task_id": "daily_collect_indirect_nodes",
-            "function": "collect_snapshot_metrics",
+            "function": "collect_daily_metrics",
             "cron": "55 1 * * *",  # Daily at 1:55 AM
             "args": {"collector_type": "indirect_managed_nodes"},
             "enabled": True,

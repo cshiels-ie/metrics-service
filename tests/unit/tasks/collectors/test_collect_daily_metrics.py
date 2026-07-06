@@ -237,9 +237,9 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_uses_default_db_connection(self, mock_registry, mock_get_db, mock_generic):
-        """get_db_connection must be called with 'default' (metrics-service DB)."""
-        mock_registry.return_value = {"task_executions_service": {}}
+    def test_uses_per_collector_db_connection(self, mock_registry, mock_get_db, mock_generic):
+        """get_db_connection uses the database field from the collector registry entry."""
+        mock_registry.return_value = {"task_executions_service": {"database": "default"}}
         fake_conn = MagicMock()
         mock_get_db.return_value = fake_conn
         mock_generic.return_value = {"status": "success"}

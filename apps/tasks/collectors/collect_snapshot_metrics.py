@@ -27,7 +27,6 @@ def _get_snapshot_collectors():
         ControllerVersionAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
         FeatureFlagsAnonymizedRollup,
-        IndirectManagedNodesAnonymizedRollup,
         TableMetadataAnonymizedRollup,
     )
     from metrics_utility.library.collectors.controller import (
@@ -35,7 +34,6 @@ def _get_snapshot_collectors():
         controller_version_service,
         execution_environments,
         feature_flags_service,
-        main_indirectmanagednodeaudit,
         table_metadata,
     )
 
@@ -66,11 +64,6 @@ def _get_snapshot_collectors():
             "collector_func": table_metadata,
             "rollup_processor": TableMetadataAnonymizedRollup,
             "description": "Table metadata snapshot",
-        },
-        "indirect_managed_nodes": {
-            "collector_func": main_indirectmanagednodeaudit,
-            "rollup_processor": IndirectManagedNodesAnonymizedRollup,
-            "description": "Indirect managed node audit snapshot",
         },
     }
 
