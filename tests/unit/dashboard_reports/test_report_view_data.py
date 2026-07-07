@@ -714,6 +714,181 @@ class TestDashboardReportViewSetEndpoints:
             subscription_cost.include_template_creation_time_in_costs = True
             subscription_cost.save()
 
+    # Pagination
+    def test_list_default_page_size(self, job_data, admin_client):
+        """With no page_size param, all rows fit on one page under the default PAGE_SIZE=25."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data=build_filtered_query(),
+        )
+        assert response.status_code == 200
+        assert response.data["count"] == 2
+        assert len(response.data["results"]) == 2
+        assert response.data["next"] is None
+
+    def test_list_respects_page_size_param(self, job_data, admin_client):
+        """page_size query param must limit results per page (DefaultPaginator wiring regression test)."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "page_size": 1},
+        )
+        assert response.status_code == 200
+        assert response.data["count"] == 2
+        assert len(response.data["results"]) == 1
+        assert response.data["next"] is not None
+
+    def test_list_page_size_second_page(self, job_data, admin_client):
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "page_size": 1, "page": 2},
+        )
+        assert response.status_code == 200
+        assert len(response.data["results"]) == 1
+        assert response.data["results"][0]["template_name"] == "Template B"
+        assert response.data["next"] is None
+
+    def test_list_pagination_links_are_relative(self, job_data, admin_client):
+        """next/previous must be relative paths (DashboardReportPagination/DefaultPaginator), not absolute URIs."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "page_size": 1},
+        )
+        assert response.status_code == 200
+        assert response.data["next"].startswith("/api/v1/dashboard_reports/report/")
+        assert "://" not in response.data["next"]
+
+    def test_list_count_disabled_omits_count_and_links(self, job_data, admin_client):
+        """count_disabled query param must drop count/next/previous, returning only results."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "count_disabled": "true"},
+        )
+        assert response.status_code == 200
+        assert set(response.data.keys()) == {"results"}
+        assert len(response.data["results"]) == 2
+
+    # Ordering
+    def test_list_ordering_default_is_template_name_ascending(self, job_data, admin_client):
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data=build_filtered_query(),
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template A", "Template B"]
+
+    def test_list_ordering_param_descending(self, job_data, admin_client):
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "ordering": "-template_metadata__template_name"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template B", "Template A"]
+
+    def test_list_order_by_alias_matches_ordering(self, job_data, admin_client):
+        """`order_by` must behave identically to `ordering` (AliasedOrderingFilter regression test)."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "order_by": "-template_metadata__template_name"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template B", "Template A"]
+
+    def test_list_order_by_alias_orders_by_savings(self, job_data, admin_client):
+        """order_by=-savings differs from the default name-ascending order, proving it is actually applied."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "order_by": "-savings"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template B", "Template A"]
+
+    def test_list_ordering_by_template_name_does_not_fragment_aggregation(self, admin_client):
+        """ordering=template_name must alias to template_metadata__template_name, not JobData.template_name.
+
+        JobData.template_name is a per-job denormalized snapshot from AWX (can differ across a
+        template rename), distinct from the template_metadata__template_name the report groups by.
+        Ordering by the raw JobData column instead of the alias would silently widen the queryset's
+        GROUP BY and split one template's aggregate into multiple rows.
+        """
+        now = get_now()
+        template = TemplateMetadata.objects.create(
+            template_id=100,
+            template_name="Renamed Template",
+            time_taken_manually_execute_minutes=240,
+            time_taken_create_automation_minutes=40,
+        )
+        JobData.objects.bulk_create(
+            [
+                JobData(
+                    job_id=101,
+                    template_name="Old Template Name",
+                    template_id=100,
+                    project_id=10,
+                    project_name="Project A",
+                    organization_id=1,
+                    status=JobStatusChoices.SUCCESSFUL,
+                    started=now - datetime.timedelta(minutes=15),
+                    finished=now - datetime.timedelta(minutes=10),
+                    elapsed=60,
+                    num_hosts=1,
+                    launched_by_id=1,
+                    launched_by_username="test_user",
+                    template_metadata=template,
+                ),
+                JobData(
+                    job_id=102,
+                    template_name="Renamed Template",
+                    template_id=100,
+                    project_id=10,
+                    project_name="Project A",
+                    organization_id=1,
+                    status=JobStatusChoices.SUCCESSFUL,
+                    started=now - datetime.timedelta(minutes=5),
+                    finished=now,
+                    elapsed=60,
+                    num_hosts=1,
+                    launched_by_id=1,
+                    launched_by_username="test_user",
+                    template_metadata=template,
+                ),
+            ]
+        )
+
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_recent_query(organization=[1]), "ordering": "template_name"},
+        )
+        assert response.status_code == 200
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["runs"] == 2
+
+    def test_list_order_by_invalid_field_falls_back_to_default(self, job_data, admin_client):
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "order_by": "not_a_real_field"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template A", "Template B"]
+
+    def test_list_ordering_takes_precedence_over_order_by_when_both_given(self, job_data, admin_client):
+        """When both are supplied, `ordering` wins and `order_by` is silently ignored (documented precedence)."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={
+                **build_filtered_query(),
+                "ordering": "template_metadata__template_name",
+                "order_by": "-savings",
+            },
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        assert names == ["Template A", "Template B"]
+
     # Details Endpoint
     def test_details_valid_period_returns_200(self, job_data, admin_client):
         response = admin_client.get(
