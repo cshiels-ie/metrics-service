@@ -10,6 +10,8 @@ Covers:
 - URL routing and router registration
 """
 
+from types import SimpleNamespace
+
 import pytest
 from django.test import TestCase
 from django.urls import resolve, reverse
@@ -76,7 +78,10 @@ class TestFilterSetSerializer(TestCase):
         assert FilterSetSerializer().fields["id"].read_only is True
 
     def test_valid_payload_is_accepted(self) -> None:
-        serializer = FilterSetSerializer(data={"name": "Work Filters", "filters": _FILTERS_A, "is_default": False})
+        serializer = FilterSetSerializer(
+            data={"name": "Work Filters", "filters": _FILTERS_A, "is_default": False},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
         assert serializer.is_valid(), serializer.errors
 
     def test_name_is_required(self) -> None:
@@ -90,7 +95,10 @@ class TestFilterSetSerializer(TestCase):
         assert "filters" in serializer.errors
 
     def test_is_default_defaults_to_false_when_omitted(self) -> None:
-        serializer = FilterSetSerializer(data={"name": "Work Filters", "filters": _FILTERS_A})
+        serializer = FilterSetSerializer(
+            data={"name": "Work Filters", "filters": _FILTERS_A},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
         assert serializer.is_valid(), serializer.errors
         # When omitted, is_default is absent from validated_data (DRF applies the
         # default=False at save time, not in validated_data). Either absent or False is correct.
@@ -105,7 +113,37 @@ class TestFilterSetSerializer(TestCase):
 
     def test_filters_accepts_arbitrary_json(self) -> None:
         complex_filters = {"organization_id": [1, 2, 3], "date_range": "custom", "labels": [10, 20]}
-        serializer = FilterSetSerializer(data={"name": "Complex", "filters": complex_filters, "is_default": False})
+        serializer = FilterSetSerializer(
+            data={"name": "Complex", "filters": complex_filters, "is_default": False},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
+        assert serializer.is_valid(), serializer.errors
+
+    def test_validate_rejects_duplicate_name_for_same_user(self) -> None:
+        _create_filter_set(self.user, name="Existing")
+        serializer = FilterSetSerializer(
+            data={"name": "Existing", "filters": _FILTERS_A, "is_default": False},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
+        assert not serializer.is_valid()
+        assert "name" in serializer.errors
+
+    def test_validate_allows_same_name_for_different_user(self) -> None:
+        other_user = _create_user("other")
+        _create_filter_set(other_user, name="Shared Name")
+        serializer = FilterSetSerializer(
+            data={"name": "Shared Name", "filters": _FILTERS_A, "is_default": False},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
+        assert serializer.is_valid(), serializer.errors
+
+    def test_validate_allows_updating_instance_without_changing_name(self) -> None:
+        instance = _create_filter_set(self.user, name="Unchanged")
+        serializer = FilterSetSerializer(
+            instance,
+            data={"name": "Unchanged", "filters": _FILTERS_B, "is_default": False},
+            context={"request": SimpleNamespace(user=self.user)},
+        )
         assert serializer.is_valid(), serializer.errors
 
 
@@ -354,6 +392,24 @@ class TestFilterSetsCreateEndpoint(APITestCase):
         response = self.client.post(url, {"name": "No Filters", "is_default": False}, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_create_with_duplicate_name_for_same_user_returns_400(self) -> None:
+        _create_filter_set(self.user, name="Duplicate")
+        url = reverse("v1:filter_sets-list")
+        response = self.client.post(
+            url, {"name": "Duplicate", "filters": _FILTERS_A, "is_default": False}, format="json"
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "name" in response.data
+
+    def test_create_with_duplicate_name_for_different_user_returns_201(self) -> None:
+        other_user = _create_user("other")
+        _create_filter_set(other_user, name="Shared Name")
+        url = reverse("v1:filter_sets-list")
+        response = self.client.post(
+            url, {"name": "Shared Name", "filters": _FILTERS_A, "is_default": False}, format="json"
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
 
 # =============================================================================
 # PUT /filter-sets/{id} — full update
@@ -422,6 +478,20 @@ class TestFilterSetsUpdateEndpoint(APITestCase):
         self.client.put(url, {"name": "Updated", "filters": _FILTERS_B, "is_default": False}, format="json")
         self.filter_set.refresh_from_db()
         assert self.filter_set.user == self.user
+
+    def test_update_rejects_rename_to_existing_name(self) -> None:
+        """PUT that renames to a name already used by another of the user's filter sets must fail."""
+        _create_filter_set(self.user, name="Taken")
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        response = self.client.put(url, {"name": "Taken", "filters": _FILTERS_A, "is_default": False}, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "name" in response.data
+
+    def test_update_allows_keeping_its_own_name(self) -> None:
+        """PUT that keeps the same name on the same instance must not be treated as a duplicate."""
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        response = self.client.put(url, {"name": "Original", "filters": _FILTERS_B, "is_default": False}, format="json")
+        assert response.status_code == status.HTTP_200_OK
 
 
 # =============================================================================
