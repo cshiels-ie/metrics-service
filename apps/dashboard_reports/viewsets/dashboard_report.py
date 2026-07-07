@@ -3,11 +3,13 @@
 import csv
 import decimal
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+from ansible_base.rest_pagination import DefaultPaginator
 from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
@@ -15,12 +17,13 @@ from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import filters, status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import filters, serializers, status
 from rest_framework.decorators import action
 from rest_framework.renderers import BaseRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
@@ -35,6 +38,55 @@ from apps.tasks.api_utils import build_error_response
 logger = logging.getLogger(__name__)
 
 
+class AliasedOrderingFilter(filters.OrderingFilter):
+    """OrderingFilter that also accepts `order_by` as an alias for the standard `ordering` query parameter.
+
+    Also remaps field names via the view's `ordering_field_aliases` dict (if set) before validation,
+    so a view can expose a user-facing field name that differs from the actual queryset column/path.
+    """
+
+    alias_ordering_param = "order_by"
+
+    def get_ordering(self, request: Request, queryset: QuerySet, view: Any) -> Sequence[str] | None:
+        """Return the ordering fields from `ordering`, falling back to `order_by`, then the view default.
+
+        If both `ordering` and `order_by` are supplied, `ordering` wins (matches DRF's canonical
+        param name). This reimplements DRF's OrderingFilter.get_ordering() body in full rather than
+        delegating to super() after rewriting the param, because request.query_params is a read-only
+        QueryDict — patching it in place would mean reaching into the private request._request
+        attribute, which is more fragile than duplicating a few lines of long-stable DRF logic.
+        """
+        params = request.query_params.get(self.ordering_param) or request.query_params.get(self.alias_ordering_param)
+        if params:
+            field_aliases = getattr(view, "ordering_field_aliases", {})
+            fields = [self._resolve_field_alias(param.strip(), field_aliases) for param in params.split(",")]
+            ordering = self.remove_invalid_fields(queryset, fields, view, request)
+            if ordering:
+                return ordering
+        return self.get_default_ordering(view)
+
+    @staticmethod
+    def _resolve_field_alias(field: str, field_aliases: dict[str, str]) -> str:
+        """Remap `field` (preserving a leading `-` for descending order) through `field_aliases`."""
+        prefix, name = ("-", field[1:]) if field.startswith("-") else ("", field)
+        return prefix + field_aliases.get(name, name)
+
+
+class DashboardReportPagination(DefaultPaginator):
+    """DefaultPaginator pinned to this project's REST_FRAMEWORK PAGE_SIZE.
+
+    DefaultPaginator.__init__ reads its own DEFAULT_PAGE_SIZE/MAX_PAGE_SIZE Django settings
+    (falling back to ansible_base's hardcoded 50/200) instead of this project's
+    REST_FRAMEWORK['PAGE_SIZE'], so the default page size must be pinned explicitly here to stay
+    consistent with the rest of the API. `page_size` and `count_disabled` query params are inherited
+    from DefaultPaginator unchanged (see PAGINATION_QUERY_PARAMETERS for their documented behavior).
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.page_size = api_settings.PAGE_SIZE
+
+
 PAGINATION_QUERY_PARAMETERS = [
     OpenApiParameter(
         name="page",
@@ -47,10 +99,20 @@ PAGINATION_QUERY_PARAMETERS = [
     OpenApiParameter(
         name="page_size",
         type=OpenApiTypes.INT,
-        default=10,
+        default=api_settings.PAGE_SIZE,
         location=OpenApiParameter.QUERY,
         required=True,
-        description="Results per page (default: 10)",
+        description=f"Results per page (default: {api_settings.PAGE_SIZE}).",
+    ),
+    OpenApiParameter(
+        name="count_disabled",
+        type=OpenApiTypes.BOOL,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "If present (any value), omits `count`, `next`, and `previous` from the paginated "
+            "response, returning only `results`. Useful to skip the COUNT query for large listings."
+        ),
     ),
 ]
 
@@ -138,6 +200,132 @@ def require_date_range(view_func):
     return wrapper
 
 
+DETAIL_QUERY_PARAMETERS = [
+    *PAGINATION_QUERY_PARAMETERS,
+    OpenApiParameter(
+        name="period",
+        type=OpenApiTypes.STR,
+        location=OpenApiParameter.QUERY,
+        required=True,
+        enum=DateFilter.to_list(),
+        description="Filter for report period.",
+    ),
+    OpenApiParameter(
+        name="tz",
+        type=OpenApiTypes.STR,
+        location=OpenApiParameter.QUERY,
+        default="UTC",
+        required=True,
+        description="Timezone string (default: UTC)",
+    ),
+    OpenApiParameter(
+        name="start_date",
+        type=OpenApiTypes.DATE,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        description="Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
+    ),
+    OpenApiParameter(
+        name="end_date",
+        type=OpenApiTypes.DATE,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        description="End date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
+    ),
+    OpenApiParameter(
+        name="organization",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="Filter by organization ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="template",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="Filter by template ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="label",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="Filter by label ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="project",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="Filter by project ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="or__organization",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="OR filter by organization ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="or__template",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="OR filter by template ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="or__label",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="OR filter by label ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="or__project",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description="OR filter by project ID (multiple allowed)",
+    ),
+    OpenApiParameter(
+        name="ordering",
+        type=OpenApiTypes.STR,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        description=(
+            "Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', etc.). "
+            "`order_by` is accepted as an alias for this parameter; if both are given, `ordering` takes precedence."
+        ),
+    ),
+]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="Get a list of report data for dashboard (with pagination).",
+        description="Returns a paginated report data for dashboard.",
+        parameters=DETAIL_QUERY_PARAMETERS,
+    ),
+    retrieve=extend_schema(
+        summary="Not supported for aggregated dashboard report data.",
+        description="This endpoint is intentionally not supported and returns 405.",
+        responses={
+            405: inline_serializer(
+                name="DashboardReportRetrieveNotAllowed",
+                fields={"detail": serializers.CharField()},
+            )
+        },
+    ),
+)
 class DashboardReportViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for dashboard reporting and chart data aggregation.
@@ -150,7 +338,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
     Query Parameters:
         page (int): Page number (default: 1)
-        page_size (int): Results per page (default: 10)
+        page_size (int): Results per page (default: 25)
+        count_disabled (bool): If present (any value), omits `count`/`next`/`previous` from the response.
         period (string): Filter for report start date. Options: 'last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days' (required)
         tz (string): Timezone string (default: UTC)
         organization (int): Filter by organization ID (multiple allowed)
@@ -158,116 +347,19 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         label (int): Filter by label ID (multiple allowed)
         project (int): Filter by project ID (multiple allowed)
         ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", etc.)
+            `order_by` is accepted as an alias for this parameter; if both are given, `ordering` takes precedence.
         report_type (string): Type of report to export. Options: 'summary', 'roi', 'trends' (default: 'summary', used for export endpoint)
         export_format (string): Export file format. Options: 'csv' (default: 'csv', used for export endpoint)
+
+    Pagination `next`/`previous` links are relative (e.g. `/api/v1/dashboard_reports/report/?page=2`),
+    matching the other dashboard_reports endpoints (they all share DashboardReportPagination /
+    DefaultPaginator), not absolute URLs.
     """
 
     permission_classes = [IsSystemAdminOrAuditor]
+    pagination_class = DashboardReportPagination
 
-    detail_query_parameters = [
-        *PAGINATION_QUERY_PARAMETERS,
-        OpenApiParameter(
-            name="period",
-            type=OpenApiTypes.STR,
-            location=OpenApiParameter.QUERY,
-            required=True,
-            enum=DateFilter.to_list(),
-            description="Filter for report period.",
-        ),
-        OpenApiParameter(
-            name="tz",
-            type=OpenApiTypes.STR,
-            location=OpenApiParameter.QUERY,
-            default="UTC",
-            required=True,
-            description="Timezone string (default: UTC)",
-        ),
-        OpenApiParameter(
-            name="start_date",
-            type=OpenApiTypes.DATE,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            description="Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
-        ),
-        OpenApiParameter(
-            name="end_date",
-            type=OpenApiTypes.DATE,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            description="End date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
-        ),
-        OpenApiParameter(
-            name="organization",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="Filter by organization ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="template",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="Filter by template ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="label",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="Filter by label ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="project",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="Filter by project ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="or__organization",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="OR filter by organization ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="or__template",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="OR filter by template ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="or__label",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="OR filter by label ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="or__project",
-            type=OpenApiTypes.INT,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            many=True,
-            description="OR filter by project ID (multiple allowed)",
-        ),
-        OpenApiParameter(
-            name="ordering",
-            type=OpenApiTypes.STR,
-            location=OpenApiParameter.QUERY,
-            required=False,
-            description="Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', etc.)",
-        ),
-    ]
+    detail_query_parameters = DETAIL_QUERY_PARAMETERS
 
     export_query_parameters = [
         *[p for p in detail_query_parameters if p not in PAGINATION_QUERY_PARAMETERS],
@@ -294,7 +386,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     versioning_class = None  # Disable versioning for this viewset
     serializer_class = ReportSerializer
 
-    filter_backends = [CustomReportFilter, filters.OrderingFilter]
+    filter_backends = [CustomReportFilter, AliasedOrderingFilter]
 
     # Maximum number of top users/projects to return in details endpoint
     # TODO: Consider moving to a Django setting if UIs need to configure this value.
@@ -312,6 +404,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         "savings",
         "runs",
     ]
+
+    # `template_name` is the response field name (see ReportSerializer); the aggregated queryset
+    # groups by template_metadata__template_name, not JobData.template_name (a per-job, denormalized
+    # snapshot from AWX at execution time). Ordering by the raw JobData.template_name column instead
+    # would silently widen the GROUP BY and fragment aggregates across historical template renames.
+    ordering_field_aliases = {"template_name": "template_metadata__template_name"}
 
     ordering = ["template_metadata__template_name"]
 
@@ -400,7 +498,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         manager methods (after_date, organizations, etc.) are not available post-.values().
         """
         for backend in self.filter_backends:
-            if backend is filters.OrderingFilter:
+            if backend is AliasedOrderingFilter:
                 queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
 
@@ -507,7 +605,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     def _filter_raw_jobdata_queryset(self, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
         """Apply all filter backends except OrderingFilter to the raw JobDataQuerySet."""
         for backend in self.filter_backends:
-            if backend is filters.OrderingFilter:
+            if backend is AliasedOrderingFilter:
                 continue
             queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
@@ -715,7 +813,11 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 ]
             )
 
-    @extend_schema(parameters=detail_query_parameters)
+    @extend_schema(
+        summary="Returns summary, chart data, and top users/projects for dashboard",
+        description="Returns summary, chart data, and top users/projects for dashboard",
+        parameters=detail_query_parameters,
+    )
     @action(detail=False, methods=["get"], url_path="details")
     @require_date_range
     def details(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -795,7 +897,21 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         return Response(report_data, status=status.HTTP_200_OK)
 
-    @extend_schema(parameters=export_query_parameters, responses={(200, "text/csv; charset=UTF-8"): str})
+    @extend_schema(
+        summary="Exports report data as CSV",
+        description="Exports report data as CSV based on the specific report type and format query parameters.",
+        parameters=export_query_parameters,
+        responses={
+            (200, "text/csv; charset=UTF-8"): str,
+            400: inline_serializer(
+                name="DashboardReportExportErrorSerializer",
+                fields={
+                    "detail": serializers.CharField(required=False),
+                    "error": serializers.CharField(required=False),
+                },
+            ),
+        },
+    )
     @action(methods=["get"], detail=False, url_path="export", renderer_classes=[PassthroughRenderer])
     @require_date_range
     def export(self, request: Request, *args: Any, **kwargs: Any) -> HttpResponse | JsonResponse:

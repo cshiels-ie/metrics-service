@@ -552,61 +552,13 @@ paths:
       description: Returns a paginated report data for dashboard.
       summary: Get a list of report data for dashboard (with pagination).
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
+      - in: query
+        name: count_disabled
         schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      tags:
-      - dashboard_reports
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedReportList'
-          description: ''
-      x-ai-description: List all dashboard reports report
-  /api/v1/dashboard_reports/report/{id}/:
-    get:
-      operationId: dashboard_reports_report_retrieve
-      description: This endpoint is intentionally not supported and returns 405.
-      summary: Not supported for aggregated dashboard report data.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - dashboard_reports
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DashboardReportRetrieveNotAllowed'
-          description: ''
-      x-ai-description: Retrieve single dashboard reports report
-  /api/v1/dashboard_reports/report/details/:
-    get:
-      operationId: dashboard_reports_report_details_retrieve
-      description: Returns summary, chart data, and top users/projects for dashboard
-      summary: Returns summary, chart data, and top users/projects for dashboard
-      parameters:
+          type: boolean
+        description: If present (any value), omits `count`, `next`, and `previous`
+          from the paginated response, returning only `results`. Useful to skip the
+          COUNT query for large listings.
       - in: query
         name: end_date
         schema:
@@ -653,7 +605,8 @@ paths:
         schema:
           type: string
         description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
-          'savings', etc.)
+          'savings', etc.). `order_by` is accepted as an alias for this parameter;
+          if both are given, `ordering` takes precedence.
       - in: query
         name: organization
         schema:
@@ -672,8 +625,167 @@ paths:
         name: page_size
         schema:
           type: integer
-          default: 10
-        description: 'Results per page (default: 10)'
+          default: 25
+        description: 'Results per page (default: 25).'
+        required: true
+      - in: query
+        name: period
+        schema:
+          type: string
+          enum:
+          - custom
+          - last_14_days
+          - last_30_days
+          - last_60_days
+          - last_7_days
+          - last_90_days
+        description: Filter for report period.
+        required: true
+      - in: query
+        name: project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by project ID (multiple allowed)
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+        description: Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.
+      - in: query
+        name: template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by template ID (multiple allowed)
+      - in: query
+        name: tz
+        schema:
+          type: string
+          default: UTC
+        description: 'Timezone string (default: UTC)'
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportList'
+          description: ''
+      x-ai-description: List all dashboard reports report
+  /api/v1/dashboard_reports/report/{id}/:
+    get:
+      operationId: dashboard_reports_report_retrieve
+      description: This endpoint is intentionally not supported and returns 405.
+      summary: Not supported for aggregated dashboard report data.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - dashboard_reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardReportRetrieveNotAllowed'
+          description: ''
+      x-ai-description: Retrieve single dashboard reports report
+  /api/v1/dashboard_reports/report/details/:
+    get:
+      operationId: dashboard_reports_report_details_retrieve
+      description: Returns summary, chart data, and top users/projects for dashboard
+      summary: Returns summary, chart data, and top users/projects for dashboard
+      parameters:
+      - in: query
+        name: count_disabled
+        schema:
+          type: boolean
+        description: If present (any value), omits `count`, `next`, and `previous`
+          from the paginated response, returning only `results`. Useful to skip the
+          COUNT query for large listings.
+      - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+        description: End date in 'YYYY-MM-DD' format. Required when period is 'custom'.
+      - in: query
+        name: label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by label ID (multiple allowed)
+      - in: query
+        name: or__label
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by label ID (multiple allowed)
+      - in: query
+        name: or__organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by organization ID (multiple allowed)
+      - in: query
+        name: or__project
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by project ID (multiple allowed)
+      - in: query
+        name: or__template
+        schema:
+          type: array
+          items:
+            type: integer
+        description: OR filter by template ID (multiple allowed)
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
+          'savings', etc.). `order_by` is accepted as an alias for this parameter;
+          if both are given, `ordering` takes precedence.
+      - in: query
+        name: organization
+        schema:
+          type: array
+          items:
+            type: integer
+        description: Filter by organization ID (multiple allowed)
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+        description: 'Page number (default: 1)'
+        required: true
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 25
+        description: 'Results per page (default: 25).'
         required: true
       - in: query
         name: period
@@ -789,7 +901,8 @@ paths:
         schema:
           type: string
         description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
-          'savings', etc.)
+          'savings', etc.). `order_by` is accepted as an alias for this parameter;
+          if both are given, `ordering` takes precedence.
       - in: query
         name: organization
         schema:
