@@ -316,6 +316,20 @@ class FilterSetSerializer(serializers.ModelSerializer):
             },
         }
 
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Ensure the user doesn't already have a filter set with this name."""
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None:
+            return attrs
+        name = attrs.get("name", self.instance.name if self.instance is not None else None)
+        queryset = FilterSet.objects.filter(user=user, name=name)
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError({"name": "Report name already exists. Please choose a different name."})
+        return attrs
+
 
 class DashboardTelemetrySerializer(serializers.ModelSerializer):
     """Serializer for DashboardTelemetry"""
