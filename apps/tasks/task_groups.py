@@ -163,6 +163,14 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "enabled": True,
             "description": "Hourly system health check",
         },
+        {
+            "task_id": "initial_resource_sync",
+            "function": "sync_resources_from_gateway",
+            "cron": None,  # Run once on init — backfills users and RBAC assignments from gateway
+            "args": {},
+            "enabled": True,
+            "description": "One-time sync of users, orgs, teams and RBAC role assignments from the gateway on startup",
+        },
     ],
 )
 
