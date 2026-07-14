@@ -81,10 +81,6 @@ target/
 profile_default/
 ipython_config.py
 
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
 # SageMath parsed files
 *.sage.py
 
