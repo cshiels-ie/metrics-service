@@ -88,9 +88,12 @@ def rollup_external_events_to_segment(execution_id: int | None = None, **kwargs)
         events_sent,
         total,
     )
-    return create_task_result("success", {
-        "date": str(yesterday),
-        "groups_sent": groups_sent,
-        "events_processed": total,
-        "events_sent": events_sent,
-    })
+    return create_task_result(
+        "success",
+        {
+            "date": str(yesterday),
+            "groups_sent": groups_sent,
+            "events_processed": total,
+            "events_sent": events_sent,
+        },
+    )

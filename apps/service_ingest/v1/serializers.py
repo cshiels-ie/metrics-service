@@ -41,13 +41,11 @@ class ExternalEventSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request.user, "service_name") and value != request.user.service_name:
             raise serializers.ValidationError(
-                    f"service_name '{value}' does not match authenticated service '{request.user.service_name}'"
-                )
+                f"service_name '{value}' does not match authenticated service '{request.user.service_name}'"
+            )
         known = getattr(settings, "SERVICE_SEGMENT_EVENTS", {})
         if value not in known:
-            raise serializers.ValidationError(
-                f"Unknown service '{value}'. Register it in SERVICE_SEGMENT_EVENTS."
-            )
+            raise serializers.ValidationError(f"Unknown service '{value}'. Register it in SERVICE_SEGMENT_EVENTS.")
         return value
 
     def validate_payload(self, value) -> dict:
@@ -63,9 +61,7 @@ class ExternalEventSerializer(serializers.ModelSerializer):
                     "collection_start and collection_end are required for payload_type=batch"
                 )
         elif payload_type == "event" and not attrs.get("event_timestamp"):
-            raise serializers.ValidationError(
-                    "event_timestamp is required for payload_type=event"
-                )
+            raise serializers.ValidationError("event_timestamp is required for payload_type=event")
         # Drop envelope-only fields before saving
         attrs.pop("schema_version", None)
         return attrs

@@ -58,6 +58,7 @@ class IngestView(APIView):
         """
         try:
             import crum
+
             from apps.tasks.models import Task
             from apps.tasks.tasks import submit_task_to_dispatcher
 

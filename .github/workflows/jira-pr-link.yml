@@ -91,21 +91,82 @@ jobs:
             exit 0
           fi
 
-          HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" \
-            --connect-timeout 10 \
-            --max-time 30 \
-            -X PUT \
-            -H "Content-Type: application/json" \
-            -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
-            "${JIRA_BASE_URL}/rest/api/2/issue/${TICKET}" \
-            -d "{\"fields\": {\"${JIRA_PR_FIELD_ID}\": \"${PR_URL}\"}}") || true
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, base64
 
-          if [[ "$HTTP_CODE" -ge 200 && "$HTTP_CODE" -lt 300 ]]; then
-            echo "Updated ${TICKET} Git Pull Request field with ${PR_URL}"
-            echo "linked=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Failed to update Jira ticket ${TICKET} (HTTP ${HTTP_CODE})"
-          fi
+          base_url = os.environ["JIRA_BASE_URL"]
+          email = os.environ["JIRA_USER_EMAIL"]
+          token = os.environ["JIRA_API_TOKEN"]
+          field_id = os.environ["JIRA_PR_FIELD_ID"]
+          ticket = os.environ["TICKET"]
+          pr_url = os.environ["PR_URL"]
+          github_output = os.environ["GITHUB_OUTPUT"]
+
+          auth = base64.b64encode(f"{email}:{token}".encode()).decode()
+          headers = {
+              "Authorization": f"Basic {auth}",
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+          }
+
+          # Fetch current field value using API v3 (ADF-aware)
+          get_url = f"{base_url}/rest/api/3/issue/{ticket}?fields={field_id}"
+          req = urllib.request.Request(get_url, headers=headers)
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  data = json.loads(resp.read())
+          except urllib.error.HTTPError as e:
+              print(f"::warning::Failed to fetch Jira ticket {ticket} (HTTP {e.code})")
+              sys.exit(0)
+          except (urllib.error.URLError, TimeoutError) as e:
+              print(f"::warning::Failed to fetch Jira ticket {ticket} ({e})")
+              sys.exit(0)
+
+          current_adf = data.get("fields", {}).get(field_id)
+
+          # Check if PR URL is already linked (skip if so)
+          if current_adf and isinstance(current_adf, dict):
+              for block in current_adf.get("content", []):
+                  for item in block.get("content", []):
+                      if item.get("text") == pr_url:
+                          print(f"{pr_url} already linked on {ticket}, skipping")
+                          with open(github_output, "a") as f:
+                              f.write("linked=true\n")
+                          sys.exit(0)
+
+          new_link = {
+              "type": "text",
+              "text": pr_url,
+              "marks": [{"type": "link", "attrs": {"href": pr_url}}],
+          }
+
+          if current_adf and current_adf.get("content"):
+              # Append to the existing paragraph
+              current_adf["content"][0]["content"].append({"type": "hardBreak"})
+              current_adf["content"][0]["content"].append(new_link)
+              updated_adf = current_adf
+          else:
+              updated_adf = {
+                  "type": "doc",
+                  "version": 1,
+                  "content": [{"type": "paragraph", "content": [new_link]}],
+              }
+
+          # Write back using API v3
+          put_url = f"{base_url}/rest/api/3/issue/{ticket}"
+          payload = json.dumps({"fields": {field_id: updated_adf}}).encode()
+          req = urllib.request.Request(put_url, data=payload, headers=headers, method="PUT")
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  pass
+              print(f"Updated {ticket} Git Pull Request field with {pr_url}")
+              with open(github_output, "a") as f:
+                  f.write("linked=true\n")
+          except urllib.error.HTTPError as e:
+              print(f"::warning::Failed to update Jira ticket {ticket} (HTTP {e.code})")
+          except (urllib.error.URLError, TimeoutError) as e:
+              print(f"::warning::Failed to update Jira ticket {ticket} ({e})")
+          PYEOF
 
       - name: "Comment on PR with linked ticket"
         if: steps.jira-update.outputs.linked == 'true'

@@ -34,9 +34,9 @@ from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
+from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
-from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
 
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks

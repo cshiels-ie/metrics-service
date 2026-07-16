@@ -1673,6 +1673,21 @@ paths:
                   summary: featureflags
           description: ''
       x-ai-description: Retrieve single feature flags state
+  /api/v1/ingest/events/:
+    post:
+      operationId: ingest_events_create
+      description: |-
+        POST /api/v1/ingest/events/
+
+        Accepts a JSON telemetry envelope from an authenticated AAP service.
+        Batch payloads are dispatched to Segment immediately via dispatcherd.
+        Per-event payloads are stored and sent by the daily rollup task.
+      tags:
+      - ingest
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Create new ingest event
   /api/v1/metrics:
     get:
       operationId: metrics_retrieve
