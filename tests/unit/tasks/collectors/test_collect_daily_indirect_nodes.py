@@ -55,7 +55,7 @@ class TestIndirectManagedNodesDailyCollector:
             "groups": {
                 "OrgA||cisco.ios": {
                     "organization_name": "OrgA",
-                    "collection_name": "cisco.ios",
+                    "collection": "cisco.ios",
                     "host_names": ["host1", "host2"],
                     "host_count": 2,
                 },
