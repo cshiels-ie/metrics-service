@@ -35,6 +35,7 @@ project_applications = [
     "apps.tasks",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
     "apps.service_ingest",  # External service telemetry ingest pipeline
+    "apps.bi_export",  # Customer-facing BI export endpoints (ANSTRAT-1587)
 ]
 
 # --- External service ingest ---
