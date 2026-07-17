@@ -138,6 +138,10 @@ TASK_TIMEOUT = 3600
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Install type — how this metrics-service instance was deployed.
+# The operator sets METRICS_SERVICE_INSTALL_TYPE=operator; the containerized installer
+# leaves this at the default so no extra configuration is needed there.
+INSTALL_TYPE = "containerized"
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
