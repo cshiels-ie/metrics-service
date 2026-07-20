@@ -18,7 +18,7 @@ class TestResourceAPIConfiguration(TestCase):
         from apps.core.resource_api import APIConfig
 
         assert hasattr(APIConfig, "service_type")
-        assert APIConfig.service_type == "metrics_service"
+        assert APIConfig.service_type == "metrics"
 
     def test_resource_list_exists(self):
         """Test that RESOURCE_LIST exists and contains configurations."""
