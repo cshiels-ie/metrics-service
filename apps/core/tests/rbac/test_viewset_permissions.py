@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+from ansible_base.rbac.models import RoleDefinition
+from rest_framework.test import APIClient
 
 
 def make_user_data():
@@ -113,3 +115,96 @@ class TestTeamRoleAccess:
         assert r.status_code == 200
         results = r.data["results"] if isinstance(r.data, dict) else r.data
         assert len(results) == 1
+
+
+# ---------------------------------------------------------------------------
+# AAP-74790: activitystream, feature_flags_state, and users RBAC enforcement
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def platform_auditor(db, rando):
+    """Assign the Platform Auditor global role to rando and return the user."""
+    auditor_rd = RoleDefinition.objects.get(name="Platform Auditor")
+    auditor_rd.give_global_permission(rando)
+    return rando
+
+
+@pytest.fixture
+def auditor_api_client(platform_auditor):
+    """API client authenticated as a Platform Auditor."""
+    client = APIClient()
+    client.force_authenticate(user=platform_auditor)
+    return client
+
+
+@pytest.mark.django_db
+class TestUsersEndpointRBAC:
+    """Users list/retrieve must require at least Platform Auditor (AAP-74790)."""
+
+    def test_basic_user_cannot_list_users(self, user_api_client):
+        r = user_api_client.get("/api/v1/users/")
+        assert r.status_code == 403
+
+    def test_platform_auditor_can_list_users(self, auditor_api_client):
+        r = auditor_api_client.get("/api/v1/users/")
+        assert r.status_code == 200
+
+    def test_superuser_can_list_users(self, admin_api_client):
+        r = admin_api_client.get("/api/v1/users/")
+        assert r.status_code == 200
+
+    def test_basic_user_can_access_me_endpoint(self, user_api_client, rando):
+        """The /me action must remain accessible to any authenticated user."""
+        r = user_api_client.get("/api/v1/users/me/")
+        assert r.status_code == 200
+        assert r.data["username"] == rando.username
+
+    def test_unauthenticated_user_cannot_list_users(self):
+        client = APIClient()
+        r = client.get("/api/v1/users/")
+        assert r.status_code in (401, 403)
+
+
+@pytest.mark.django_db
+class TestActivityStreamRBAC:
+    """Activity stream must require at least Platform Auditor (AAP-74790)."""
+
+    def test_basic_user_cannot_access_activitystream(self, user_api_client):
+        r = user_api_client.get("/api/v1/activitystream/")
+        assert r.status_code == 403
+
+    def test_platform_auditor_can_access_activitystream(self, auditor_api_client):
+        r = auditor_api_client.get("/api/v1/activitystream/")
+        assert r.status_code == 200
+
+    def test_superuser_can_access_activitystream(self, admin_api_client):
+        r = admin_api_client.get("/api/v1/activitystream/")
+        assert r.status_code == 200
+
+    def test_unauthenticated_user_cannot_access_activitystream(self):
+        client = APIClient()
+        r = client.get("/api/v1/activitystream/")
+        assert r.status_code in (401, 403)
+
+
+@pytest.mark.django_db
+class TestFeatureFlagsStateRBAC:
+    """Old feature_flags_state endpoint must require at least Platform Auditor (AAP-74790)."""
+
+    def test_basic_user_cannot_access_feature_flags_state(self, user_api_client):
+        r = user_api_client.get("/api/v1/feature_flags_state/")
+        assert r.status_code == 403
+
+    def test_platform_auditor_can_access_feature_flags_state(self, auditor_api_client):
+        r = auditor_api_client.get("/api/v1/feature_flags_state/")
+        assert r.status_code == 200
+
+    def test_superuser_can_access_feature_flags_state(self, admin_api_client):
+        r = admin_api_client.get("/api/v1/feature_flags_state/")
+        assert r.status_code == 200
+
+    def test_unauthenticated_user_cannot_access_feature_flags_state(self):
+        client = APIClient()
+        r = client.get("/api/v1/feature_flags_state/")
+        assert r.status_code in (401, 403)
