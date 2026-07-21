@@ -1046,8 +1046,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Job Data.",
                         "required": true
                     }
                 ],
@@ -1576,8 +1577,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -1634,8 +1636,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -2811,60 +2814,12 @@
                     }
                 },
                 "x-ai-description": "List all organizations"
-            },
-            "post": {
-                "operationId": "organizations_create",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
-                "tags": [
-                    "organizations"
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        },
-                        "application/x-www-form-urlencoded": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        },
-                        "multipart/form-data": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Organization"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "x-ai-description": "Create new organization"
             }
         },
         "/api/v1/organizations/{id}/": {
             "get": {
                 "operationId": "organizations_retrieve",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -2903,7 +2858,7 @@
             },
             "put": {
                 "operationId": "organizations_update",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -2962,7 +2917,7 @@
             },
             "patch": {
                 "operationId": "organizations_partial_update",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -3020,7 +2975,7 @@
             },
             "delete": {
                 "operationId": "organizations_destroy",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10525,74 +10480,6 @@
                     }
                 },
                 "x-ai-description": "List all organization for a team"
-            }
-        },
-        "/api/v1/teams/{id}/organization/associate/": {
-            "post": {
-                "operationId": "teams_organization_associate_create",
-                "description": "Manage Organization objects in the 'organization' relationship of this particular Team.\n\nStarting from the detail URL:\n\nGET /:id/organization/ to show organizations currently in the relationship\n\nPOST a list of instances to /:id/organization/associate/ to add those organizations to the relationship\n\nPOST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp",
-                "parameters": [
-                    {
-                        "in": "path",
-                        "name": "id",
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[0-9]+$"
-                        },
-                        "required": true
-                    }
-                ],
-                "tags": [
-                    "teams"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Associate organization with a team"
-            }
-        },
-        "/api/v1/teams/{id}/organization/disassociate/": {
-            "post": {
-                "operationId": "teams_organization_disassociate_create",
-                "description": "Manage Organization objects in the 'organization' relationship of this particular Team.\n\nStarting from the detail URL:\n\nGET /:id/organization/ to show organizations currently in the relationship\n\nPOST a list of instances to /:id/organization/associate/ to add those organizations to the relationship\n\nPOST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp",
-                "parameters": [
-                    {
-                        "in": "path",
-                        "name": "id",
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[0-9]+$"
-                        },
-                        "required": true
-                    }
-                ],
-                "tags": [
-                    "teams"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Disassociate organization from a team"
             }
         },
         "/api/v1/users/": {

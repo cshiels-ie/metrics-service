@@ -690,7 +690,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Job Data.
         required: true
       tags:
       - dashboard_reports
@@ -1038,7 +1039,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -1072,7 +1074,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -1845,38 +1848,15 @@ paths:
                 $ref: '#/components/schemas/PaginatedOrganizationList'
           description: ''
       x-ai-description: List all organizations
-    post:
-      operationId: organizations_create
-      description: CRUD viewset for Organization resources with RBAC filtering.
-      tags:
-      - organizations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrganizationRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OrganizationRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/OrganizationRequest'
-        required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-      x-ai-description: Create new organization
   /api/v1/organizations/{id}/:
     get:
       operationId: organizations_retrieve
-      description: CRUD viewset for Organization resources with RBAC filtering.
+      description: |-
+        Read and update viewset for Organization resources with RBAC filtering.
+
+        Organizations are managed by the AAP resource server (gateway) and synced
+        into metrics-service automatically. Creating organizations directly via this
+        API is not supported; use the gateway to manage organizations.
       parameters:
       - in: path
         name: id
@@ -1899,7 +1879,12 @@ paths:
       x-ai-description: Retrieve single organization
     put:
       operationId: organizations_update
-      description: CRUD viewset for Organization resources with RBAC filtering.
+      description: |-
+        Read and update viewset for Organization resources with RBAC filtering.
+
+        Organizations are managed by the AAP resource server (gateway) and synced
+        into metrics-service automatically. Creating organizations directly via this
+        API is not supported; use the gateway to manage organizations.
       parameters:
       - in: path
         name: id
@@ -1934,7 +1919,12 @@ paths:
       x-ai-description: Update existing organization
     patch:
       operationId: organizations_partial_update
-      description: CRUD viewset for Organization resources with RBAC filtering.
+      description: |-
+        Read and update viewset for Organization resources with RBAC filtering.
+
+        Organizations are managed by the AAP resource server (gateway) and synced
+        into metrics-service automatically. Creating organizations directly via this
+        API is not supported; use the gateway to manage organizations.
       parameters:
       - in: path
         name: id
@@ -1968,7 +1958,12 @@ paths:
       x-ai-description: Partially update existing organization
     delete:
       operationId: organizations_destroy
-      description: CRUD viewset for Organization resources with RBAC filtering.
+      description: |-
+        Read and update viewset for Organization resources with RBAC filtering.
+
+        Organizations are managed by the AAP resource server (gateway) and synced
+        into metrics-service automatically. Creating organizations directly via this
+        API is not supported; use the gateway to manage organizations.
       parameters:
       - in: path
         name: id
@@ -6744,64 +6739,6 @@ paths:
                 $ref: '#/components/schemas/PaginatedOrganizationList'
           description: ''
       x-ai-description: List all organization for a team
-  /api/v1/teams/{id}/organization/associate/:
-    post:
-      operationId: teams_organization_associate_create
-      description: |-
-        Manage Organization objects in the 'organization' relationship of this particular Team.
-
-        Starting from the detail URL:
-
-        GET /:id/organization/ to show organizations currently in the relationship
-
-        POST a list of instances to /:id/organization/associate/ to add those organizations to the relationship
-
-        POST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          pattern: ^[0-9]+$
-        required: true
-      tags:
-      - teams
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          description: No response body
-      x-ai-description: Associate organization with a team
-  /api/v1/teams/{id}/organization/disassociate/:
-    post:
-      operationId: teams_organization_disassociate_create
-      description: |-
-        Manage Organization objects in the 'organization' relationship of this particular Team.
-
-        Starting from the detail URL:
-
-        GET /:id/organization/ to show organizations currently in the relationship
-
-        POST a list of instances to /:id/organization/associate/ to add those organizations to the relationship
-
-        POST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          pattern: ^[0-9]+$
-        required: true
-      tags:
-      - teams
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          description: No response body
-      x-ai-description: Disassociate organization from a team
   /api/v1/users/:
     get:
       operationId: users_list
