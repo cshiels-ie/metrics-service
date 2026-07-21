@@ -5,5 +5,19 @@ from .base import BaseViewSet
 
 
 class OrganizationViewSet(BaseViewSet):
+    """Read and update viewset for Organization resources with RBAC filtering.
+
+    Organizations are managed by the AAP resource server (gateway) and synced
+    into metrics-service automatically. Creating organizations directly via this
+    API is not supported; use the gateway to manage organizations.
+    """
+
+    # POST (create) is intentionally excluded: metrics-service is not the provider
+    # of organization data (is_provider=False in resource_api.py). Organizations are
+    # synced from the AAP gateway via the DAB resource registry. Allowing creation
+    # here would trigger a DAB post_save signal that crashes when the resource server
+    # is configured (AAP-74775).
+    http_method_names = ["get", "put", "patch", "delete", "head", "options", "trace"]
+
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
