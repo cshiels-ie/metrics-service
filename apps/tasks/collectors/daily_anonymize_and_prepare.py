@@ -13,6 +13,7 @@ import random
 from datetime import date, timedelta
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 from ..task_groups import SEGMENT_MAX_ATTEMPTS
@@ -91,6 +92,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "hourly_collections_count": daily_summary.hourly_collections_count,
             "missing_hours": daily_summary.missing_hours,
             "aggregation_timestamp": aggregation_timestamp,
+            "install_type": settings.INSTALL_TYPE,
         }
 
         offset_minutes = random_offset()
