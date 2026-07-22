@@ -183,14 +183,13 @@ class TestMetricsEndpoint:
         response = admin_client.get("/api/v1/metrics")
         assert "django_" in response.content.decode()
 
-    def test_metrics_legacy_path_redirects(self, client):
-        """GET /metrics must redirect to /api/v1/metrics for backwards compatibility."""
-        response = client.get("/metrics")
-        assert response.status_code == status.HTTP_302_FOUND
-        assert response["Location"] == "/api/v1/metrics"
+    def test_metrics_endpoint_trailing_slash_also_works(self, admin_client):
+        """GET /api/v1/metrics/ (with trailing slash) must return the same Prometheus output."""
+        response = admin_client.get("/api/v1/metrics/")
+        assert response.status_code == status.HTTP_200_OK
+        assert "text/plain" in response["Content-Type"]
 
-    def test_metrics_old_api_path_redirects(self, client):
-        """GET /api/metrics must permanently redirect to /api/v1/metrics."""
-        response = client.get("/api/metrics")
-        assert response.status_code == status.HTTP_301_MOVED_PERMANENTLY
-        assert response["Location"] == "/api/v1/metrics"
+    def test_metrics_legacy_paths_removed(self, client):
+        """The old /metrics and /api/metrics redirect paths must no longer exist."""
+        assert client.get("/metrics").status_code == status.HTTP_404_NOT_FOUND
+        assert client.get("/api/metrics").status_code == status.HTTP_404_NOT_FOUND
