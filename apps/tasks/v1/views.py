@@ -302,11 +302,17 @@ class TaskViewSet(BaseViewSet):
         """
         instance = serializer.instance
         if instance and instance.is_system_task:
-            # Allow limited modifications for system tasks
-            protected_fields = {"function_name", "is_system_task", "cron_expression"}
+            # Fields that cannot be modified on system tasks
+            protected_fields = {"function_name", "is_system_task", "cron_expression", "name", "status", "task_data"}
 
-            # Check if any protected fields are being modified
-            if any(field in serializer.validated_data for field in protected_fields):
+            # Check both validated_data (writable fields the serializer accepted) and
+            # raw request data (catches read-only fields like status that the serializer
+            # would silently ignore but the client should not be allowed to attempt)
+            attempted_protected = protected_fields & (
+                set(serializer.validated_data.keys()) | set(self.request.data.keys())
+            )
+
+            if attempted_protected:
                 from rest_framework.exceptions import PermissionDenied
 
                 raise PermissionDenied(

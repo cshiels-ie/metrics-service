@@ -86,3 +86,50 @@ jobs:
             exit 1  # Fail the job
           fi
 
+
+      - name: "Wait for Postgres"
+        run: |
+          for i in {1..60}; do
+            if pg_isready -h localhost -p 5432 -U metrics_service; then
+              echo "Postgres is ready"
+              break
+            fi
+            echo "Waiting for Postgres... ($i/60)"
+            sleep 1
+          done
+
+      - name: "Apply Django migrations"
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+        run: |
+          uv run --frozen python manage.py migrate --noinput
+
+      - name: Generate OpenAPI schema
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+        run: |
+          mkdir -p tools/openapi-schema
+          uv run --frozen python manage.py spectacular --file tools/openapi-schema/metrics-service.yaml
+          uv run --frozen python manage.py spectacular --format openapi-json --file tools/openapi-schema/metrics-service.json
+          git diff --exit-code -- tools/openapi-schema/metrics-service.yaml
+          git diff --exit-code -- tools/openapi-schema/metrics-service.json
+
+      - name: Validate OpenAPI schema
+        run: |
+          uv run --frozen python -c "
+          from openapi_spec_validator import validate
+          import yaml
+          spec = yaml.safe_load(open('tools/openapi-schema/metrics-service.yaml'))
+          validate(spec)
+          print('✓ OpenAPI schema is valid!')
+          "
