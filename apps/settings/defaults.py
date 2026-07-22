@@ -136,6 +136,11 @@ TASK_TIMEOUT = 3600
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Grant 'view' bypass to users carrying the Platform Auditor global RBAC role.
+# The gateway conveys auditor status via JWT global_roles (not user_data), so
+# is_platform_auditor is a property on User that queries RBAC assignments.
+# Mirrors aap_gateway_api/defaults.py so IsSystemAdminOrAuditor works here too.
+ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {"view": "is_platform_auditor"}
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
