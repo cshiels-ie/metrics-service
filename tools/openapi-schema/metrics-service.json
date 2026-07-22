@@ -51,29 +51,6 @@
                 "x-ai-description": "Retrieve single api"
             }
         },
-        "/api/metrics": {
-            "get": {
-                "operationId": "api_metrics_retrieve",
-                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
-                "tags": [
-                    "api"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Retrieve single api metric"
-            }
-        },
         "/api/v1/": {
             "get": {
                 "operationId": "root_retrieve_2",
@@ -576,36 +553,7 @@
         "/api/v1/dashboard_reports/labels/": {
             "get": {
                 "operationId": "dashboard_reports_labels_retrieve",
-                "description": "Returns a list of labels from AWX database.",
-                "summary": "Get a list of labels from AWX database.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "page",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        },
-                        "description": "Page number (default: 1)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "page_size",
-                        "schema": {
-                            "type": "integer",
-                            "default": 10
-                        },
-                        "description": "Results per page (default: 10)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "search",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Search by label name."
-                    }
-                ],
+                "description": "Returns paginated filter dropdown data from AWX database.\n\nPagination happens at the DB layer: limit and offset are computed from the paginator\nand forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also\nruns a COUNT(*) query.  The paginator is then initialised with a range() of the total\ncount so that next/previous links are built correctly without slicing an in-memory list.",
                 "tags": [
                     "dashboard_reports"
                 ],
@@ -628,8 +576,7 @@
         "/api/v1/dashboard_reports/labels/{id}/": {
             "get": {
                 "operationId": "dashboard_reports_labels_retrieve_2",
-                "description": "Returns a single label record from AWX database by ID.",
-                "summary": "Get a specific label from AWX database by ID.",
+                "description": "Returns a single filter dropdown item by ID from AWX database.",
                 "parameters": [
                     {
                         "in": "path",
@@ -663,36 +610,7 @@
         "/api/v1/dashboard_reports/organizations/": {
             "get": {
                 "operationId": "dashboard_reports_organizations_retrieve",
-                "description": "Returns a list of organizations from AWX database.",
-                "summary": "Get a list of organizations from AWX database.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "page",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        },
-                        "description": "Page number (default: 1)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "page_size",
-                        "schema": {
-                            "type": "integer",
-                            "default": 10
-                        },
-                        "description": "Results per page (default: 10)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "search",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Search by organization name."
-                    }
-                ],
+                "description": "Returns paginated filter dropdown data from AWX database.\n\nPagination happens at the DB layer: limit and offset are computed from the paginator\nand forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also\nruns a COUNT(*) query.  The paginator is then initialised with a range() of the total\ncount so that next/previous links are built correctly without slicing an in-memory list.",
                 "tags": [
                     "dashboard_reports"
                 ],
@@ -715,8 +633,7 @@
         "/api/v1/dashboard_reports/organizations/{id}/": {
             "get": {
                 "operationId": "dashboard_reports_organizations_retrieve_2",
-                "description": "Returns a single organization record from AWX database by ID.",
-                "summary": "Get a specific organization from AWX database by ID.",
+                "description": "Returns a single filter dropdown item by ID from AWX database.",
                 "parameters": [
                     {
                         "in": "path",
@@ -750,36 +667,7 @@
         "/api/v1/dashboard_reports/projects/": {
             "get": {
                 "operationId": "dashboard_reports_projects_retrieve",
-                "description": "Returns a list of projects from AWX database.",
-                "summary": "Get a list of projects from AWX database.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "page",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        },
-                        "description": "Page number (default: 1)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "page_size",
-                        "schema": {
-                            "type": "integer",
-                            "default": 10
-                        },
-                        "description": "Results per page (default: 10)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "search",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Search by project name."
-                    }
-                ],
+                "description": "Returns paginated filter dropdown data from AWX database.\n\nPagination happens at the DB layer: limit and offset are computed from the paginator\nand forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also\nruns a COUNT(*) query.  The paginator is then initialised with a range() of the total\ncount so that next/previous links are built correctly without slicing an in-memory list.",
                 "tags": [
                     "dashboard_reports"
                 ],
@@ -802,8 +690,7 @@
         "/api/v1/dashboard_reports/projects/{id}/": {
             "get": {
                 "operationId": "dashboard_reports_projects_retrieve_2",
-                "description": "Returns a single project record from AWX database by ID.",
-                "summary": "Get a specific project from AWX database by ID.",
+                "description": "Returns a single filter dropdown item by ID from AWX database.",
                 "parameters": [
                     {
                         "in": "path",
@@ -1046,8 +933,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Job Data.",
                         "required": true
                     }
                 ],
@@ -1492,8 +1380,7 @@
         "/api/v1/dashboard_reports/subscription_costs/": {
             "get": {
                 "operationId": "dashboard_reports_subscription_costs_list",
-                "description": "Returns a list of subscription costs.",
-                "summary": "Get a list of subscription costs.",
+                "description": "ViewSet for retrieving subscription cost from metrics service database.\n\nProvides listing and updating subscription cost entries. This allows users (with correct permissions) to view and modify the cost of subscriptions as needed.\n\nEndpoints:\n    GET /api/v1/dashboard_reports/subscription_costs/ - List subscription cost entries (without pagination)\n    PUT /api/v1/dashboard_reports/subscription_costs/{id}/ - Update an existing subscription cost entry by ID\n\nQuery Parameters:\n    id (int): ID of the subscription cost entry to edit",
                 "parameters": [
                     {
                         "in": "query",
@@ -1569,15 +1456,15 @@
         "/api/v1/dashboard_reports/subscription_costs/{id}/": {
             "put": {
                 "operationId": "dashboard_reports_subscription_costs_update",
-                "description": "Update a specific subscription cost by ID.",
-                "summary": "Update a specific subscription cost by ID.",
+                "description": "Updates the cost of a subscription.",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -1627,15 +1514,15 @@
             },
             "patch": {
                 "operationId": "dashboard_reports_subscription_costs_partial_update",
-                "description": "Partially update a specific subscription cost by ID.",
-                "summary": "Partially update a specific subscription cost by ID.",
+                "description": "ViewSet for retrieving subscription cost from metrics service database.\n\nProvides listing and updating subscription cost entries. This allows users (with correct permissions) to view and modify the cost of subscriptions as needed.\n\nEndpoints:\n    GET /api/v1/dashboard_reports/subscription_costs/ - List subscription cost entries (without pagination)\n    PUT /api/v1/dashboard_reports/subscription_costs/{id}/ - Update an existing subscription cost entry by ID\n\nQuery Parameters:\n    id (int): ID of the subscription cost entry to edit",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -1687,8 +1574,7 @@
         "/api/v1/dashboard_reports/template_metadata/{id}/": {
             "get": {
                 "operationId": "dashboard_reports_template_metadata_retrieve",
-                "description": "Returns a specific template metadata by ID.",
-                "summary": "Get specific template metadata ID.",
+                "description": "ViewSet for retrieving template metadata from metrics service database.\n\nEndpoints:\n    GET    api/v1/dashboard_reports/template_metadata/{id}/ - Get template metadata\n    PUT    api/v1/dashboard_reports/template_metadata/{id}/ - Update template metadata\n    PATCH  api/v1/dashboard_reports/template_metadata/{id}/ - Partially update template metadata",
                 "parameters": [
                     {
                         "in": "path",
@@ -1727,8 +1613,7 @@
             },
             "put": {
                 "operationId": "dashboard_reports_template_metadata_update",
-                "description": "Update a specific template metadata by ID.",
-                "summary": "Update a specific template metadata by ID.",
+                "description": "ViewSet for retrieving template metadata from metrics service database.\n\nEndpoints:\n    GET    api/v1/dashboard_reports/template_metadata/{id}/ - Get template metadata\n    PUT    api/v1/dashboard_reports/template_metadata/{id}/ - Update template metadata\n    PATCH  api/v1/dashboard_reports/template_metadata/{id}/ - Partially update template metadata",
                 "parameters": [
                     {
                         "in": "path",
@@ -1787,8 +1672,7 @@
             },
             "patch": {
                 "operationId": "dashboard_reports_template_metadata_partial_update",
-                "description": "Partially update a specific template metadata by ID.",
-                "summary": "Partially update a specific template metadata by ID.",
+                "description": "ViewSet for retrieving template metadata from metrics service database.\n\nEndpoints:\n    GET    api/v1/dashboard_reports/template_metadata/{id}/ - Get template metadata\n    PUT    api/v1/dashboard_reports/template_metadata/{id}/ - Update template metadata\n    PATCH  api/v1/dashboard_reports/template_metadata/{id}/ - Partially update template metadata",
                 "parameters": [
                     {
                         "in": "path",
@@ -1848,36 +1732,7 @@
         "/api/v1/dashboard_reports/templates/": {
             "get": {
                 "operationId": "dashboard_reports_templates_retrieve",
-                "description": "Returns a list of job templates from AWX database.",
-                "summary": "Get a list of job templates from AWX database.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "page",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        },
-                        "description": "Page number (default: 1)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "page_size",
-                        "schema": {
-                            "type": "integer",
-                            "default": 10
-                        },
-                        "description": "Results per page (default: 10)."
-                    },
-                    {
-                        "in": "query",
-                        "name": "search",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Search by job template name."
-                    }
-                ],
+                "description": "Returns paginated filter dropdown data from AWX database.\n\nPagination happens at the DB layer: limit and offset are computed from the paginator\nand forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also\nruns a COUNT(*) query.  The paginator is then initialised with a range() of the total\ncount so that next/previous links are built correctly without slicing an in-memory list.",
                 "tags": [
                     "dashboard_reports"
                 ],
@@ -1900,8 +1755,7 @@
         "/api/v1/dashboard_reports/templates/{id}/": {
             "get": {
                 "operationId": "dashboard_reports_templates_retrieve_2",
-                "description": "Returns a single job template record from AWX database by ID.",
-                "summary": "Get a specific job template from AWX database by ID.",
+                "description": "Returns a single filter dropdown item by ID from AWX database.",
                 "parameters": [
                     {
                         "in": "path",
@@ -2565,8 +2419,7 @@
         "/api/v1/organizations/": {
             "get": {
                 "operationId": "organizations_list",
-                "description": "Returns a list of organizations.",
-                "summary": "List organizations.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "query",
@@ -2811,60 +2664,12 @@
                     }
                 },
                 "x-ai-description": "List all organizations"
-            },
-            "post": {
-                "operationId": "organizations_create",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
-                "tags": [
-                    "organizations"
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        },
-                        "application/x-www-form-urlencoded": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        },
-                        "multipart/form-data": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationRequest"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Organization"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "x-ai-description": "Create new organization"
             }
         },
         "/api/v1/organizations/{id}/": {
             "get": {
                 "operationId": "organizations_retrieve",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -2903,7 +2708,7 @@
             },
             "put": {
                 "operationId": "organizations_update",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -2962,7 +2767,7 @@
             },
             "patch": {
                 "operationId": "organizations_partial_update",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -3020,7 +2825,7 @@
             },
             "delete": {
                 "operationId": "organizations_destroy",
-                "description": "CRUD viewset for Organization resources with RBAC filtering.",
+                "description": "Read and update viewset for Organization resources with RBAC filtering.\n\nOrganizations are managed by the AAP resource server (gateway) and synced\ninto metrics-service automatically. Creating organizations directly via this\nAPI is not supported; use the gateway to manage organizations.",
                 "parameters": [
                     {
                         "in": "path",
@@ -3054,8 +2859,7 @@
         "/api/v1/organizations/{id}/teams/": {
             "get": {
                 "operationId": "organizations_teams_list",
-                "description": "Returns a list of teams.",
-                "summary": "List teams.",
+                "description": "Manage Team objects in the 'teams' relationship of this particular Organization.\n\nStarting from the detail URL:\n\nGET /:id/teams/ to show teams currently in the relationship",
                 "parameters": [
                     {
                         "in": "query",
@@ -6262,8 +6066,7 @@
         "/api/v1/tasks/": {
             "get": {
                 "operationId": "tasks_list",
-                "description": "Returns a list of all task.",
-                "summary": "List all tasks.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "parameters": [
                     {
                         "in": "query",
@@ -6765,6 +6568,46 @@
                     },
                     {
                         "in": "query",
+                        "name": "timeout_seconds",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by timeout_seconds (exact match)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "timeout_seconds__gt",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by timeout_seconds (gt)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "timeout_seconds__gte",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by timeout_seconds (gte)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "timeout_seconds__lt",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by timeout_seconds (lt)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "timeout_seconds__lte",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by timeout_seconds (lte)"
+                    },
+                    {
+                        "in": "query",
                         "name": "type",
                         "schema": {
                             "type": "string"
@@ -6799,8 +6642,7 @@
             },
             "post": {
                 "operationId": "tasks_create",
-                "description": "Create a new task object.",
-                "summary": "Create a task.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "tags": [
                     "tasks"
                 ],
@@ -6808,17 +6650,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskRequest"
+                                "$ref": "#/components/schemas/TaskCreateRequest"
                             }
                         },
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskRequest"
+                                "$ref": "#/components/schemas/TaskCreateRequest"
                             }
                         },
                         "multipart/form-data": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskRequest"
+                                "$ref": "#/components/schemas/TaskCreateRequest"
                             }
                         }
                     },
@@ -6850,8 +6692,7 @@
         "/api/v1/tasks/{id}/": {
             "get": {
                 "operationId": "tasks_retrieve",
-                "description": "Returns a specific task by ID.",
-                "summary": "Get specific task by ID.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "parameters": [
                     {
                         "in": "path",
@@ -6890,8 +6731,7 @@
             },
             "put": {
                 "operationId": "tasks_update",
-                "description": "Update a specific task by ID.",
-                "summary": "Update a specific task by ID.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "parameters": [
                     {
                         "in": "path",
@@ -6950,8 +6790,7 @@
             },
             "patch": {
                 "operationId": "tasks_partial_update",
-                "description": "Partially update a specific task by ID.",
-                "summary": "Partially update a specific task by ID.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7009,8 +6848,7 @@
             },
             "delete": {
                 "operationId": "tasks_destroy",
-                "description": "Delete a specific task record by ID.",
-                "summary": "Delete a specific task by ID.",
+                "description": "ViewSet for Task model with comprehensive task management functionality.\n\nThis ViewSet provides all the functionality from the manage_tasks.py command\nconverted to REST API endpoints including creation, listing, monitoring,\nand control.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7044,8 +6882,7 @@
         "/api/v1/tasks/{id}/cancel/": {
             "post": {
                 "operationId": "tasks_cancel_create",
-                "description": "This endpoint replicates the functionality of: 'python manage.py manage_tasks cancel <task_id>'",
-                "summary": "Cancel a pending or running task.",
+                "description": "Cancel a pending or running task.\n\nThis endpoint replicates the functionality of:\npython manage.py manage_tasks cancel <task_id>\n\nArgs:\n    request: HTTP request\n    pk: Primary key of the task\n\nReturns:\n    Response: Success or error response",
                 "parameters": [
                     {
                         "in": "path",
@@ -7093,17 +6930,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/TaskCancelResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/TaskCancelErrorResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -7116,8 +6943,7 @@
         "/api/v1/tasks/{id}/force_delete/": {
             "delete": {
                 "operationId": "tasks_force_delete_destroy",
-                "description": "This endpoint allows administrators to delete system tasks if absolutely necessary. Use with extreme caution as it may break system functionality.",
-                "summary": "Force delete a system task (admin only).",
+                "description": "Force delete a system task (admin only).\n\nThis endpoint allows administrators to delete system tasks if absolutely necessary.\nUse with extreme caution as it may break system functionality.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7141,28 +6967,8 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DeleteWarningResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
                     "204": {
                         "description": "No response body"
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DeletErrorResponse"
-                                }
-                            }
-                        },
-                        "description": ""
                     }
                 },
                 "x-ai-description": "Delete existing delete for a task"
@@ -7171,8 +6977,7 @@
         "/api/v1/tasks/{id}/retry/": {
             "post": {
                 "operationId": "tasks_retry_create",
-                "description": "This endpoint replicates the functionality of: 'python manage.py manage_tasks retry <task_id>'",
-                "summary": "Retry a failed task.",
+                "description": "Retry a failed task.\n\nThis endpoint replicates the functionality of:\npython manage.py manage_tasks retry <task_id>\n\nArgs:\n    request: HTTP request\n    pk: Primary key of the task\n\nReturns:\n    Response: Success or error response",
                 "parameters": [
                     {
                         "in": "path",
@@ -7220,17 +7025,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/TaskRetryResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/TaskRetryErrorResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -7243,8 +7038,7 @@
         "/api/v1/tasks/available_functions/": {
             "get": {
                 "operationId": "tasks_available_functions_retrieve",
-                "description": "Get list of available task functions with enhanced metadata for dashboard.",
-                "summary": "Get list of available task functions with enhanced metadata for dashboard.",
+                "description": "Get list of available task functions with enhanced metadata for the dashboard.\n\nReturns:\n    Response: List of available task functions with descriptions, parameters, and examples",
                 "tags": [
                     "tasks"
                 ],
@@ -7261,7 +7055,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/TaskFunctionResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -7274,8 +7068,7 @@
         "/api/v1/tasks/cleanup/": {
             "post": {
                 "operationId": "tasks_cleanup_create",
-                "description": "This endpoint replicates the functionality of: 'python manage.py manage_tasks cleanup --days=30 --dry-run'",
-                "summary": "Clean up old completed tasks",
+                "description": "Clean up old completed tasks.\n\nThis endpoint replicates the functionality of:\npython manage.py manage_tasks cleanup --days=30 --dry-run\n\nArgs:\n    request: HTTP request with cleanup parameters\n\nReturns:\n    Response: Success message with count of tasks cleaned up",
                 "tags": [
                     "tasks"
                 ],
@@ -7283,20 +7076,21 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCleanupRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCleanupRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "multipart/form-data": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCleanupRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         }
-                    }
+                    },
+                    "required": true
                 },
                 "security": [
                     {
@@ -7311,7 +7105,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/TaskCleanupResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -7324,8 +7118,7 @@
         "/api/v1/tasks/executions/": {
             "get": {
                 "operationId": "tasks_executions_list",
-                "description": "Returns a list of task executions.",
-                "summary": "List task executions.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "parameters": [
                     {
                         "in": "query",
@@ -7725,8 +7518,7 @@
             },
             "post": {
                 "operationId": "tasks_executions_create",
-                "description": "Create a new task execution object.",
-                "summary": "Create a task execution.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "tags": [
                     "tasks"
                 ],
@@ -7776,8 +7568,7 @@
         "/api/v1/tasks/executions/{id}/": {
             "get": {
                 "operationId": "tasks_executions_retrieve",
-                "description": "Returns a specific task execution by ID.",
-                "summary": "Get specific task execution by ID.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7816,8 +7607,7 @@
             },
             "put": {
                 "operationId": "tasks_executions_update",
-                "description": "Update a specific task execution by ID.",
-                "summary": "Update a specific task execution by ID.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7876,8 +7666,7 @@
             },
             "patch": {
                 "operationId": "tasks_executions_partial_update",
-                "description": "Partially update a specific task execution by ID.",
-                "summary": "Partially update a specific task execution by ID.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7935,8 +7724,7 @@
             },
             "delete": {
                 "operationId": "tasks_executions_destroy",
-                "description": "Delete a specific task execution record by ID.",
-                "summary": "Delete a specific task execution by ID.",
+                "description": "ViewSet for TaskExecution model to monitor task execution history.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7969,525 +7757,8 @@
         },
         "/api/v1/tasks/list/": {
             "get": {
-                "operationId": "tasks_list_list",
-                "description": "This endpoint replicates the functionality of: 'python manage.py manage-tasks list --status=pending --limit=20'",
-                "summary": "List tasks with filtering, similar to manage_tasks list command.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "is_system_task",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by is_system_task (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "limit",
-                        "schema": {
-                            "type": "integer"
-                        },
-                        "description": "Limit the number of tasks returned (default 20)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "order",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "in": "query",
-                        "name": "order_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "name": "page",
-                        "required": false,
-                        "in": "query",
-                        "description": "A page number within the paginated result set.",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "result_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by result_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "role_level",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by role level for RBAC"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lte)"
-                    },
-                    {
-                        "name": "search",
-                        "required": false,
-                        "in": "query",
-                        "description": "A search term.",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by task status (e.g. pending, running, completed)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by status (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "task_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by task_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "type",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by object type. Supports comma-separated values for multiple types."
-                    }
-                ],
+                "operationId": "tasks_list_retrieve",
+                "description": "List tasks with filtering, similar to manage_tasks list command.\n\nThis endpoint replicates the functionality of:\npython manage.py manage_tasks list --status=pending --limit=20\n\nReturns:\n    Response: Filtered and limited list of tasks",
                 "tags": [
                     "tasks"
                 ],
@@ -8504,529 +7775,20 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaginatedTaskListList"
+                                    "$ref": "#/components/schemas/TaskList"
                                 }
                             }
                         },
                         "description": ""
                     }
                 },
-                "x-ai-description": "List all tasks list"
+                "x-ai-description": "Retrieve single tasks list"
             }
         },
         "/api/v1/tasks/pending/": {
             "get": {
-                "operationId": "tasks_pending_list",
-                "description": "This endpoint returns a list of pending tasks waiting to run.",
-                "summary": "Get list of pending tasks waiting to run.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "is_system_task",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by is_system_task (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "order",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "in": "query",
-                        "name": "order_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "name": "page",
-                        "required": false,
-                        "in": "query",
-                        "description": "A page number within the paginated result set.",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "result_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by result_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "role_level",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by role level for RBAC"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lte)"
-                    },
-                    {
-                        "name": "search",
-                        "required": false,
-                        "in": "query",
-                        "description": "A search term.",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by status (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by status (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "task_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by task_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "type",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by object type. Supports comma-separated values for multiple types."
-                    }
-                ],
+                "operationId": "tasks_pending_retrieve",
+                "description": "Get list of pending tasks waiting to run.\n\nReturns:\n    Response: List of tasks with status 'pending'",
                 "tags": [
                     "tasks"
                 ],
@@ -9043,529 +7805,20 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaginatedTaskListList"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
                         "description": ""
                     }
                 },
-                "x-ai-description": "List all tasks pending"
+                "x-ai-description": "Retrieve single tasks pending"
             }
         },
         "/api/v1/tasks/running/": {
             "get": {
-                "operationId": "tasks_running_list",
-                "description": "This endpoint returns a list of currently running tasks.",
-                "summary": "Get list of currently running tasks.",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "completed_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by completed_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "created_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by created_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "cron_expression__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by cron_expression (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "description__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by description (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "error_message__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by error_message (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "function_name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by function_name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "id__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by id (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "is_system_task",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by is_system_task (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "max_attempts__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by max_attempts (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "modified_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by modified_by (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "name__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by name (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "order",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "in": "query",
-                        "name": "order_by",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
-                    },
-                    {
-                        "name": "page",
-                        "required": false,
-                        "in": "query",
-                        "description": "A page number within the paginated result set.",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "result_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by result_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "role_level",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by role level for RBAC"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "scheduled_time__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by scheduled_time (lte)"
-                    },
-                    {
-                        "name": "search",
-                        "required": false,
-                        "in": "query",
-                        "description": "A search term.",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "started_at__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by started_at (lte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by status (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "status__icontains",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by status (case-insensitive partial match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "task_data",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by task_data (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "type",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by object type. Supports comma-separated values for multiple types."
-                    }
-                ],
+                "operationId": "tasks_running_retrieve",
+                "description": "Get list of currently running tasks.\n\nReturns:\n    Response: List of tasks with status 'running'",
                 "tags": [
                     "tasks"
                 ],
@@ -9582,21 +7835,20 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaginatedTaskListList"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
                         "description": ""
                     }
                 },
-                "x-ai-description": "List all tasks running"
+                "x-ai-description": "Retrieve single tasks running"
             }
         },
         "/api/v1/tasks/schedule_immediate/": {
             "post": {
                 "operationId": "tasks_schedule_immediate_create",
-                "description": "Schedule a task to run immediately using the simple scheduler.",
-                "summary": "Schedule a task to run immediately using the simple scheduler.",
+                "description": "Schedule a task to run immediately using the simple scheduler.\nArgs:\n    request: HTTP request with task parameters\nReturns:\n    Response: Success message with task ID",
                 "tags": [
                     "tasks"
                 ],
@@ -9604,17 +7856,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCreateRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCreateRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "multipart/form-data": {
                             "schema": {
-                                "$ref": "#/components/schemas/TaskCreateRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         }
                     },
@@ -9633,17 +7885,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ScheduleImmediateResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -9656,8 +7898,7 @@
         "/api/v1/tasks/schedule_recurring/": {
             "post": {
                 "operationId": "tasks_schedule_recurring_create",
-                "description": "Schedule a recurring task using cron expression.",
-                "summary": "Schedule a recurring task using cron expression.",
+                "description": "Schedule a recurring task using cron expression.\nArgs:\n    request: HTTP request with task parameters including cron_expression\nReturns:\n    Response: Success message with task ID",
                 "tags": [
                     "tasks"
                 ],
@@ -9665,17 +7906,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/ScheduleRecurringRequestRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "application/x-www-form-urlencoded": {
                             "schema": {
-                                "$ref": "#/components/schemas/ScheduleRecurringRequestRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         },
                         "multipart/form-data": {
                             "schema": {
-                                "$ref": "#/components/schemas/ScheduleRecurringRequestRequest"
+                                "$ref": "#/components/schemas/TaskRequest"
                             }
                         }
                     },
@@ -9694,27 +7935,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ScheduleRecurringResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -9727,8 +7948,7 @@
         "/api/v1/tasks/scheduler_status/": {
             "get": {
                 "operationId": "tasks_scheduler_status_retrieve",
-                "description": "Returns Scheduler's and scheduled tasks' status",
-                "summary": "Get the status of the simple scheduler and all scheduled tasks",
+                "description": "Get the status of the simple scheduler and all scheduled tasks.\nReturns:\n    Response: Scheduler status and list of scheduled tasks",
                 "tags": [
                     "tasks"
                 ],
@@ -9745,17 +7965,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/SchedulerStatusResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
+                                    "$ref": "#/components/schemas/Task"
                                 }
                             }
                         },
@@ -9768,8 +7978,7 @@
         "/api/v1/teams/": {
             "get": {
                 "operationId": "teams_list",
-                "description": "Returns a list of teams.",
-                "summary": "List teams.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "query",
@@ -10025,8 +8234,7 @@
             },
             "post": {
                 "operationId": "teams_create",
-                "description": "Create a new team object.",
-                "summary": "Create a team.",
+                "description": "Base viewset with RBAC filtering.",
                 "tags": [
                     "teams"
                 ],
@@ -10076,8 +8284,7 @@
         "/api/v1/teams/{id}/": {
             "get": {
                 "operationId": "teams_retrieve",
-                "description": "Returns a specific teams by ID.",
-                "summary": "Get specific teams by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10116,8 +8323,7 @@
             },
             "put": {
                 "operationId": "teams_update",
-                "description": "Update a specific team by ID.",
-                "summary": "Update a specific team by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10176,8 +8382,7 @@
             },
             "patch": {
                 "operationId": "teams_partial_update",
-                "description": "Partially update a specific team by ID.",
-                "summary": "Partially update a specific team by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10235,8 +8440,7 @@
             },
             "delete": {
                 "operationId": "teams_destroy",
-                "description": "Delete a specific team record by ID.",
-                "summary": "Delete a specific team by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10270,8 +8474,7 @@
         "/api/v1/teams/{id}/organization/": {
             "get": {
                 "operationId": "teams_organization_list",
-                "description": "Returns a list of organizations.",
-                "summary": "List organizations.",
+                "description": "Manage Organization objects in the 'organization' relationship of this particular Team.\n\nStarting from the detail URL:\n\nGET /:id/organization/ to show organizations currently in the relationship\n\nPOST a list of instances to /:id/organization/associate/ to add those organizations to the relationship\n\nPOST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp",
                 "parameters": [
                     {
                         "in": "query",
@@ -10527,79 +8730,10 @@
                 "x-ai-description": "List all organization for a team"
             }
         },
-        "/api/v1/teams/{id}/organization/associate/": {
-            "post": {
-                "operationId": "teams_organization_associate_create",
-                "description": "Manage Organization objects in the 'organization' relationship of this particular Team.\n\nStarting from the detail URL:\n\nGET /:id/organization/ to show organizations currently in the relationship\n\nPOST a list of instances to /:id/organization/associate/ to add those organizations to the relationship\n\nPOST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp",
-                "parameters": [
-                    {
-                        "in": "path",
-                        "name": "id",
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[0-9]+$"
-                        },
-                        "required": true
-                    }
-                ],
-                "tags": [
-                    "teams"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Associate organization with a team"
-            }
-        },
-        "/api/v1/teams/{id}/organization/disassociate/": {
-            "post": {
-                "operationId": "teams_organization_disassociate_create",
-                "description": "Manage Organization objects in the 'organization' relationship of this particular Team.\n\nStarting from the detail URL:\n\nGET /:id/organization/ to show organizations currently in the relationship\n\nPOST a list of instances to /:id/organization/associate/ to add those organizations to the relationship\n\nPOST a list of instances to /:id/organization/disassociate/ to remove those organizations from the relationshp",
-                "parameters": [
-                    {
-                        "in": "path",
-                        "name": "id",
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^[0-9]+$"
-                        },
-                        "required": true
-                    }
-                ],
-                "tags": [
-                    "teams"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "No response body"
-                    }
-                },
-                "x-ai-description": "Disassociate organization from a team"
-            }
-        },
         "/api/v1/users/": {
             "get": {
                 "operationId": "users_list",
-                "description": "Returns a list of users.",
-                "summary": "Get a list of users.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "query",
@@ -10903,8 +9037,7 @@
             },
             "post": {
                 "operationId": "users_create",
-                "description": "Create a new user object",
-                "summary": "Create a user.",
+                "description": "Base viewset with RBAC filtering.",
                 "tags": [
                     "users"
                 ],
@@ -10954,8 +9087,7 @@
         "/api/v1/users/{id}/": {
             "get": {
                 "operationId": "users_retrieve",
-                "description": "Returns a specific user by ID.",
-                "summary": "Get a specific user by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -10994,8 +9126,7 @@
             },
             "put": {
                 "operationId": "users_update",
-                "description": "Update a specific user by ID.",
-                "summary": "Update a specific user by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -11054,8 +9185,7 @@
             },
             "patch": {
                 "operationId": "users_partial_update",
-                "description": "Partially update a specific user by ID.",
-                "summary": "Partially update a specific user by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -11113,8 +9243,7 @@
             },
             "delete": {
                 "operationId": "users_destroy",
-                "description": "Delete a specific user by ID.",
-                "summary": "Delete a specific user by ID.",
+                "description": "Base viewset with RBAC filtering.",
                 "parameters": [
                     {
                         "in": "path",
@@ -11148,8 +9277,7 @@
         "/api/v1/users/me/": {
             "get": {
                 "operationId": "users_me_retrieve",
-                "description": "Get currently logged in user's details",
-                "summary": "Get current user details",
+                "description": "Base viewset with RBAC filtering.",
                 "tags": [
                     "users"
                 ],
@@ -11179,8 +9307,7 @@
         "/health/": {
             "get": {
                 "operationId": "health_retrieve",
-                "description": "Checks database connectivity and returns overall health status.",
-                "summary": "Health check endpoint to verify service health",
+                "description": "Health check endpoint to verify service health.\n\nChecks database connectivity and returns overall health status.",
                 "tags": [
                     "health"
                 ],
@@ -11189,24 +9316,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Health"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "503": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Health"
-                                }
-                            }
-                        },
-                        "description": ""
+                        "description": "No response body"
                     }
                 },
                 "x-ai-description": "Retrieve single health"
@@ -11215,8 +9325,7 @@
         "/ping/": {
             "get": {
                 "operationId": "ping_retrieve",
-                "description": "Simple ping endpoint to verify the service is running.",
-                "summary": "Ping server",
+                "description": "Simple ping endpoint to verify the service is running.\n\nReturns a simple \"pong\" response with HTTP 200.",
                 "tags": [
                     "ping"
                 ],
@@ -11225,14 +9334,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Ping"
-                                }
-                            }
-                        },
-                        "description": ""
+                        "description": "No response body"
                     }
                 },
                 "x-ai-description": "Retrieve single ping"
@@ -11257,21 +9359,6 @@
                         "description": "Value for the data point (e.g. number of job runs)"
                     }
                 }
-            },
-            "Checks": {
-                "type": "object",
-                "properties": {
-                    "database": {
-                        "type": "string",
-                        "description": "'ok' or 'error: <message>'"
-                    },
-                    "segment_send": {
-                        "$ref": "#/components/schemas/SegmentSend"
-                    }
-                },
-                "required": [
-                    "database"
-                ]
             },
             "DABContentType": {
                 "type": "object",
@@ -11460,44 +9547,6 @@
                     "results"
                 ]
             },
-            "DeletErrorResponse": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string"
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "warning": {
-                        "type": "string"
-                    },
-                    "task": {
-                        "$ref": "#/components/schemas/TaskResponse"
-                    }
-                },
-                "required": [
-                    "error",
-                    "message",
-                    "task",
-                    "warning"
-                ]
-            },
-            "DeleteWarningResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    },
-                    "warning": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message",
-                    "warning"
-                ]
-            },
             "Entry": {
                 "type": "object",
                 "properties": {
@@ -11592,30 +9641,6 @@
                     "operation"
                 ]
             },
-            "ErrorResponse": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string"
-                    },
-                    "status_code": {
-                        "type": "integer"
-                    },
-                    "timestamp": {
-                        "type": "string",
-                        "format": "date-time"
-                    },
-                    "details": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
-                },
-                "required": [
-                    "error",
-                    "status_code",
-                    "timestamp"
-                ]
-            },
             "FeatureFlagStates": {
                 "type": "object",
                 "description": "Serialize list of feature flags",
@@ -11636,7 +9661,6 @@
             },
             "FilterSet": {
                 "type": "object",
-                "description": "Serializer for FilterSet, exposing name, filter criteria, and default flag.",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -11665,7 +9689,6 @@
             },
             "FilterSetRequest": {
                 "type": "object",
-                "description": "Serializer for FilterSet, exposing name, filter criteria, and default flag.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -11688,58 +9711,9 @@
                     "name"
                 ]
             },
-            "FunctionInfoSerializers": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "description": {
-                        "type": "string"
-                    },
-                    "category": {
-                        "type": "string"
-                    },
-                    "parameters": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    },
-                    "examples": {
-                        "type": "array",
-                        "items": {}
-                    }
-                },
-                "required": [
-                    "category",
-                    "description",
-                    "examples",
-                    "name",
-                    "parameters"
-                ]
-            },
-            "Health": {
-                "type": "object",
-                "properties": {
-                    "status": {
-                        "enum": [
-                            "healthy",
-                            "unhealthy"
-                        ],
-                        "type": "string",
-                        "description": "* `healthy` - healthy\n* `unhealthy` - unhealthy"
-                    },
-                    "checks": {
-                        "$ref": "#/components/schemas/Checks"
-                    }
-                },
-                "required": [
-                    "checks",
-                    "status"
-                ]
-            },
             "Organization": {
                 "type": "object",
-                "description": "Serializer for the Organization model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -11804,7 +9778,7 @@
             },
             "OrganizationRequest": {
                 "type": "object",
-                "description": "Serializer for the Organization model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -12255,37 +10229,6 @@
                     }
                 }
             },
-            "PaginatedTaskListList": {
-                "type": "object",
-                "required": [
-                    "count",
-                    "results"
-                ],
-                "properties": {
-                    "count": {
-                        "type": "integer",
-                        "example": 123
-                    },
-                    "next": {
-                        "type": "string",
-                        "nullable": true,
-                        "format": "uri",
-                        "example": "http://api.example.org/accounts/?page=4"
-                    },
-                    "previous": {
-                        "type": "string",
-                        "nullable": true,
-                        "format": "uri",
-                        "example": "http://api.example.org/accounts/?page=2"
-                    },
-                    "results": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/TaskList"
-                        }
-                    }
-                }
-            },
             "PaginatedTeamAccessViewSet_Team_List": {
                 "type": "object",
                 "required": [
@@ -12412,7 +10355,6 @@
             },
             "PatchedFilterSetRequest": {
                 "type": "object",
-                "description": "Serializer for FilterSet, exposing name, filter criteria, and default flag.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -12433,7 +10375,7 @@
             },
             "PatchedOrganizationRequest": {
                 "type": "object",
-                "description": "Serializer for the Organization model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -12599,12 +10541,18 @@
                         "maximum": 2147483647,
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "description": "Task timeout in seconds"
                     }
                 }
             },
             "PatchedTeamRequest": {
                 "type": "object",
-                "description": "Serializer for the Team model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -12642,7 +10590,7 @@
             },
             "PatchedUserRequest": {
                 "type": "object",
-                "description": "Serializer for the User model, handling password hashing on create and update.",
+                "description": "Disallows editing of system user and enforces superuser requirement.",
                 "properties": {
                     "password": {
                         "type": "string",
@@ -12694,17 +10642,6 @@
                         "format": "date-time"
                     }
                 }
-            },
-            "Ping": {
-                "type": "object",
-                "properties": {
-                    "ping": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "ping"
-                ]
             },
             "Report": {
                 "type": "object",
@@ -13300,131 +11237,6 @@
                     "allowed_permissions"
                 ]
             },
-            "ScheduleImmediateResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    },
-                    "task_id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message",
-                    "task_id"
-                ]
-            },
-            "ScheduleRecurringRequestRequest": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "task_data": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    },
-                    "cron_expression": {
-                        "type": "string",
-                        "minLength": 1
-                    },
-                    "max_attempts": {
-                        "type": "integer"
-                    },
-                    "timeout_seconds": {
-                        "type": "integer"
-                    },
-                    "user": {
-                        "type": "string",
-                        "minLength": 1
-                    }
-                },
-                "required": [
-                    "cron_expression",
-                    "function_name"
-                ]
-            },
-            "ScheduleRecurringResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    },
-                    "task_id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message",
-                    "task_id"
-                ]
-            },
-            "Scheduler": {
-                "type": "object",
-                "properties": {
-                    "running": {
-                        "type": "boolean"
-                    },
-                    "check_interval": {
-                        "type": "integer"
-                    },
-                    "scheduled_tasks": {
-                        "type": "integer"
-                    },
-                    "recurring_tasks": {
-                        "type": "integer"
-                    }
-                },
-                "required": [
-                    "check_interval",
-                    "recurring_tasks",
-                    "running",
-                    "scheduled_tasks"
-                ]
-            },
-            "SchedulerStatusResponse": {
-                "type": "object",
-                "properties": {
-                    "scheduler": {
-                        "$ref": "#/components/schemas/Scheduler"
-                    },
-                    "message": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message",
-                    "scheduler"
-                ]
-            },
-            "SegmentSend": {
-                "type": "object",
-                "properties": {
-                    "status": {
-                        "enum": [
-                            "ok",
-                            "failed"
-                        ],
-                        "type": "string",
-                        "description": "* `ok` - ok\n* `failed` - failed"
-                    },
-                    "last_failure_at": {
-                        "type": "string"
-                    },
-                    "last_success_at": {
-                        "type": "string"
-                    },
-                    "error": {
-                        "type": "string"
-                    }
-                }
-            },
             "ServiceRoleTeamAssignment": {
                 "type": "object",
                 "properties": {
@@ -13686,6 +11498,12 @@
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
                     },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "description": "Task timeout in seconds"
+                    },
                     "result_data": {
                         "type": "object",
                         "additionalProperties": {},
@@ -13773,71 +11591,6 @@
                     "name"
                 ]
             },
-            "TaskCancelErrorResponse": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "error"
-                ]
-            },
-            "TaskCancelResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message"
-                ]
-            },
-            "TaskCleanupRequest": {
-                "type": "object",
-                "description": "Serializer for task cleanup operations.\n\nThis serializer handles the cleanup functionality from manage_tasks.py.",
-                "properties": {
-                    "days": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "default": 30,
-                        "description": "Number of days to keep completed tasks"
-                    },
-                    "dry_run": {
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Show what would be deleted without actually deleting"
-                    }
-                }
-            },
-            "TaskCleanupResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    },
-                    "count": {
-                        "type": "integer"
-                    },
-                    "preview": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": {}
-                        }
-                    },
-                    "showing_preview_of": {
-                        "type": "integer",
-                        "nullable": true
-                    }
-                },
-                "required": [
-                    "count",
-                    "message"
-                ]
-            },
             "TaskCreate": {
                 "type": "object",
                 "description": "Serializer for creating tasks via the API.\n\nThis serializer handles task creation similar to the manage_tasks.py create\ncommand with validation and proper data handling.",
@@ -13875,6 +11628,13 @@
                         "minimum": 0,
                         "default": 3,
                         "description": "Maximum number of retry attempts"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "default": 3600,
+                        "description": "Task timeout in seconds"
                     },
                     "user": {
                         "type": "string",
@@ -13925,6 +11685,13 @@
                         "minimum": 0,
                         "default": 3,
                         "description": "Maximum number of retry attempts"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "default": 3600,
+                        "description": "Task timeout in seconds"
                     },
                     "user": {
                         "type": "string",
@@ -14073,20 +11840,6 @@
                     "task"
                 ]
             },
-            "TaskFunctionResponse": {
-                "type": "object",
-                "properties": {
-                    "functions": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/FunctionInfoSerializers"
-                        }
-                    }
-                },
-                "required": [
-                    "functions"
-                ]
-            },
             "TaskList": {
                 "type": "object",
                 "description": "Lightweight serializer for task list endpoints.\n\nThis serializer provides essential task information for list views,\nsimilar to the manage_tasks.py list command output.",
@@ -14180,57 +11933,22 @@
                         "maximum": 2147483647,
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "description": "Task timeout in seconds"
                     }
                 },
                 "required": [
                     "function_name",
                     "name"
-                ]
-            },
-            "TaskResponse": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "function_name": {
-                        "type": "string"
-                    },
-                    "is_system_task": {
-                        "type": "boolean"
-                    }
-                },
-                "required": [
-                    "function_name",
-                    "is_system_task",
-                    "name"
-                ]
-            },
-            "TaskRetryErrorResponse": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "error"
-                ]
-            },
-            "TaskRetryResponse": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "message"
                 ]
             },
             "Team": {
                 "type": "object",
-                "description": "Serializer for the Team model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -14337,7 +12055,7 @@
             },
             "TeamRequest": {
                 "type": "object",
-                "description": "Serializer for the Team model with RBAC access mixin.",
+                "description": "Class to be used by apps to check permissions to related objects\n\nThis is a core part of integrating permission checks with REST APIs.\nFull enablement of checks is accomplished by this plus\nthe permission class.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -14452,7 +12170,7 @@
             },
             "User": {
                 "type": "object",
-                "description": "Serializer for the User model, handling password hashing on create and update.",
+                "description": "Disallows editing of system user and enforces superuser requirement.",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -14575,7 +12293,7 @@
             },
             "UserRequest": {
                 "type": "object",
-                "description": "Serializer for the User model, handling password hashing on create and update.",
+                "description": "Disallows editing of system user and enforces superuser requirement.",
                 "properties": {
                     "password": {
                         "type": "string",

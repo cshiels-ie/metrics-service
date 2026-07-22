@@ -12,17 +12,20 @@ def make_user_data():
 class TestSuperuserAccess:
     """Superuser should have full CRUD on all resources."""
 
-    @pytest.mark.parametrize(
-        "endpoint,data_factory",
-        [
-            ("/api/v1/organizations/", lambda: {"name": "New Org"}),
-            ("/api/v1/users/", make_user_data),
-        ],
-    )
-    def test_superuser_can_create(self, admin_api_client, endpoint, data_factory):
-        data = data_factory()
-        r = admin_api_client.post(endpoint, data)
+    def test_superuser_can_create_user(self, admin_api_client):
+        """Superusers can create users."""
+        data = make_user_data()
+        r = admin_api_client.post("/api/v1/users/", data)
         assert r.status_code == 201
+
+    def test_superuser_cannot_create_organization(self, admin_api_client):
+        """POST to /organizations/ returns 405 — orgs are synced from the gateway, not created here.
+
+        Organizations are managed by the AAP resource server (is_provider=False in resource_api.py).
+        Creating them directly causes a DAB signal crash when a resource server is configured (AAP-74775).
+        """
+        r = admin_api_client.post("/api/v1/organizations/", {"name": "New Org"})
+        assert r.status_code == 405
 
     def test_superuser_can_create_team(self, admin_api_client, organization):
         r = admin_api_client.post("/api/v1/teams/", {"name": "New Team", "organization": organization.id})
@@ -37,16 +40,15 @@ class TestSuperuserAccess:
 class TestNormalUserAccess:
     """Normal users without roles should have no access."""
 
-    @pytest.mark.parametrize(
-        "endpoint,data_factory",
-        [
-            ("/api/v1/organizations/", lambda: {"name": "New Org"}),
-            ("/api/v1/users/", make_user_data),
-        ],
-    )
-    def test_cannot_create(self, user_api_client, endpoint, data_factory):
-        data = data_factory()
-        r = user_api_client.post(endpoint, data)
+    def test_cannot_create_user(self, user_api_client):
+        """Normal users cannot create users (403 Forbidden)."""
+        data = make_user_data()
+        r = user_api_client.post("/api/v1/users/", data)
+        assert r.status_code == 403
+
+    def test_cannot_create_organization(self, user_api_client):
+        """Normal users are denied before reaching the 405 method guard (RBAC fires first)."""
+        r = user_api_client.post("/api/v1/organizations/", {"name": "New Org"})
         assert r.status_code == 403
 
     def test_cannot_create_team(self, user_api_client, organization):
@@ -83,6 +85,7 @@ class TestOrgAdminAccess:
         assert r.status_code == 200
 
     def test_cannot_create_organization(self, user_api_client, rando, organization, org_admin_rd):
+        """Org admins cannot create organizations — RBAC denies (403) before the method guard fires."""
         org_admin_rd.give_permission(rando, organization)
         r = user_api_client.post("/api/v1/organizations/", {"name": "Another Org"})
         assert r.status_code == 403
