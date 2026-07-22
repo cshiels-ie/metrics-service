@@ -1686,6 +1686,19 @@ paths:
         '200':
           description: No response body
       x-ai-description: Retrieve single metric
+  /api/v1/metrics/:
+    get:
+      operationId: metrics_retrieve_2
+      description: Prometheus metrics endpoint restricted to system admins and auditors.
+      tags:
+      - metrics
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          description: No response body
+      x-ai-description: Retrieve single metric
   /api/v1/organizations/:
     get:
       operationId: organizations_list
