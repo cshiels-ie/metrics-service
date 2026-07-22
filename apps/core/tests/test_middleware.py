@@ -369,3 +369,122 @@ class TestBrowsableAPIURLs:
             # Check for double slashes (but not in http://)
             url_without_protocol = url.replace("http://", "").replace("https://", "")
             assert "//" not in url_without_protocol, f"Double slash found in URL: {url}"
+
+
+# ---------------------------------------------------------------------------
+# NullByteQueryParamMiddleware tests  (AAP-74806)
+# ---------------------------------------------------------------------------
+
+
+class TestNullByteQueryParamMiddleware(TestCase):
+    """Tests for NullByteQueryParamMiddleware.
+
+    Null bytes (%00) in query parameter values cause PostgreSQL to raise a
+    DataError, which DAB's FieldLookupBackend does not catch, resulting in a
+    500.  The middleware must intercept these requests and return 400.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    # --- _contains_null_byte unit tests ---
+
+    def test_contains_null_byte_detects_percent_encoded(self):
+        """'%00' is recognised as a null byte."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        self.assertTrue(NullByteQueryParamMiddleware._contains_null_byte("operation=%00"))
+
+    def test_contains_null_byte_detects_percent_encoded_among_other_params(self):
+        """'%00' is detected when other query params are also present."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        self.assertTrue(NullByteQueryParamMiddleware._contains_null_byte("q=%00&other=val"))
+
+    def test_contains_null_byte_detects_literal_null(self):
+        """A literal \\x00 character is recognised."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        self.assertTrue(NullByteQueryParamMiddleware._contains_null_byte("operation=foo\x00bar"))
+
+    def test_contains_null_byte_clean_string_returns_false(self):
+        """A clean query string without null bytes returns False."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        self.assertFalse(NullByteQueryParamMiddleware._contains_null_byte("operation=create&page=1"))
+
+    def test_contains_null_byte_empty_string_returns_false(self):
+        """An empty query string returns False."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        self.assertFalse(NullByteQueryParamMiddleware._contains_null_byte(""))
+
+    def test_contains_null_byte_unicode_without_null_returns_false(self):
+        """Unicode characters that do not encode a null byte are allowed."""
+        from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
+
+        # %E2%80%99 = U+2019 RIGHT SINGLE QUOTATION MARK — no null byte
+        self.assertFalse(NullByteQueryParamMiddleware._contains_null_byte("operation=%E2%80%99"))
+
+    # --- Integration tests against the live test server ---
+
+    def test_activitystream_null_byte_returns_400(self):
+        """GET /api/v1/activitystream/?operation=%E2%80%99%00%E2%80%99 returns 400.
+
+        This is the exact reproducer from AAP-74806.  Without the middleware
+        the request reaches PostgreSQL and produces a 500.
+        """
+        # Use the raw WSGI path so Django sees the percent-encoded form
+        response = self.client.get(
+            "/api/v1/activitystream/",
+            QUERY_STRING="operation=%E2%80%99%00%E2%80%99",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        data = response.json()
+        self.assertIn("detail", data)
+        self.assertIn("null byte", data["detail"].lower())
+
+    def test_null_byte_param_returns_400_on_tasks_endpoint(self):
+        """Null byte in query param returns 400 on any list endpoint, not just activitystream."""
+        response = self.client.get(
+            "/api/v1/tasks/",
+            QUERY_STRING="name=%00",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_null_byte_only_in_value_returns_400(self):
+        """Null byte embedded in a multi-character value is still rejected."""
+        response = self.client.get(
+            "/api/v1/activitystream/",
+            QUERY_STRING="operation=foo%00bar",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_clean_request_passes_through(self):
+        """A request without null bytes passes through and is not affected."""
+        response = self.client.get("/api/v1/activitystream/", QUERY_STRING="page=1")
+        # Should not be a middleware 400; activitystream may return 200 or other non-400
+        self.assertNotEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unicode_without_null_byte_passes_through(self):
+        """Non-ASCII characters that are not null bytes are allowed through."""
+        # %E2%80%99 = ' (U+2019) — valid UTF-8, no null byte
+        response = self.client.get(
+            "/api/v1/activitystream/",
+            QUERY_STRING="operation=%E2%80%99",
+        )
+        # The middleware must NOT return 400 for this; the filter backend may return
+        # its own error, but that is not a middleware-level null-byte rejection.
+        # We only check that the middleware did not misfire.
+        data = response.json() if response.status_code == 400 else {}
+        if response.status_code == 400:
+            self.assertNotIn("null byte", data.get("detail", "").lower())
+
+    def test_middleware_response_is_json(self):
+        """400 response from the middleware has a JSON Content-Type."""
+        response = self.client.get(
+            "/api/v1/tasks/",
+            QUERY_STRING="name=%00",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("application/json", response.get("Content-Type", ""))
