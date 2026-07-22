@@ -22,12 +22,18 @@ This file loads at step 3 in the URL loading order, before individual apps
 
 """
 
-from django.urls import include, path
+from django.urls import path
 from django.views.generic import RedirectView
 
+from apps.core.views.metrics import PrometheusMetricsView
+
 urlpatterns = [
-    # Prometheus metrics endpoint
-    path("", include("django_prometheus.urls")),
+    # Prometheus metrics endpoint — requires system admin or auditor.
+    # Registered at both paths so clients that append a trailing slash get the
+    # same response without an extra redirect (the gateway round-trip breaks
+    # Django's APPEND_SLASH 301, causing a 404 for the slash form).
+    path("api/v1/metrics", PrometheusMetricsView.as_view(), name="prometheus-django-metrics"),
+    path("api/v1/metrics/", PrometheusMetricsView.as_view()),
     # Redirect bare feature_flags/ to the canonical states list.
     # Use the full gateway-prefixed URL so that clients accessing the service
     # through the AAP Gateway (which proxies /api/metrics/...) receive a
