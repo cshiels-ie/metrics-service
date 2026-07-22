@@ -165,7 +165,7 @@ DASHBOARD_COLLECTION = {
     "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
     # Set to True to derive the backfill/retention window from the Controller's active
     # cleanup_jobs schedules instead of the fixed 90-day default.
-    "USE_CONTROLLER_RETENTION": False,
+    "USE_CONTROLLER_RETENTION": True,
 }
 
 # Conditional static files directory (avoids staticfiles.W004 when absent)
