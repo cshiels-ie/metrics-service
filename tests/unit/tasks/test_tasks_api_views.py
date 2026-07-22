@@ -541,6 +541,65 @@ class TestTaskViewSet(APITestCase):
         system_task.refresh_from_db()
         assert system_task.cron_expression == "0 2 * * *"
 
+    def test_perform_update_protects_name_field_on_system_task(self):
+        """Test perform_update prevents modifying name on system tasks (AAP-74803)."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        response = self.client.patch(url, {"name": "Renamed Task"}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "protected fields" in str(response.data).lower()
+        system_task.refresh_from_db()
+        assert system_task.name == "System Task"
+
+    def test_perform_update_protects_status_field_on_system_task(self):
+        """Test perform_update prevents modifying status on system tasks (AAP-74803)."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            is_system_task=True,
+            created_by=self.user,
+            status="pending",
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        response = self.client.patch(url, {"status": "completed"}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "protected fields" in str(response.data).lower()
+        system_task.refresh_from_db()
+        assert system_task.status == "pending"
+
+    def test_perform_update_protects_task_data_field_on_system_task(self):
+        """Test perform_update prevents modifying task_data on system tasks (AAP-74803)."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            is_system_task=True,
+            created_by=self.user,
+            task_data={"original": "data"},
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        response = self.client.patch(url, {"task_data": {"injected": "value"}}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "protected fields" in str(response.data).lower()
+        system_task.refresh_from_db()
+        assert system_task.task_data == {"original": "data"}
+
     def test_force_delete_requires_confirmation(self):
         """Test force_delete requires force_confirm parameter."""
         self.client.force_authenticate(user=self.user)
