@@ -167,7 +167,12 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "task_id": "initial_resource_sync",
             "function": "sync_resources_from_gateway",
             "cron": None,  # Run once on init — backfills users and RBAC assignments from gateway
-            "args": {},
+            "args": {
+                # Short base delay so retries align with the gateway's 60s service-id
+                # populate cooldown.  Backoff: 60s → 120s → 240s → 480s.
+                "retry_delay_seconds": 60,
+            },
+            "max_attempts": 5,
             "enabled": True,
             "description": "One-time sync of users, orgs, teams and RBAC role assignments from the gateway on startup",
         },
