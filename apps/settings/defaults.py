@@ -138,6 +138,38 @@ TASK_TIMEOUT = 3600
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Install type — how this metrics-service instance was deployed.
+# The operator sets METRICS_SERVICE_INSTALL_TYPE=operator; the containerized installer
+# leaves this at the default so no extra configuration is needed there.
+INSTALL_TYPE = "containerized"
+
+# Prevent DAB from registering its default api_documentation URL patterns so that
+# the service can substitute MetricsSpectacularSwaggerView in their place.  The
+# app itself (and its ready() hooks) is still active — only URL registration is
+# skipped.  See apps/core/urls.py for the replacement registrations.
+ANSIBLE_BASE_APPS_EXCLUDE_VIEW_LIST = ["ansible_base.api_documentation"]
+
+# Grant 'view' bypass to users carrying the Platform Auditor global RBAC role.
+# The gateway conveys auditor status via JWT global_roles (not user_data), so
+# is_platform_auditor is a property on User that queries RBAC assignments.
+# Mirrors aap_gateway_api/defaults.py so IsSystemAdminOrAuditor works here too.
+ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {"view": "is_platform_auditor"}
+
+# Maximum number of job event rows fetched per hourly collection run.
+# At ~700–900 bytes/row in memory, 2 000 000 rows ≈ 1.4–1.8 GB.  Raise for
+# high-volume installations; lower for memory-constrained environments.
+# Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
+JOBEVENT_ROW_LIMIT = 200_000
+
+# Maximum finished jobs processed per hourly window by main_jobevent_service.
+# Keeps the SQL IN clause manageable; jobs are sorted by created time (oldest first).
+# Override via METRICS_SERVICE_JOBEVENT_JOB_LIMIT env var.
+JOBEVENT_JOB_LIMIT = 1_000
+
+# Install type — how this metrics-service instance was deployed.
+# The operator sets METRICS_SERVICE_INSTALL_TYPE=operator; the containerized installer
+# leaves this at the default so no extra configuration is needed there.
+INSTALL_TYPE = "containerized"
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"

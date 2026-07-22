@@ -27,10 +27,11 @@ REST_FRAMEWORK__DEFAULT_RENDERER_CLASSES = [
     "apps.core.renderers.ServiceBrowsableAPIRenderer",
 ]
 
-# Middleware - ServicePrefix at start, APIRootView at end
+# Middleware - ServicePrefix at start, NullByte guard early, APIRootView at end
 MIDDLEWARE = [
     "dynaconf_merge_unique",
     "apps.core.middleware.ServicePrefixMiddleware",
+    "apps.core.middleware.NullByteQueryParamMiddleware",
     "apps.core.middleware.APIRootViewMiddleware",
 ]
 

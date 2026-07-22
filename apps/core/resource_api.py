@@ -6,7 +6,7 @@ from ansible_base.resource_registry.registry import (
     ServiceAPIConfig,
     SharedResource,
 )
-from ansible_base.resource_registry.shared_types import UserType
+from ansible_base.resource_registry.shared_types import OrganizationType, TeamType, UserType
 
 from apps.core.models import Organization, Team, User
 
@@ -21,15 +21,15 @@ RESOURCE_LIST = [
     ResourceConfig(
         Organization,
         shared_resource=SharedResource(
-            serializer=None,
-            is_provider=True,
+            serializer=OrganizationType,
+            is_provider=False,
         ),
     ),
     ResourceConfig(
         Team,
         shared_resource=SharedResource(
-            serializer=None,
-            is_provider=True,
+            serializer=TeamType,
+            is_provider=False,
         ),
         parent_resources=[
             ParentResource(model=Organization, field_name="organization"),
