@@ -160,6 +160,12 @@ JOBEVENT_JOB_LIMIT = 1_000
 # leaves this at the default so no extra configuration is needed there.
 INSTALL_TYPE = "containerized"
 
+# Prevent DAB from registering its default api_documentation URL patterns so that
+# the service can substitute MetricsSpectacularSwaggerView in their place.  The
+# app itself (and its ready() hooks) is still active — only URL registration is
+# skipped.  See apps/core/urls.py for the replacement registrations.
+ANSIBLE_BASE_APPS_EXCLUDE_VIEW_LIST = ["ansible_base.api_documentation"]
+
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
 
