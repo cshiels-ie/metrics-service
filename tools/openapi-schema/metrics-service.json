@@ -817,6 +817,52 @@
                 "x-ai-description": "Retrieve single feature flags state"
             }
         },
+        "/api/v1/metrics": {
+            "get": {
+                "operationId": "metrics_retrieve",
+                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "tags": [
+                    "metrics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Retrieve single metric"
+            }
+        },
+        "/api/v1/metrics/": {
+            "get": {
+                "operationId": "metrics_retrieve_2",
+                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "tags": [
+                    "metrics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Retrieve single metric"
+            }
+        },
         "/api/v1/organizations/": {
             "get": {
                 "operationId": "organizations_list",
@@ -7134,7 +7180,7 @@
         "/api/v1/users/": {
             "get": {
                 "operationId": "users_list",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "parameters": [
                     {
                         "in": "query",
@@ -7438,7 +7484,7 @@
             },
             "post": {
                 "operationId": "users_create",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "tags": [
                     "users"
                 ],
@@ -7488,7 +7534,7 @@
         "/api/v1/users/{id}/": {
             "get": {
                 "operationId": "users_retrieve",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7527,7 +7573,7 @@
             },
             "put": {
                 "operationId": "users_update",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7586,7 +7632,7 @@
             },
             "patch": {
                 "operationId": "users_partial_update",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7644,7 +7690,7 @@
             },
             "delete": {
                 "operationId": "users_destroy",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "parameters": [
                     {
                         "in": "path",
@@ -7678,7 +7724,7 @@
         "/api/v1/users/me/": {
             "get": {
                 "operationId": "users_me_retrieve",
-                "description": "Base viewset with RBAC filtering.",
+                "description": "CRUD viewset for User resources.\n\nRead access (list, retrieve) is restricted to Platform Auditor role or higher.\nWrite access (create, update, destroy) is restricted to system administrators.\nThe /me action is accessible to any authenticated user.",
                 "tags": [
                     "users"
                 ],

@@ -21,6 +21,7 @@ ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {
     "read": "is_superuser",
     "update": "is_superuser",
     "delete": "is_superuser",
+    "view": "is_platform_auditor",
 }
 
 # Additional DAB RBAC settings required for tests
