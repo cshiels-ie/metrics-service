@@ -2,12 +2,13 @@
 Daily metrics collector for time-range data (not snapshot, runs once per day).
 
 Collects metrics for the previous full day using explicit since/until boundaries,
-and stores in HourlyMetricsCollection. Unlike hourly collectors (24×/day) and
+and stores in HourlyMetricsCollection. Unlike hourly collectors (24x/day) and
 snapshot collectors (no time window), daily collectors run once per day with
 a full-day time window.
 
 Current daily collectors:
   - task_executions_service: pipeline observability from the metrics-service DB
+  - indirect_managed_nodes: indirect managed node audit from the AWX DB
 """
 
 import logging
@@ -29,8 +30,12 @@ def _get_daily_collectors():
     - Use an explicit since/until time window (previous full day)
     - Run once per day (not 24x like hourly collectors)
     - May query a different DB than AWX (e.g. metrics-service own DB)
+
+    Each entry may include a "database" key to specify which Django DB connection
+    to use. Defaults to "awx" if not specified.
     """
-    from metrics_utility.anonymized_rollups import TaskExecutionsAnonymizedRollup
+    from metrics_utility.anonymized_rollups import IndirectManagedNodesAnonymizedRollup, TaskExecutionsAnonymizedRollup
+    from metrics_utility.library.collectors.controller import main_indirectmanagednodeaudit
     from metrics_utility.library.collectors.service import task_executions_service
 
     return {
@@ -38,6 +43,13 @@ def _get_daily_collectors():
             "collector_func": task_executions_service,
             "rollup_processor": TaskExecutionsAnonymizedRollup,
             "description": "Task execution observability metrics (pipeline health)",
+            "database": "default",
+        },
+        "indirect_managed_nodes": {
+            "collector_func": main_indirectmanagednodeaudit,
+            "rollup_processor": IndirectManagedNodesAnonymizedRollup,
+            "description": "Indirect managed node audit daily collection",
+            "database": "awx",
         },
     }
 
@@ -99,15 +111,16 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
         until = today_midnight
 
     # Store at yesterday 23:00 UTC so the daily_metrics_rollup query window
-    # (yesterday 00:00 → today 00:00) picks this up alongside snapshot collections.
+    # (yesterday 00:00 -> today 00:00) picks this up alongside snapshot collections.
     collection_timestamp = since.replace(hour=23, minute=0, second=0, microsecond=0)
 
-    # task_executions_service queries the metrics-service DB, not the AWX DB
-    db_connection = get_db_connection("default")
+    collector_registry = _get_daily_collectors()
+    db_name = collector_registry.get(collector_type, {}).get("database", "awx")
+    db_connection = get_db_connection(db_name)
 
     return generic_collect_metrics(
         collector_type=collector_type,
-        collector_registry=_get_daily_collectors(),
+        collector_registry=collector_registry,
         collection_mode="daily",
         timestamp=collection_timestamp,
         db_connection=db_connection,

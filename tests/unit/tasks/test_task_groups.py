@@ -12,8 +12,10 @@ from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
     ANONYMIZATION_GROUP,
+    INDIRECT_NODE_COLLECTION_GROUP,
     METRICS_COLLECTION_GROUP,
     SYSTEM_TASKS_GROUP,
+    TASK_GROUPS,
     TaskGroup,
     get_all_enabled_tasks,
     get_all_tasks_for_init,
@@ -329,6 +331,42 @@ class TestTaskGroupFunctions(TestCase):
         assert "daily_metrics_rollup" not in task_ids
         assert "cleanup_metrics_data" not in task_ids
         assert "daily_anonymize" in task_ids
+
+
+class TestIndirectNodeCollectionGroup(TestCase):
+    """Test the INDIRECT_NODE_COLLECTION_GROUP task group."""
+
+    def test_indirect_node_collection_group_in_task_groups_registry(self):
+        """INDIRECT_NODE_COLLECTION_GROUP is registered in TASK_GROUPS."""
+        assert INDIRECT_NODE_COLLECTION_GROUP in TASK_GROUPS
+
+    @override_settings(FEATURE={"INDIRECT_NODE_COLLECTION": False})
+    def test_indirect_node_collection_group_disabled_by_default(self):
+        """When INDIRECT_NODE_COLLECTION is false, no tasks are returned."""
+        assert INDIRECT_NODE_COLLECTION_GROUP.feature_flag == "INDIRECT_NODE_COLLECTION"
+        assert INDIRECT_NODE_COLLECTION_GROUP.get_enabled_tasks() == []
+
+    @override_settings(FEATURE={"INDIRECT_NODE_COLLECTION": True})
+    def test_indirect_node_collection_group_enabled(self):
+        """When INDIRECT_NODE_COLLECTION is true, daily_collect_indirect_nodes is returned."""
+        task_ids = [t["task_id"] for t in INDIRECT_NODE_COLLECTION_GROUP.get_enabled_tasks()]
+        assert "daily_collect_indirect_nodes" in task_ids
+
+    def test_indirect_node_collection_group_uses_correct_cron(self):
+        """daily_collect_indirect_nodes task is scheduled at 55 1 * * * via collect_daily_metrics."""
+        task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "daily_collect_indirect_nodes")
+        assert task["cron"] == "55 1 * * *"
+        assert task["function"] == "collect_daily_metrics"
+        assert task["args"]["collector_type"] == "indirect_managed_nodes"
+
+    def test_indirect_managed_nodes_not_in_metrics_collection_group(self):
+        """indirect_managed_nodes must not be scheduled by METRICS_COLLECTION_GROUP.
+
+        Prevents a duplicate snapshot run at 55 1 * * * when both groups are active.
+        INDIRECT_NODE_COLLECTION_GROUP is the sole, feature-flag-gated owner.
+        """
+        task_ids = [t["task_id"] for t in METRICS_COLLECTION_GROUP.tasks]
+        assert "daily_indirect_managed_nodes" not in task_ids
 
 
 class TestTaskGroupIntegration(TestCase):

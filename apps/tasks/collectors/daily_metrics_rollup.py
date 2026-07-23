@@ -102,6 +102,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         # EventModulesAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
         FeatureFlagsAnonymizedRollup,
+        IndirectManagedNodesAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
         TableMetadataAnonymizedRollup,
@@ -117,14 +118,15 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         "unified_jobs": JobsAnonymizedRollup(),
     }
 
-    # Daily snapshot collectors expect 1 collection per day.
-    # task_executions_service is also 1/day (daily time-range collector, not snapshot).
+    # Daily collectors expect 1 collection per day.
+    # Includes both snapshot collectors and daily time-range collectors.
     daily_rollup_processors = {
         "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
         "controller_version_service": ControllerVersionAnonymizedRollup(),
         "feature_flags_service": FeatureFlagsAnonymizedRollup(),
         "table_metadata": TableMetadataAnonymizedRollup(),
         "task_executions_service": TaskExecutionsAnonymizedRollup(),
+        "indirect_managed_nodes": IndirectManagedNodesAnonymizedRollup(),
     }
 
     # Merge hourly rollups into daily rollups

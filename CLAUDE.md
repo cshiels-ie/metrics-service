@@ -129,11 +129,13 @@ The task system has several layers:
 
 ### Task Groups and Feature Flags
 
-`task_groups.py` defines three groups:
+`task_groups.py` defines five groups:
 
 - **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 5 AM) and `hello_world` (hourly).
-- **`METRICS_COLLECTION_GROUP`** — Always enabled (no feature flag). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`. Local metrics are collected regardless of the opt-out flag to prevent data gaps.
-- **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains only `daily_anonymize_and_prepare` and `send_anonymized_to_segment` — the tasks that transmit data to Red Hat.
+- **`METRICS_COLLECTION_GROUP`** — Controlled by `METRICS_COLLECTION` feature flag (default: enabled). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`.
+- **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains `daily_anonymize_and_prepare` — the tasks that transmit data to Red Hat.
+- **`DASHBOARD_COLLECTION_GROUP`** — Controlled by `DASHBOARD_COLLECTION` feature flag (default: enabled). Dashboard report collection via automation-reports.
+- **`INDIRECT_NODE_COLLECTION_GROUP`** — Controlled by `INDIRECT_NODE_COLLECTION` feature flag. Daily indirect managed node audit data collection.
 
 Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE` in Django settings if not in DB.
 
