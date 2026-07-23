@@ -5820,7 +5820,12 @@ paths:
   /api/v1/users/:
     get:
       operationId: users_list
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       parameters:
       - in: query
         name: date_joined
@@ -6012,7 +6017,12 @@ paths:
       x-ai-description: List all users
     post:
       operationId: users_create
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       tags:
       - users
       requestBody:
@@ -6041,7 +6051,12 @@ paths:
   /api/v1/users/{id}/:
     get:
       operationId: users_retrieve
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       parameters:
       - in: path
         name: id
@@ -6064,7 +6079,12 @@ paths:
       x-ai-description: Retrieve single user
     put:
       operationId: users_update
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       parameters:
       - in: path
         name: id
@@ -6099,7 +6119,12 @@ paths:
       x-ai-description: Update existing user
     patch:
       operationId: users_partial_update
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       parameters:
       - in: path
         name: id
@@ -6133,7 +6158,12 @@ paths:
       x-ai-description: Partially update existing user
     delete:
       operationId: users_destroy
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       parameters:
       - in: path
         name: id
@@ -6153,7 +6183,12 @@ paths:
   /api/v1/users/me/:
     get:
       operationId: users_me_retrieve
-      description: Base viewset with RBAC filtering.
+      description: |-
+        CRUD viewset for User resources.
+
+        Read access (list, retrieve) is restricted to Platform Auditor role or higher.
+        Write access (create, update, destroy) is restricted to system administrators.
+        The /me action is accessible to any authenticated user.
       tags:
       - users
       security:

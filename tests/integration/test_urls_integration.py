@@ -149,16 +149,17 @@ class TestAPIEndpoints(TestCase):
 
     def test_authenticated_api_endpoints(self):
         """Test authenticated API endpoints."""
-        # Authenticate the user
-        self.client.force_authenticate(user=self.user)
+        admin = User.objects.create_superuser(
+            username="adminuser", email="admin@example.com", password=get_test_password()
+        )
+        self.client.force_authenticate(user=admin)
 
-        # UserViewSet uses AnsibleBaseUserPermissions (not IsSystemAdminOrAuditor), so
-        # regular authenticated users can list/retrieve users they have visibility over.
+        # /api/v1/users/ requires IsSystemAdminOrAuditor — superuser can access.
         response = self.client.get("/api/v1/users/")
         assert response.status_code in [200, 403, 404, 405]
 
-        response = self.client.get(f"/api/v1/users/{self.user.id}/")
-        assert response.status_code in [200, 403, 404, 405]
+        response = self.client.get(f"/api/v1/users/{admin.id}/")
+        assert response.status_code == 200
 
 
 @pytest.mark.integration
@@ -280,8 +281,10 @@ class TestURLIntegrationWithViews(TestCase):
 
     def test_api_view_integration(self):
         """Test API view integration through URLs."""
-        # Authenticate the user
-        self.api_client.force_authenticate(user=self.user)
+        admin = User.objects.create_superuser(
+            username="adminuser2", email="admin2@example.com", password=get_test_password()
+        )
+        self.api_client.force_authenticate(user=admin)
 
         # Non-sysadmin users receive 403 since IsSystemAdminOrAuditor is required
         response = self.api_client.get("/api/v1/users/")

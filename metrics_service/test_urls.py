@@ -5,9 +5,12 @@ This file follows the Ansible Services Framework pattern for dynamic URL loading
 Apps now own their full URL paths.
 """
 
+from ansible_base.lib.dynamic_config.dynamic_urls import api_version_urls  # type: ignore
 from django.urls import include, path
 
 urlpatterns = [
+    # DAB dynamic api/v1/ URLs (activitystream, feature_flags, rbac, etc.)
+    path("api/v1/", include(api_version_urls)),
     # Core app (authentication, health, ping, api/v1/) - owns its full paths
     path("", include("apps.core.urls")),
     # Dynamic settings API - app owns its full path (api/v1/settings/)
