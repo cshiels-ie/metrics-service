@@ -24,7 +24,6 @@ STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 _PREVIOUS_HOUR_FUNCTIONS = {"collect_hourly_metrics"}
 
 
-
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
     """
     Inject a fixed time-window timestamp into task_data at the moment a recurring
