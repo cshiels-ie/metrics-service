@@ -65,7 +65,6 @@ def test_collect_data_success():
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
-        patch("apps.dashboard_reports.tasks._collect_jobs", return_value={"results": [], "count": 0}),
     ):
         result = _collect_data("test_task", since=since, until=now.isoformat())
 
@@ -109,7 +108,6 @@ def test_collect_dashboard_reports_initial_data_success():
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
-        patch("apps.dashboard_reports.tasks._collect_jobs", return_value={"results": [], "count": 5}),
     ):
         result = collect_dashboard_reports_initial_data(
             since=(now - timedelta(days=1)).isoformat(),
@@ -130,7 +128,6 @@ def test_collect_dashboard_reports_data_incremental():
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
-        patch("apps.dashboard_reports.tasks._collect_jobs", return_value={"results": [], "count": 0}),
     ):
         result = collect_dashboard_reports_data(incremental=True)
 
@@ -147,7 +144,6 @@ def test_collect_dashboard_reports_data_full():
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
-        patch("apps.dashboard_reports.tasks._collect_jobs", return_value={"results": [], "count": 0}),
     ):
         result = collect_dashboard_reports_data(
             incremental=False,
