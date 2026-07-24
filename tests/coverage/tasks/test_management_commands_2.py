@@ -3,6 +3,7 @@ Additional tests for apps/tasks/management/commands/metrics_service.py.
 Covers more subcommands to push coverage higher.
 """
 
+import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -78,20 +79,16 @@ def test_metrics_service_init_service_id_creates():
 @pytest.mark.django_db
 def test_metrics_service_tasks_cancel_nonexistent(user):
     """Cancelling a nonexistent task should handle gracefully."""
-    try:
+    with contextlib.suppress(SystemExit):
         call_command("metrics_service", "tasks", "cancel", "99999")
-    except SystemExit:
-        pass  # Expected if command exits on error
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_tasks_retry_nonexistent(user):
     """Retrying a nonexistent task should handle gracefully."""
-    try:
+    with contextlib.suppress(SystemExit):
         call_command("metrics_service", "tasks", "retry", "99999")
-    except SystemExit:
-        pass
 
 
 @pytest.mark.unit
@@ -100,10 +97,8 @@ def test_metrics_service_tasks_show(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(name="show_task", function_name="hello_world", task_data={}, created_by=user)
-    try:
+    with contextlib.suppress(SystemExit, Exception):
         call_command("metrics_service", "tasks", "show", str(task.id))
-    except (SystemExit, Exception):
-        pass  # May exit with error, but exercises the code path
 
 
 # ---------------------------------------------------------------------------

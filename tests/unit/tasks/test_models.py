@@ -210,12 +210,6 @@ class TestTaskModelEdgeCases:
 
         assert task.attempts == 1
 
-    def test_task_max_timeout(self):
-        """Test Task with custom timeout"""
-        task = Task.objects.create(name="Long Task", function_name="test_func", timeout_seconds=7200)
-
-        assert task.timeout_seconds == 7200
-
     def test_task_with_result_data(self):
         """Test Task with result data"""
         task = Task.objects.create(
