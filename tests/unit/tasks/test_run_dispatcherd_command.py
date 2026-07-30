@@ -56,21 +56,6 @@ class TestRunDispatcherdCommand(TestCase):
         self.assertEqual(call_kwargs["default"], 1)
         self.assertIn("worker", call_kwargs["help"].lower())
 
-    def test_add_arguments_timeout(self):
-        """Test that timeout argument is added correctly."""
-        parser = MagicMock()
-        self.command.add_arguments(parser)
-
-        # Verify --timeout argument was added
-        calls = [c for c in parser.add_argument.call_args_list if "--timeout" in c[0]]
-        self.assertEqual(len(calls), 1)
-
-        # Verify argument configuration
-        call_kwargs = calls[0][1]
-        self.assertEqual(call_kwargs["type"], int)
-        self.assertEqual(call_kwargs["default"], 3600)
-        self.assertIn("timeout", call_kwargs["help"].lower())
-
     def test_add_arguments_max_tasks(self):
         """Test that max-tasks argument is added correctly."""
         parser = MagicMock()
@@ -139,7 +124,6 @@ class TestRunDispatcherdCommand(TestCase):
             output = self.out.getvalue()
             self.assertIn("Starting dispatcherd", output)
             self.assertIn("4 workers", output)
-            self.assertIn("3600", output)
             self.assertIn("100", output)
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
@@ -160,25 +144,6 @@ class TestRunDispatcherdCommand(TestCase):
 
             output = self.out.getvalue()
             self.assertIn("8 workers", output)
-
-    @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
-    @patch("apps.tasks.management.commands.run_dispatcherd.logging")
-    def test_handle_custom_timeout(self, mock_logging, mock_setup):
-        """Test handle with custom timeout."""
-        mock_dispatcherd = MagicMock()
-        options = {
-            "workers": 4,
-            "timeout": 7200,
-            "max_tasks": 100,
-            "log_level": "INFO",
-        }
-
-        with patch("builtins.__import__", side_effect=self._mock_dispatcherd_import(mock_dispatcherd)):
-            self.command.stdout = self.out
-            self.command.handle(**options)
-
-            output = self.out.getvalue()
-            self.assertIn("7200", output)
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -358,7 +323,6 @@ class TestRunDispatcherdCommand(TestCase):
             # Verify all custom values in output
             output = self.out.getvalue()
             self.assertIn("16 workers", output)
-            self.assertIn("7200", output)
             self.assertIn("500", output)
 
             # Verify DEBUG logging

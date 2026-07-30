@@ -31,7 +31,7 @@ class Command(BaseCommand):
             "--timeout",
             type=int,
             default=3600,
-            help="Task timeout in seconds (default: 3600)",
+            help="Deprecated, no effect. Use METRICS_SERVICE_TASK_TIMEOUT env var.",
         )
         parser.add_argument(
             "--max-tasks",
@@ -59,8 +59,7 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Starting dispatcherd with {options['workers']} workers "
-                    f"(timeout: {options['timeout']}s, max_tasks: {options['max_tasks']})"
+                    f"Starting dispatcherd with {options['workers']} workers (max_tasks: {options['max_tasks']})"
                 )
             )
 

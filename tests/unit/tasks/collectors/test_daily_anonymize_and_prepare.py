@@ -6,7 +6,6 @@ Tests cover:
 - Atomic transaction handling
 - Daily summary status updates
 - Missing summary error handling
-- Salt generation and usage
 """
 
 from datetime import timedelta

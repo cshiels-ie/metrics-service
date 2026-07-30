@@ -446,7 +446,6 @@ class UnifiedTaskScheduler:
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
                     max_attempts=task.max_attempts,
-                    timeout_seconds=task.timeout_seconds,
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )

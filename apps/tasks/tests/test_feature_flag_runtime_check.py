@@ -24,7 +24,6 @@ def _make_mock_task(task_id=42, task_data=None, status="pending", cron_expressio
     mock_task.cron_expression = cron_expression
     mock_task.function_name = "hello_world"
     mock_task.max_attempts = 3
-    mock_task.timeout_seconds = 3600
     mock_task.created_by = None
     mock_task.is_system_task = True
     return mock_task

@@ -41,7 +41,6 @@ def get_default_config(log_level="INFO", gunicorn_workers=4, dispatcher_workers=
         "gunicorn_workers": gunicorn_workers,
         "dispatcher_workers": dispatcher_workers,
         "log_level": log_level,
-        "timeout": 3600,
         "max_tasks": 100,
         "check_interval": 60,
     }

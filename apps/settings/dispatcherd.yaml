@@ -25,7 +25,7 @@ service:
 
   # Task execution settings
   task_settings:
-    default_timeout: 3600 # 1 hour default timeout
+    default_timeout: 3600 # overridden at runtime by TASK_TIMEOUT setting
     max_retries: 3
     retry_delay: 30 # 30 seconds between retries
 

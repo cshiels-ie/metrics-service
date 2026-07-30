@@ -223,7 +223,6 @@ class TestDatabaseTaskManagement:
         mock_task.function_name = "test_function"
         mock_task.task_data = {}
         mock_task.max_attempts = 3
-        mock_task.timeout_seconds = 300
         mock_task.created_by = None
         mock_task.is_system_task = False
 
