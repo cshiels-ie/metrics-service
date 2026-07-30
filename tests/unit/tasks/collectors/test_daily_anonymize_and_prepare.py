@@ -6,7 +6,6 @@ Tests cover:
 - Atomic transaction handling
 - Daily summary status updates
 - Missing summary error handling
-- Salt generation and usage
 """
 
 from datetime import timedelta
@@ -170,65 +169,6 @@ class TestDailyAnonymizeAndPrepare:
         assert metadata["hourly_collections_count"] == 23
         assert metadata["missing_hours"] == [5]
         assert metadata["aggregation_timestamp"] == aggregation_time.isoformat()
-
-    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
-    def test_uses_provided_salt(self, mock_anonymize_rollups, daily_summary_factory):
-        """Test uses provided salt when given in kwargs."""
-        # Arrange
-        summary_date = timezone.now().date() - timedelta(days=1)
-        provided_salt = "custom-salt-456"
-
-        daily_summary_factory(
-            summary_date=summary_date,
-            status="aggregated",
-            aggregated_metrics={
-                "job_host_summary_service": {},
-                "unified_jobs": {},
-                "execution_environments": {},
-            },
-        )
-
-        mock_anonymize_rollups.return_value = {"statistics": {}}
-
-        # Act
-        daily_anonymize_and_prepare(summary_date=summary_date.isoformat(), salt=provided_salt)
-
-        # Assert
-        # Verify anonymize_rollups was called with the provided salt
-        mock_anonymize_rollups.assert_called_once()
-        call_kwargs = mock_anonymize_rollups.call_args.kwargs
-        assert call_kwargs["salt"] == provided_salt
-
-    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
-    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
-    def test_generates_salt_when_not_provided(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
-        """Test generates salt using generate_salt() when not provided."""
-        # Arrange
-        summary_date = timezone.now().date() - timedelta(days=1)
-        generated_salt = "generated-salt-789"
-        mock_generate_salt.return_value = generated_salt
-
-        daily_summary_factory(
-            summary_date=summary_date,
-            status="aggregated",
-            aggregated_metrics={
-                "job_host_summary_service": {},
-                "unified_jobs": {},
-                "execution_environments": {},
-            },
-        )
-
-        mock_anonymize_rollups.return_value = {"statistics": {}}
-
-        # Act
-        daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
-
-        # Assert
-        # Verify generate_salt was called (twice: once for salt, once for user_id)
-        assert mock_generate_salt.call_count >= 1
-        # Verify anonymize_rollups was called with the generated salt
-        call_kwargs = mock_anonymize_rollups.call_args.kwargs
-        assert call_kwargs["salt"] == generated_salt
 
     def test_handles_missing_daily_summary(self):
         """Test handles DailyMetricsSummary.DoesNotExist exception."""

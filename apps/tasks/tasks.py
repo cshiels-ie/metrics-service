@@ -284,15 +284,10 @@ TASK_METADATA = {
                 "type": "string",
                 "description": "ISO date for the summary to anonymize (defaults to yesterday)",
             },
-            "salt": {
-                "type": "string",
-                "description": "Anonymization salt for hashing (auto-generated if not provided)",
-            },
         },
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
             {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
-            {"name": "With custom salt", "data": {"summary_date": "2024-01-01", "salt": "my-custom-salt"}},
         ],
     },
     "send_anonymized_to_segment": {

@@ -5015,46 +5015,6 @@
                     },
                     {
                         "in": "query",
-                        "name": "timeout_seconds",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by timeout_seconds (exact match)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "timeout_seconds__gt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by timeout_seconds (gt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "timeout_seconds__gte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by timeout_seconds (gte)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "timeout_seconds__lt",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by timeout_seconds (lt)"
-                    },
-                    {
-                        "in": "query",
-                        "name": "timeout_seconds__lte",
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by timeout_seconds (lte)"
-                    },
-                    {
-                        "in": "query",
                         "name": "type",
                         "schema": {
                             "type": "string"
@@ -8696,12 +8656,6 @@
                         "maximum": 2147483647,
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
-                    },
-                    "timeout_seconds": {
-                        "type": "integer",
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "description": "Task timeout in seconds"
                     }
                 }
             },
@@ -9378,12 +9332,6 @@
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
                     },
-                    "timeout_seconds": {
-                        "type": "integer",
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "description": "Task timeout in seconds"
-                    },
                     "result_data": {
                         "type": "object",
                         "additionalProperties": {},
@@ -9509,13 +9457,6 @@
                         "default": 3,
                         "description": "Maximum number of retry attempts"
                     },
-                    "timeout_seconds": {
-                        "type": "integer",
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "default": 3600,
-                        "description": "Task timeout in seconds"
-                    },
                     "user": {
                         "type": "string",
                         "description": "Username of task creator (optional)"
@@ -9565,13 +9506,6 @@
                         "minimum": 0,
                         "default": 3,
                         "description": "Maximum number of retry attempts"
-                    },
-                    "timeout_seconds": {
-                        "type": "integer",
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "default": 3600,
-                        "description": "Task timeout in seconds"
                     },
                     "user": {
                         "type": "string",
@@ -9813,12 +9747,6 @@
                         "maximum": 2147483647,
                         "minimum": 0,
                         "description": "Maximum number of retry attempts"
-                    },
-                    "timeout_seconds": {
-                        "type": "integer",
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "description": "Task timeout in seconds"
                     }
                 },
                 "required": [

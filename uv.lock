@@ -921,7 +921,7 @@ requires-dist = [
     { name = "factory-boy", marker = "extra == 'test'", specifier = ">=3.3" },
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
-    { name = "metrics-utility", specifier = ">=0.7.20260401" },
+    { name = "metrics-utility", specifier = ">=0.8.0" },
     { name = "packaging", specifier = ">=20.0" },
     { name = "pip", specifier = ">=25.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
@@ -963,7 +963,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.7.20260401"
+version = "0.8.20260526"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -978,9 +978,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/f6/eeb17a4fa4ff0473e700f5e58a1be34e625c81b02ff4a8ae1a3d551b1a35/metrics_utility-0.7.20260401.tar.gz", hash = "sha256:eedf44b39dcfa3c123aa1375e5da3346f38bd0101e85ca5682964669c7d4ef66", size = 968956, upload-time = "2026-04-01T12:03:43.648Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/4d/dd4cd1d42f6c2360ad0d753ca0fddf68d6415d963c54e79366e7811cd525/metrics_utility-0.8.20260526.tar.gz", hash = "sha256:5c308a9efe4448295b60174469965809f5bd9a127de97fd049004ef07ac55ed2", size = 1002481, upload-time = "2026-05-26T08:41:56.869Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/b9/f2e75716c2366472ce2e0ebfc5a9f04da4e0bd36086868ee29651c4acf66/metrics_utility-0.7.20260401-py3-none-any.whl", hash = "sha256:668037cb822751bf6ad197b51ca1d86a8be95141381dccd2410eeaf1a58ae853", size = 482671, upload-time = "2026-04-01T12:03:45.112Z" },
+    { url = "https://files.pythonhosted.org/packages/95/97/9d9d51b6317bdcb73ff78fe11780862552697abc01ac8f8bda16b07f44d3/metrics_utility-0.8.20260526-py3-none-any.whl", hash = "sha256:1b64a54845f82bfe7f8b875811b6085ba7616bddd383131d16c052dd09783b0d", size = 531829, upload-time = "2026-05-26T08:41:55.336Z" },
 ]
 
 [[package]]

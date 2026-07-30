@@ -319,14 +319,11 @@ def get_db_connection(db_name: str = "awx"):
     to use the raw connection for metrics-utility collectors that use COPY
     for efficient data extraction.
 
-    This function ensures the connection is healthy by calling close_old_connections()
-    which closes stale/unusable connections and respects CONN_MAX_AGE settings.
-
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
-        Raw database connection object (psycopg2 connection)
+        Raw database connection object (psycopg3 connection)
 
     Note:
         DO NOT CLOSE the returned connection. It is a Django-managed singleton
@@ -340,10 +337,21 @@ def get_db_connection(db_name: str = "awx"):
     # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
-    # Ensure the connection is open
+    # Django's ensure_connection() only reconnects when self.connection is None.
+    # A connection dropped by the server is not None — it is a stale psycopg3
+    # object. Probe it with SELECT 1 before handing it to the collector:
+    #   - catches connections already marked closed (.closed == True)
+    #   - catches silent network drops where .closed is still False
+    # Five collectors run per hour so the round-trip overhead is negligible.
+    if django_connection.connection is not None:
+        try:
+            django_connection.connection.execute("SELECT 1")
+        except Exception:
+            logger.warning(f"Database connection '{db_name}' is stale, reconnecting")
+            django_connection.close()
+
     django_connection.ensure_connection()
 
-    # Return the raw psycopg2 connection
     return django_connection.connection
 
 
