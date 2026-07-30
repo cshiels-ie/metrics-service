@@ -36,6 +36,7 @@ class TestDailyAnonymizeAndPrepare:
             status="aggregated",
             aggregated_metrics={
                 "job_host_summary_service": {"test": "rollup1"},
+                "main_jobevent_service": {"test": "rollup2"},
                 "unified_jobs": {"test": "rollup3"},
                 "execution_environments": {"test": "rollup4"},
                 "credentials_service": {"test": "rollup5"},

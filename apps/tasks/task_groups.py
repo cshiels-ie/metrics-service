@@ -224,7 +224,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
-            "enabled": False,  # NOT enabled by default, for performance
+            "enabled": True,
             "description": "Collect job events (event modules) metrics every hour",
         },
         # Daily Snapshot Collection
@@ -314,7 +314,6 @@ ANONYMIZATION_GROUP = TaskGroup(
             "function": "daily_anonymize_and_prepare",
             "cron": "0 3 * * *",  # Daily at 3:00 AM
             "args": {},
-            "max_attempts": SEGMENT_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Anonymize daily summary for Segment transmission",
         },

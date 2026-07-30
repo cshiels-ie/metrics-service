@@ -184,6 +184,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert len(task_ids) > 0
         # Hourly collection tasks
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "hourly_unified_jobs" in task_ids
         assert "hourly_credentials" in task_ids
         # Daily snapshot collection
@@ -274,6 +275,7 @@ class TestTaskGroupFunctions(TestCase):
 
         # Metrics collection tasks (METRICS_COLLECTION still true)
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "daily_metrics_rollup" in task_ids
         assert "cleanup_metrics_data" in task_ids
 
@@ -294,6 +296,7 @@ class TestTaskGroupFunctions(TestCase):
 
         assert "daily_anonymize" in task_ids
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "daily_metrics_rollup" in task_ids
 
     @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
@@ -314,11 +317,10 @@ class TestTaskGroupFunctions(TestCase):
         assert "daily_metrics_rollup" in task_ids
         assert "daily_task_cleanup" in task_ids
 
-    def test_get_all_tasks_for_init_excludes_individually_disabled_tasks(self):
-        """get_all_tasks_for_init() still respects per-task enabled=False."""
+    def test_get_all_tasks_for_init_includes_all_enabled_tasks(self):
+        """get_all_tasks_for_init() includes all tasks with enabled=True."""
         all_tasks = get_all_tasks_for_init()
-        # hourly_job_events has enabled=False in METRICS_COLLECTION_GROUP
-        assert "hourly_job_events" not in all_tasks
+        assert "hourly_job_events" in all_tasks
 
     @override_settings(FEATURE={"METRICS_COLLECTION": False, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_metrics_collection_false_excludes_pipeline(self):
@@ -328,6 +330,7 @@ class TestTaskGroupFunctions(TestCase):
 
         assert "daily_task_cleanup" in task_ids
         assert "hourly_job_host_summary" not in task_ids
+        assert "hourly_job_events" not in task_ids
         assert "daily_metrics_rollup" not in task_ids
         assert "cleanup_metrics_data" not in task_ids
         assert "daily_anonymize" in task_ids
@@ -414,6 +417,7 @@ class TestTaskGroupIntegration(TestCase):
 
         # Metrics collection tasks must still be present
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "hourly_unified_jobs" in task_ids
         assert "hourly_credentials" in task_ids
         assert "daily_metrics_rollup" in task_ids
