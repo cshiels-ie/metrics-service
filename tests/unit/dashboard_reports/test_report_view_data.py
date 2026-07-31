@@ -806,6 +806,28 @@ class TestDashboardReportViewSetEndpoints:
         names = [r["template_name"] for r in response.data["results"]]
         assert names == ["Template B", "Template A"]
 
+    def test_list_ordering_by_time_savings_ascending(self, job_data, admin_client):
+        """ordering=time_savings sorts by time saved (manual_time - elapsed - creation_time) ascending."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "ordering": "time_savings"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        # Template A has less time savings than Template B
+        assert names == ["Template A", "Template B"]
+
+    def test_list_ordering_by_time_savings_descending(self, job_data, admin_client):
+        """ordering=-time_savings sorts by time saved descending (highest savings first)."""
+        response = admin_client.get(
+            reverse("v1:report-list"),
+            data={**build_filtered_query(), "ordering": "-time_savings"},
+        )
+        assert response.status_code == 200
+        names = [r["template_name"] for r in response.data["results"]]
+        # Template B has more time savings than Template A
+        assert names == ["Template B", "Template A"]
+
     def test_list_ordering_by_template_name_does_not_fragment_aggregation(self, admin_client):
         """ordering=template_name must alias to template_metadata__template_name, not JobData.template_name.
 
