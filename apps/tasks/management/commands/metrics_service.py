@@ -149,7 +149,7 @@ class Command(BaseCommand):
         create_parser.add_argument("--name", required=True, help="Task name")
         create_parser.add_argument("--function", required=True, help="Function name to execute")
         create_parser.add_argument("--data", help="JSON data for the task")
-        create_parser.add_argument("--description", help="Task description")
+        create_parser.add_argument("--description", default="", help="Task description")
         create_parser.add_argument("--scheduled-time", help="Schedule time (YYYY-MM-DD HH:MM:SS)")
         create_parser.add_argument("--cron", help="Cron expression for recurring tasks")
         create_parser.add_argument("--user", help="Username of task creator")
