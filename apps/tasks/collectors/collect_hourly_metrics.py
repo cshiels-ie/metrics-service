@@ -348,7 +348,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         if raw_data is None or raw_data.empty:
             return
 
-        mask = raw_data["status"].isin(["failed", "successful"]) & (raw_data["launch_type"] != "sync")
+        mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
         filtered = raw_data[mask]
         if filtered.empty:
             return
