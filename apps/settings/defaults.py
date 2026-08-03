@@ -189,6 +189,8 @@ TEMPLATES = [
 
 # Dashboard collection schedule configuration
 DASHBOARD_COLLECTION = {
+    # COLLECTION_SCHEDULE_CRON is no longer used; the dashboard collection schedule
+    # is now controlled via the task group configuration in task_groups.py.
     "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
     # Set to True to derive the backfill/retention window from the Controller's active
     # cleanup_jobs schedules instead of the fixed 90-day default.
