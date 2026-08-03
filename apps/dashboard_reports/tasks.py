@@ -58,7 +58,7 @@ def _get_renamed_kwarg(kwargs: dict, new_key: str, old_key: str, task_name: str)
 def _use_controller_retention() -> bool:
     """Return True when DASHBOARD_COLLECTION['USE_CONTROLLER_RETENTION'] is set in settings."""
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    return bool(dashboard_cfg.get("USE_CONTROLLER_RETENTION", False))
+    return bool(dashboard_cfg.get("USE_CONTROLLER_RETENTION", True))
 
 
 def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
