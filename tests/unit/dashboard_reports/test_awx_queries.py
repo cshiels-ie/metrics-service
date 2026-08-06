@@ -161,65 +161,86 @@ class TestAWXQueries:
         assert items == [{"id": 3, "name": "Prj"}]
         assert total == 1
 
-    @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
-    def test_fetch_labels(self, mock_fetch):
-        mock_fetch.return_value = ([{"id": 4, "name": "Lbl"}], 1)
+    def test_format_label_rows_unique_names(self):
+        rows = [(1, "Lbl", "OrgA"), (2, "Other", "OrgB")]
+        result = awx_queries.format_label_rows(rows, duplicate_names=set())
+        assert result == [{"id": 1, "name": "Lbl"}, {"id": 2, "name": "Other"}]
+
+    def test_format_label_rows_disambiguates_duplicates(self):
+        rows = [(1, "prod", "OrgA"), (2, "prod", "OrgB"), (3, "prod", "OrgC"), (4, "staging", "OrgA")]
+        result = awx_queries.format_label_rows(rows, duplicate_names={"prod"})
+        assert result == [
+            {"id": 1, "name": "prod (OrgA)"},
+            {"id": 2, "name": "prod (OrgB)"},
+            {"id": 3, "name": "prod (OrgC)"},
+            {"id": 4, "name": "staging"},
+        ]
+
+    def test_format_label_rows_uses_provided_duplicate_names_not_page_contents(self):
+        """A single-row page must still be disambiguated if its name is a known duplicate overall."""
+        rows = [(2, "prod", "OrgB")]
+        result = awx_queries.format_label_rows(rows, duplicate_names={"prod"})
+        assert result == [{"id": 2, "name": "prod (OrgB)"}]
+
+    @patch("apps.dashboard_reports.awx_queries._fetch_duplicate_label_names")
+    @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
+    def test_fetch_labels(self, mock_fetch, mock_dupes):
+        mock_fetch.return_value = ([(4, "Lbl", "OrgA")], 1)
+        mock_dupes.return_value = set()
         items, total = awx_queries.fetch_labels(db_connection=MagicMock())
         assert items == [{"id": 4, "name": "Lbl"}]
         assert total == 1
 
-    def test_labels_query_has_no_inline_group_by(self):
-        """GROUP BY must not be baked into the LABELS SELECT literal, or WHERE clauses appended by
-        fetch_data_from_db would land after it, producing invalid SQL. See AAP-85133."""
-        assert "GROUP BY" not in AWXQuery.LABELS.value
-        assert awx_queries.GROUP_BY_CLAUSES[AWXQuery.LABELS] == " GROUP BY name"
+    @patch("apps.dashboard_reports.awx_queries._fetch_duplicate_label_names")
+    @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
+    def test_fetch_labels_dedupes_duplicate_names_by_organization(self, mock_fetch, mock_dupes):
+        mock_fetch.return_value = ([(1, "prod", "OrgA"), (2, "prod", "OrgB")], 2)
+        mock_dupes.return_value = {"prod"}
+        items, total = awx_queries.fetch_labels(db_connection=MagicMock())
+        assert items == [{"id": 1, "name": "prod (OrgA)"}, {"id": 2, "name": "prod (OrgB)"}]
+        assert total == 2
 
-    @patch("apps.dashboard_reports.awx_queries._execute_db_query")
-    def test_fetch_data_from_db_labels_search_orders_where_before_group_by(self, mock_exec):
-        """Regression test: searching labels must produce 'WHERE ... GROUP BY ... ORDER BY',
-        not 'GROUP BY ... WHERE ...' (invalid SQL)."""
-        mock_exec.return_value = (["id", "name"], [(1, "labelTest1")])
-        db_conn = MagicMock()
+    @patch("apps.dashboard_reports.awx_queries._fetch_duplicate_label_names")
+    @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
+    def test_fetch_labels_dedupe_stays_consistent_across_pages(self, mock_fetch, mock_dupes):
+        """Regression test: a duplicate name split across pages (limit=1) must be disambiguated on
+        every page, since duplicate detection is computed from the full dataset, not the page."""
+        mock_dupes.return_value = {"prod"}
 
-        awx_queries.fetch_data_from_db(
-            AWXQuery.LABELS, join_alias="", db_connection=db_conn, search_str="label", pk=None
-        )
+        mock_fetch.return_value = ([(1, "prod", "OrgA")], 2)
+        page_one, total_one = awx_queries.fetch_labels(db_connection=MagicMock(), limit=1, offset=0)
+        assert page_one == [{"id": 1, "name": "prod (OrgA)"}]
+        assert total_one == 2
 
-        executed_query = mock_exec.call_args[0][1]
-        where_pos = executed_query.index("WHERE")
-        group_by_pos = executed_query.index("GROUP BY")
-        order_by_pos = executed_query.index("ORDER BY")
-        assert where_pos < group_by_pos < order_by_pos
+        mock_fetch.return_value = ([(2, "prod", "OrgB")], 2)
+        page_two, total_two = awx_queries.fetch_labels(db_connection=MagicMock(), limit=1, offset=1)
+        assert page_two == [{"id": 2, "name": "prod (OrgB)"}]
+        assert total_two == 2
 
-    @patch("apps.dashboard_reports.awx_queries._execute_count_query")
-    @patch("apps.dashboard_reports.awx_queries._execute_db_query")
-    def test_fetch_data_from_db_labels_with_limit_and_search_dedupes(self, mock_exec, mock_count):
-        """Paginated label search (the code path hit by the API list endpoint) must also compose
-        valid SQL with WHERE before GROUP BY, in both the COUNT subquery and the main query."""
-        mock_count.return_value = 1
-        mock_exec.return_value = (["id", "name"], [(5, "labelTest1")])
-        db_conn = MagicMock()
+    @patch("apps.dashboard_reports.awx_queries._fetch_duplicate_label_names")
+    @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
+    def test_fetch_labels_error(self, mock_fetch, mock_dupes):
+        mock_fetch.side_effect = Exception("fail")
+        with pytest.raises(Exception, match="fail"):
+            awx_queries.fetch_labels(db_connection=MagicMock())
 
-        rows, total = awx_queries.fetch_data_from_db(
-            AWXQuery.LABELS, join_alias="", db_connection=db_conn, search_str="label", limit=10, offset=0
-        )
+    def test_fetch_duplicate_label_names(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = [("prod",)]
+        mock_conn.cursor.return_value = mock_cursor
 
-        assert rows == [(5, "labelTest1")]
-        assert total == 1
-        count_query = mock_count.call_args[0][1]
-        assert count_query.index("WHERE") < count_query.index("GROUP BY")
-        main_query = mock_exec.call_args[0][1]
-        assert main_query.index("WHERE") < main_query.index("GROUP BY") < main_query.index("ORDER BY")
+        result = awx_queries._fetch_duplicate_label_names(mock_conn, "l.", None, None)
 
-    @patch("apps.dashboard_reports.awx_queries._execute_db_query")
-    def test_fetch_data_from_db_labels_dedupe_by_name(self, mock_exec):
-        """MIN(id) GROUP BY name should return one canonical row per label name."""
-        mock_exec.return_value = (["id", "name"], [(5, "labelTest1")])
-        db_conn = MagicMock()
+        assert result == {"prod"}
+        executed_query = mock_cursor.execute.call_args[0][0]
+        assert "GROUP BY name HAVING COUNT(*) > 1" in executed_query
+        assert "LIMIT" not in executed_query
 
-        rows, _ = awx_queries.fetch_data_from_db(AWXQuery.LABELS, join_alias="", db_connection=db_conn)
-
-        executed_query = mock_exec.call_args[0][1]
-        assert "MIN(id)" in executed_query
-        assert "GROUP BY name" in executed_query
-        assert rows == [(5, "labelTest1")]
+    def test_labels_query_joins_organization(self):
+        """LABELS must join main_organization so org name is available to disambiguate duplicates."""
+        assert "main_label l" in AWXQuery.LABELS.value
+        assert "JOIN main_organization o" in AWXQuery.LABELS.value
+        assert "organization_name" in AWXQuery.LABELS.value
