@@ -1,0 +1,234 @@
+---
+name: Sync OpenAPI Spec
+
+env:
+  LC_ALL: "C.UTF-8"
+
+on:
+  push:
+    branches:
+      - devel
+      - "stable-*"
+    paths:
+      - "apps/**/*.py"
+      - "apps/**/serializers.py"
+      - "apps/**/viewsets/**"
+      - "apps/**/views/**"
+  workflow_dispatch:  # allow manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate and validate OpenAPI spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout metrics-service
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Generate and validate OpenAPI schema
+        env:
+          DJANGO_SETTINGS_MODULE: metrics_service.settings
+          METRICS_SERVICE_SECRET_KEY: "ci-placeholder-not-secret"
+          # Use SQLite in memory so Django starts up without a real postgres instance
+          METRICS_SERVICE_DATABASES__default__ENGINE: django.db.backends.sqlite3
+          METRICS_SERVICE_DATABASES__default__NAME: ":memory:"
+          METRICS_SERVICE_DATABASES__awx__ENGINE: django.db.backends.sqlite3
+          METRICS_SERVICE_DATABASES__awx__NAME: ":memory:"
+        run: |
+          uv run --frozen python manage.py spectacular \
+            --color \
+            --file metrics.json \
+            --validate \
+            --format openapi-json
+
+      - name: Upload OpenAPI static specification
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-schema
+          path: metrics.json
+          retention-days: 1
+
+  sync:
+    name: Sync OpenAPI spec to central repo
+    needs: generate
+    runs-on: ubuntu-latest
+    if: github.repository == 'ansible-automation-platform/metrics-service'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download spec artifact from component workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-schema
+          path: ./component-spec
+
+      - name: Verify spec file exists
+        run: |
+          SPEC_FILE="./component-spec/metrics.json"
+          if [ ! -f "$SPEC_FILE" ]; then
+            echo "❌ Spec file not found at $SPEC_FILE"
+            echo "Contents of artifact:"
+            ls -la ./component-spec/
+            exit 1
+          fi
+          echo "✅ Found spec file at $SPEC_FILE"
+
+      - name: Check if branch exists in spec repo
+        id: check_branch
+        env:
+          SPEC_SYNC_TOKEN: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          if git ls-remote --exit-code --heads \
+            "https://x-access-token:${SPEC_SYNC_TOKEN}@github.com/ansible-automation-platform/aap-openapi-specs.git" \
+            "refs/heads/${SOURCE_BRANCH}" > /dev/null 2>&1; then
+            echo "✅ Branch '${SOURCE_BRANCH}' exists in spec repo"
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Branch '${SOURCE_BRANCH}' does NOT exist in spec repo"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail if branch doesn't exist
+        if: steps.check_branch.outputs.branch_exists != 'true'
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          echo "##[error]❌ Branch '${SOURCE_BRANCH}' does not exist in the central spec repository."
+          echo "##[error]Expected branch: ${SOURCE_BRANCH}"
+          echo "##[error]This branch must be created in the spec repo before specs can be synced."
+          exit 1
+
+      - name: Checkout spec repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ansible-automation-platform/aap-openapi-specs
+          ref: ${{ github.ref_name }}
+          path: spec-repo
+          token: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
+          persist-credentials: false
+
+      - name: Compare specs
+        id: compare
+        run: |
+          COMPONENT_SPEC="./component-spec/metrics.json"
+          SPEC_REPO_FILE="spec-repo/metrics.json"
+
+          if [ ! -f "$SPEC_REPO_FILE" ]; then
+            echo "Spec file doesn't exist in spec repo - will create new file"
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+            echo "is_new_file=true" >> $GITHUB_OUTPUT
+          else
+            if diff -q "$COMPONENT_SPEC" "$SPEC_REPO_FILE" > /dev/null; then
+              echo "✅ No differences found - specs are identical"
+              echo "has_diff=false" >> $GITHUB_OUTPUT
+            else
+              echo "📝 Differences found - spec has changed"
+              echo "has_diff=true" >> $GITHUB_OUTPUT
+              echo "is_new_file=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Update spec file
+        if: steps.compare.outputs.has_diff == 'true'
+        run: |
+          cp "./component-spec/metrics.json" "spec-repo/metrics.json"
+          echo "✅ Updated spec-repo/metrics.json"
+
+      - name: Create PR in spec repo
+        id: create_pr
+        if: steps.compare.outputs.has_diff == 'true'
+        working-directory: spec-repo
+        env:
+          GH_TOKEN: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REPO: ${{ github.repository }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+          IS_NEW_FILE: ${{ steps.compare.outputs.is_new_file }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Embed token in remote URL since persist-credentials is false
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/ansible-automation-platform/aap-openapi-specs.git"
+
+          SHORT_SHA="${SOURCE_SHA:0:7}"
+          BRANCH_NAME="update-metrics-${SOURCE_BRANCH}-${SHORT_SHA}"
+          git checkout -b "$BRANCH_NAME"
+
+          git add "metrics.json"
+
+          if [ "$IS_NEW_FILE" == "true" ]; then
+            COMMIT_MSG="Add metrics-service OpenAPI spec for ${SOURCE_BRANCH}"
+          else
+            COMMIT_MSG="Update metrics-service OpenAPI spec for ${SOURCE_BRANCH}"
+          fi
+
+          git commit -m "${COMMIT_MSG}
+
+          Synced from ${SOURCE_REPO}@${SOURCE_SHA}
+          Source branch: ${SOURCE_BRANCH}
+
+          Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+          git push origin "$BRANCH_NAME"
+
+          if [ "$IS_NEW_FILE" == "true" ]; then
+            CHANGES="- 🆕 New spec file created"
+          else
+            CHANGES="- 📝 Spec file updated with latest changes"
+          fi
+
+          PR_TITLE="[${SOURCE_BRANCH}] Update metrics-service spec from merged commit"
+          PR_BODY="## Summary
+          Automated OpenAPI spec sync from component repository merge.
+
+          **Source:** ${SOURCE_REPO}@${SOURCE_SHA}
+          **Branch:** \`${SOURCE_BRANCH}\`
+          **Component:** \`metrics-service\`
+          **Spec File:** \`metrics.json\`
+
+          ## Changes
+          ${CHANGES}
+
+          ## Source Commit
+          \`\`\`
+          ${HEAD_COMMIT_MSG}
+          \`\`\`
+
+          ---
+          🤖 This PR was automatically generated by the OpenAPI spec sync workflow."
+
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base "${SOURCE_BRANCH}" \
+            --head "$BRANCH_NAME"
+
+          echo "✅ Created PR in spec repo"
+
+      - name: Report results
+        if: always()
+        run: |
+          if [ "${{ steps.create_pr.outcome }}" == "success" ]; then
+            echo "📝 Spec sync completed - PR created in spec repo"
+          elif [ "${{ steps.compare.outcome }}" == "success" ] && \
+               [ "${{ steps.compare.outputs.has_diff }}" == "false" ]; then
+            echo "✅ Spec sync completed - no changes needed"
+          else
+            echo "❌ Spec sync did not complete successfully"
+          fi
