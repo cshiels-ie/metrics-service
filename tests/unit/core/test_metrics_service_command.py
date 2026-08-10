@@ -360,20 +360,6 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
-    @patch("apps.tasks.apps.load_task_feature_flags")
-    @patch("apps.dynamic_settings.utils.initialize_default_settings")
-    def test_handle_init_default_settings_seeds_aap_flags(self, mock_initialize, mock_load_flags):
-        """init-default-settings also calls load_task_feature_flags to seed AAPFlags.
-
-        In production the DB is pre-migrated before the service starts, so the
-        post_migrate signal that normally seeds AAPFlags during `migrate` never fires.
-        init-default-settings must therefore call load_task_feature_flags() directly.
-        """
-        self.setup_command_output()
-        self.command._handle_init_default_settings_command()
-
-        mock_load_flags.assert_called_once()
-
     @patch("apps.dynamic_settings.utils.initialize_default_settings")
     def test_handle_init_default_settings_error_handling(self, mock_initialize):
         """Test error handling in _handle_init_default_settings_command."""

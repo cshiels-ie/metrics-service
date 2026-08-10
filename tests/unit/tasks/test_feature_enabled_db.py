@@ -160,6 +160,7 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
     # Name mapping: setting_name → FEATURE_<setting_name>_ENABLED
     # ------------------------------------------------------------------
 
+    @override_settings(FEATURE={})
     def test_aap_flag_queried_with_correct_name(self):
         """AAPFlag is looked up using the FEATURE_<setting_name>_ENABLED convention."""
         mock_aap_flag_class = MagicMock()

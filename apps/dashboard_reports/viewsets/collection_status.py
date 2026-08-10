@@ -38,7 +38,7 @@ class DashboardCollectionStatusViewSet(BaseAdminViewSet):
         initial_collection_status reflects the status of the one-shot initial collection task:
         "pending", "running", "completed", "failed", or "cancelled".
         """
-        enabled = get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False)
+        enabled = get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=True)
 
         next_run = None
         initial_collection_status = None

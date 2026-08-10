@@ -33,9 +33,8 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     ``FEATURE_<setting_name>_ENABLED`` settings attribute (set directly in settings.yaml
     by the installer) → boolean ``AAPFlag`` ``FEATURE_<setting_name>_ENABLED`` → ``default``.
 
-    Feature keys omitted from ``FEATURE`` in defaults (e.g. ``DASHBOARD_COLLECTION``)
-    use the direct-attribute / AAPFlag / default path so platform toggles work without a
-    duplicate static default.
+    Feature keys omitted from ``FEATURE`` in defaults use the direct-attribute /
+    AAPFlag / default path so platform toggles work without a duplicate static default.
 
     Args:
         setting_name: Name of the feature enabled setting
@@ -321,9 +320,8 @@ ANONYMIZATION_GROUP = TaskGroup(
 )
 
 # Dashboard Collection Group - automation-reports integration
-# Feature flag: DASHBOARD_COLLECTION (default: False — customer opt-in)
-# Enable via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION, DAB AAPFlag
-# FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+# Feature flag: DASHBOARD_COLLECTION (default: True — enabled by default)
+# Disable via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION=false or dynamic_settings.Setting.
 DASHBOARD_COLLECTION_GROUP = TaskGroup(
     name="dashboard_collection",
     description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",

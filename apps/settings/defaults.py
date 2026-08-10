@@ -122,14 +122,14 @@ DATABASES = {
 # Feature flag defaults — controlled at runtime via METRICS_SERVICE_FEATURE__<KEY>=value env vars
 # (dynaconf nested-key syntax merges into this dict) or via the dynamic_settings DB API.
 # Keys present here provide the static default used by get_feature_enabled_from_db when no DB row
-# exists. DASHBOARD_COLLECTION is intentionally omitted because it defaults to False (opt-in) and
-# is controlled via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION, the installer top-level
-# FEATURE_DASHBOARD_COLLECTION_ENABLED attribute, or a DAB AAPFlag — see get_feature_enabled_from_db.
+# exists. Disable via METRICS_SERVICE_FEATURE__<KEY>=false env var.
 FEATURE = {
     # Local hourly/daily collectors, rollup, cleanup_metrics_data — see METRICS_COLLECTION_GROUP.
     "METRICS_COLLECTION": True,
     # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
     "ANONYMIZED_DATA_COLLECTION": True,
+    # Dashboard data collection for automation-reports — see DASHBOARD_COLLECTION_GROUP.
+    "DASHBOARD_COLLECTION": True,
 }
 
 # Timeout in seconds for stuck task detection (used by cron_scheduler)
