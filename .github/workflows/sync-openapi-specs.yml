@@ -153,14 +153,23 @@ jobs:
         working-directory: spec-repo
         env:
           GH_TOKEN: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
+          GPG_PRIVATE_KEY: ${{ secrets.OPENAPI_SPEC_SYNC_GPG_PRIVATE_KEY }}
           SOURCE_BRANCH: ${{ github.ref_name }}
           SOURCE_SHA: ${{ github.sha }}
           SOURCE_REPO: ${{ github.repository }}
           HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
           IS_NEW_FILE: ${{ steps.compare.outputs.is_new_file }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import 2>/dev/null
+          GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long 2>/dev/null | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          if [ -z "$GPG_KEY_ID" ]; then
+            echo "❌ Failed to import GPG key or extract key ID"
+            exit 1
+          fi
+          git config user.name "aap-api-bot"
+          git config user.email "aap-api-bot@redhat.com"
+          git config commit.gpgsign true
+          git config user.signingkey "$GPG_KEY_ID"
 
           # Embed token in remote URL since persist-credentials is false
           git remote set-url origin \
@@ -183,7 +192,7 @@ jobs:
           Synced from ${SOURCE_REPO}@${SOURCE_SHA}
           Source branch: ${SOURCE_BRANCH}
 
-          Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          Co-Authored-By: aap-api-bot <aap-api-bot@redhat.com>"
 
           git push origin "$BRANCH_NAME"
 
