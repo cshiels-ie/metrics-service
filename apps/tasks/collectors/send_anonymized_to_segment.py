@@ -263,6 +263,19 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with send statistics
     """
+    from ..task_groups import get_feature_enabled_from_db
+
+    if not get_feature_enabled_from_db("ANONYMIZED_DATA_COLLECTION"):
+        log_task_execution("send_anonymized_to_segment", "skipped", "ANONYMIZED_DATA_COLLECTION disabled")
+        return create_task_result(
+            "success",
+            {
+                "task_type": "send_anonymized_to_segment",
+                "results": {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0},
+                "total_processed": 0,
+            },
+        )
+
     max_payloads = kwargs.get("max_payloads", 5)
     payload_id = kwargs.get("payload_id")
     stale_minutes = kwargs.get("stale_minutes", 10)

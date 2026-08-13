@@ -123,7 +123,10 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 name=f"send_to_segment_{summary_date}",
                 description=f"Send anonymized metrics payload {payload.id} to Segment (scheduled with jitter)",
                 function_name="send_anonymized_to_segment",
-                task_data={"payload_id": payload.id},
+                task_data={
+                    "payload_id": payload.id,
+                    "_feature_flag": "ANONYMIZED_DATA_COLLECTION",
+                },
                 scheduled_time=send_scheduled_time,
                 is_system_task=False,
                 max_attempts=SEGMENT_MAX_ATTEMPTS,

@@ -329,6 +329,7 @@ class TestDailyAnonymizeAndPrepare:
         assert result["status"] == "success"
         task = Task.objects.get(function_name="send_anonymized_to_segment")
         assert task.task_data["payload_id"] == result["payload_id"]
+        assert task.task_data["_feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
         assert now < task.scheduled_time <= now + timedelta(minutes=240)
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
