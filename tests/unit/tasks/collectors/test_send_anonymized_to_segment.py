@@ -188,8 +188,13 @@ class TestHandleUnavailableSend:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestSendAnonymizedToSegmentTask:
     """Tests for the send_anonymized_to_segment task function."""
+
+    @pytest.fixture(autouse=True)
+    def enable_anonymized_data_collection(self, settings):
+        settings.FEATURE = {"ANONYMIZED_DATA_COLLECTION": True}
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment._get_payloads_to_send")
     def test_returns_success_with_empty_payload_list(self, mock_get_payloads):
