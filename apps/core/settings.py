@@ -45,7 +45,6 @@ ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
 ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
     "core.Organization": {"parent_field_name": None},
     "core.Team": {"parent_field_name": "organization"},
-    "core.User": {"parent_field_name": None},
 }
 
 # Default RBAC roles - created automatically on `python manage.py migrate`
