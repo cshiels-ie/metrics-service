@@ -9,7 +9,7 @@ from datetime import UTC, date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
@@ -147,6 +147,7 @@ class TestAnonymizationTask(TestCase):
 
 @pytest.mark.unit
 @pytest.mark.django_db
+@override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True})
 class TestSegmentSendingTask(TestCase):
     """Test sending anonymized data to Segment."""
 

@@ -2,9 +2,9 @@ name: "Pytest tests"
 
 on:
   push:
-    branches: ["stable-2.7"]
+    branches: ["devel"]
   pull_request:
-    branches: ["stable-2.7"]
+    branches: ["devel"]
 
 # Explicitly set read-only permissions for security
 permissions:
@@ -51,6 +51,19 @@ jobs:
       - name: "Remove stale coverage report"
         run: rm -f coverage.xml .coverage
 
+      - name: "Set up Go"
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+
+      - name: "Clone and build mock segment server"
+        timeout-minutes: 2
+        run: |
+          git clone --depth 1 --branch devel https://github.com/ansible/metrics-utility.git /tmp/metrics-utility
+          go build -C /tmp/metrics-utility/tools/mock-segment-server -o /tmp/mock-segment-server .
+          /tmp/mock-segment-server &
+          until curl -sf http://localhost:8765/requests > /dev/null; do sleep 1; done
+
       - name: "Run pytest"
         env:
           METRICS_SERVICE_DATABASES__default__HOST: localhost
@@ -59,10 +72,12 @@ jobs:
           METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
           METRICS_SERVICE_DATABASES__default__NAME: metrics_service
           METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
-          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
-          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+          METRICS_SERVICE_DATABASES__awx__HOST: localhost
+          METRICS_SERVICE_DATABASES__awx__USER: awx
+          METRICS_SERVICE_DATABASES__awx__PASSWORD: awx
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_MODE: test
+          MOCK_SEGMENT_URL: "http://localhost:8765"
         run: |
           uv run pytest -s -v --cov --cov-branch --cov-report=xml
 

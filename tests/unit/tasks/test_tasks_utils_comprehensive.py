@@ -452,6 +452,7 @@ class TestSendToSegment(TestCase):
                 write_key="test-write-key",
                 user_id="user1",
                 debug=False,
+                host=None,
             )
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
