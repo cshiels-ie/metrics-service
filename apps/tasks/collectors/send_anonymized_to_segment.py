@@ -223,6 +223,7 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
             write_key=write_key,
             user_id=user_id,
             debug=getattr(settings, "DEBUG", False),
+            host=getattr(settings, "SEGMENT_URL", "") or None,
         )
 
         # Send data using StorageSegment.put()
