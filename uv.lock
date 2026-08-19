@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -356,16 +356,16 @@ wheels = [
 
 [[package]]
 name = "django"
-version = "5.2.7"
+version = "5.2.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/96/bd84e2bb997994de8bcda47ae4560991084e86536541d7214393880f01a8/django-5.2.7.tar.gz", hash = "sha256:e0f6f12e2551b1716a95a63a1366ca91bbcd7be059862c1b18f989b1da356cdd", size = 10865812, upload-time = "2025-10-01T14:22:12.081Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/d8/43e9d000519adceb189620b6869ff88031e046df91c2e9da72f8f6918399/django-5.2.17.tar.gz", hash = "sha256:9d4d93be539a18ab80d058eb515900e10951e04c537c5a6b394fc49528d3251f", size = 10889740, upload-time = "2026-08-04T15:04:03.173Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/ef/81f3372b5dd35d8d354321155d1a38894b2b766f576d0abffac4d8ae78d9/django-5.2.7-py3-none-any.whl", hash = "sha256:59a13a6515f787dec9d97a0438cd2efac78c8aca1c80025244b0fe507fe0754b", size = 8307145, upload-time = "2025-10-01T14:22:49.476Z" },
+    { url = "https://files.pythonhosted.org/packages/df/f8/ce120525ca78f12b07daf65786679c5d0b54a75285a8958d3ae55e39da35/django-5.2.17-py3-none-any.whl", hash = "sha256:f04fb3b36ee119e1af4fa1d397d5fd6cf12700f49321e84d4f4c642c5b1973db", size = 8315563, upload-time = "2026-08-04T15:03:59.1Z" },
 ]
 
 [[package]]
@@ -929,7 +929,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.3" },
     { name = "croniter", specifier = ">=1.3.0" },
     { name = "dispatcherd", specifier = ">=2026.1.27" },
-    { name = "django", specifier = "==5.2.7" },
+    { name = "django", specifier = "==5.2.17" },
     { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-extensions", specifier = ">=3.2" },
@@ -982,7 +982,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.8.20260723"
+version = "0.8.20260818"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -998,9 +998,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/67/bb/f71acd22fca36f7232dbd8c63fbbf1d383ccd4ef2c412f8ab67523c61d22/metrics_utility-0.8.20260723.tar.gz", hash = "sha256:e754556eb28bfb222d9d759026f3cfe08d8a20b5fc1108f291f65e50ffbf2fe4", size = 1188919, upload-time = "2026-07-23T12:36:25.358Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/2f/35cf5824bdf3dc8671e3080e3b9ec5be798d9121dbf6a0dad9a18aed6f7c/metrics_utility-0.8.20260818.tar.gz", hash = "sha256:b1a11f6a9ebe3338e36fb5f2b8d8f66e460422222ebbc3bba6975b4a3124f83f", size = 1215015, upload-time = "2026-08-18T20:56:30.275Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/89/5f95084e5c9afbd095dc8d73a71764945cf5d35dffef2ad90e2d1f2d08f1/metrics_utility-0.8.20260723-py3-none-any.whl", hash = "sha256:7fc0d889abe13a98dd79b3cb8385c107cbd853c90824ca0c69dc09d615e3e5f3", size = 609140, upload-time = "2026-07-23T12:36:23.877Z" },
+    { url = "https://files.pythonhosted.org/packages/de/9b/983a9bfc5379d235c9d6c2f2feaa7d0b8cebc84dccdcf5c1ccd58bdeaca2/metrics_utility-0.8.20260818-py3-none-any.whl", hash = "sha256:8cf7ec1f6c4dd7de109c9ab328b1912e3548f4739fe1ee9082e16eee12c9310c", size = 611871, upload-time = "2026-08-18T20:56:28.7Z" },
 ]
 
 [[package]]

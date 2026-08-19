@@ -22,13 +22,13 @@ classifiers = [
 version = "1.0.0"
 
 dependencies = [
-    "Django==5.2.7",
+    "django==5.2.17",
     "djangorestframework>=3.15",
     # >=2025.12.12 accepts both PyPI releases and the git override (2025.12.16.0.dev4 in uv.lock).
     # Use `uv sync` so [tool.uv.sources] applies; plain `pip install .` will use latest from PyPI.
     "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2026.1.26",
-    "psycopg[binary]>=3.1",  # Binary wheel; use [c] only if C build tools available
-    "psycopg2-binary>=2.9.0",  # Binary wheel for dispatcherd PostgreSQL LISTEN/NOTIFY (no C compiler in Docker)
+    "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
+    "psycopg2-binary>=2.9.0", # Binary wheel for dispatcherd PostgreSQL LISTEN/NOTIFY (no C compiler in Docker)
     "dynaconf>=3.1.0",
     "dispatcherd>=2026.1.27",
     "croniter>=1.3.0",
@@ -39,7 +39,7 @@ dependencies = [
     "gunicorn>=23.0",
     "whitenoise>=6.6",
     "pip>=25.2",
-    "packaging>=20.0",  # Required for setuptools-scm during source builds
+    "packaging>=20.0", # Required for setuptools-scm during source builds
     "django-generate-series>=2026.2.1", # Required for generating time series data for dashboard report charts
     "urllib3==2.7.0",
     "pyjwt==2.13.0",
