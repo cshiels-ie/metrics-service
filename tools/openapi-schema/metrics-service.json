@@ -4376,14 +4376,6 @@
                 "tags": [
                     "service-index"
                 ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "No response body"
