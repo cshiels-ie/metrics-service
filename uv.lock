@@ -929,7 +929,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.3" },
     { name = "croniter", specifier = ">=1.3.0" },
     { name = "dispatcherd", specifier = ">=2026.1.27" },
-    { name = "django", specifier = "==5.2.17" },
+    { name = "django", specifier = "~=5.2.17" },
     { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-extensions", specifier = ">=3.2" },
@@ -945,7 +945,7 @@ requires-dist = [
     { name = "pip", specifier = ">=25.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
-    { name = "pyjwt", specifier = "==2.13.0" },
+    { name = "pyjwt", specifier = "~=2.13" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.1" },
@@ -954,7 +954,7 @@ requires-dist = [
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.1" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3" },
-    { name = "urllib3", specifier = "==2.7.0" },
+    { name = "urllib3", specifier = "~=2.7" },
     { name = "whitenoise", specifier = ">=6.6" },
 ]
 provides-extras = ["ldap", "test", "docs"]
