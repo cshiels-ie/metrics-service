@@ -20,13 +20,25 @@ class CoreConfig(AppConfig):
     @staticmethod
     def _restrict_dab_view_permissions():
         """
-        Harden permission classes on DAB-provided views that are insufficiently
-        restricted by default when ansible_base.rbac is in INSTALLED_APPS.
+        Patch class attributes on DAB-provided views that are misconfigured for
+        this service by default when ansible_base.rbac is in INSTALLED_APPS.
 
+        Permission hardening:
         DAB's activitystream view falls through to IsAuthenticated when RBAC is
         active; OldFeatureFlagsStateListView has no explicit permission class at
         all. Both are patched here to require at minimum Platform Auditor role,
         matching the restriction already applied to dashboard_reports viewsets.
+
+        Authentication (ServiceMetadataView):
+        The gateway's populate_service_id self-heal probes
+        GET /api/v1/service-index/metadata/ to resolve a service whose
+        ServiceCluster.service_id is still NULL after a 2.6->2.7 upgrade. The
+        default RBAC auth class (use_rbac_permissions=True) re-calls the gateway
+        (jwt_claims) during authentication, but that call is authenticated with
+        the service token whose issuer the gateway cannot yet resolve, so it 503s
+        and the probe 403s -- leaving service_id NULL forever. Authenticate this
+        one endpoint without the RBAC claims fetch so the probe can succeed; all
+        other endpoints keep use_rbac_permissions=True.
 
         This uses class-attribute patching rather than URL shadowing because the
         DAB URL patterns are registered before the project's apps/urls.py
@@ -35,9 +47,13 @@ class CoreConfig(AppConfig):
         from ansible_base.activitystream.views import EntryReadOnlyViewSet
         from ansible_base.feature_flags.views import OldFeatureFlagsStateListView
         from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+        from ansible_base.resource_registry.views import ServiceMetadataView
+
+        from .authentication import ServiceJWTAuthenticationNoRBAC
 
         EntryReadOnlyViewSet.permission_classes = [IsSystemAdminOrAuditor]
         OldFeatureFlagsStateListView.permission_classes = [IsSystemAdminOrAuditor]
+        ServiceMetadataView.authentication_classes = [ServiceJWTAuthenticationNoRBAC]
 
     @staticmethod
     def _create_managed_roles(sender, **kwargs):
