@@ -12,7 +12,10 @@ For full documentation, see: metrics_service/urls.py
 
 """
 
+from django.urls import include, path
+
 app_name = "dynamic_settings"
 
-# No URL patterns
-urlpatterns = []
+urlpatterns = [
+    path("api/v1/settings/", include("apps.dynamic_settings.v1.urls")),
+]

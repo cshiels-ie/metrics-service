@@ -578,6 +578,14 @@ class JobData(CommonModel):
         choices=JobStatusChoices.choices, default=JobStatusChoices.SUCCESSFUL, max_length=25, db_index=True
     )
 
+    launch_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="AWX launch type, used to filter sync/workflow jobs at read time",
+    )
+
     started = models.DateTimeField(
         null=True,
         default=None,
@@ -697,6 +705,7 @@ class JobData(CommonModel):
                 "organization_id": awx_job["organization_id"],
                 "organization_name": awx_job.get("organization_name"),
                 "status": awx_job["status"],
+                "launch_type": awx_job.get("launch_type"),
                 "started": awx_job["started"],
                 "finished": awx_job["finished"],
                 "elapsed": awx_job["elapsed"],

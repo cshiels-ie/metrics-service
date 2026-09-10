@@ -19,8 +19,10 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    reconcile_dashboard_data,
     sync_dashboard_host_summaries,
     sync_dashboard_job_records,
+    sync_dashboard_jobs_manual,
 )
 
 # Import cleanup tasks
@@ -34,7 +36,12 @@ from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
+from .collectors.retry_failed_ingest_events import retry_failed_ingest_events
+
+# Import service ingest tasks
+from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
+from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
 
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
@@ -67,6 +74,12 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
+    "sync_dashboard_jobs_manual": sync_dashboard_jobs_manual,
+    "reconcile_dashboard_data": reconcile_dashboard_data,
+    # Service ingest tasks
+    "rollup_external_events_to_segment": rollup_external_events_to_segment,
+    "retry_failed_ingest_events": retry_failed_ingest_events,
+    "send_external_batch_to_segment": send_external_batch_to_segment,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -83,6 +96,8 @@ TASK_LOCKS = {
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "sync_dashboard_jobs_manual",
+    "reconcile_dashboard_data",
 }
 
 
@@ -477,6 +492,40 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_jobs_manual": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "On-demand dashboard job sync using the last known watermark or an explicit date range",
+        "parameters": {
+            "since": {"type": "string", "description": "ISO 8601 start datetime (optional)"},
+            "until": {"type": "string", "description": "ISO 8601 end datetime (optional)"},
+        },
+        "examples": [
+            {"name": "Incremental sync", "data": {}},
+            {
+                "name": "Explicit date range",
+                "data": {"since": "2026-09-01T00:00:00Z", "until": "2026-09-02T00:00:00Z"},
+            },
+        ],
+    },
+    "reconcile_dashboard_data": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Repair recent dashboard gaps caused by failed or raced hourly syncs",
+        "parameters": {
+            "reconcile_days": {
+                "type": "integer",
+                "default": 2,
+                "min": 1,
+                "max": 90,
+                "description": "Number of recent days to compare and repair",
+            }
+        },
+        "examples": [
+            {"name": "Default two-day reconciliation", "data": {}},
+            {"name": "Seven-day reconciliation", "data": {"reconcile_days": 7}},
+        ],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
@@ -544,4 +593,6 @@ __all__ = [
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "sync_dashboard_jobs_manual",
+    "reconcile_dashboard_data",
 ]

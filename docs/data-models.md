@@ -138,6 +138,7 @@ AWX job execution record for reporting.
 | AWX identity | `job_id` (unique), `template_id`, `project_id`, `organization_id` |
 | Timing | `started`, `finished`, `elapsed` |
 | Status | `status` (`successful`, `failed`, …) |
+| Launch type | `launch_type` (`manual`, `scheduled`, `sync`, `workflow`, …) |
 | Hosts | `num_hosts` |
 | Launcher | `launched_by_id`, `launched_by_username` |
 
