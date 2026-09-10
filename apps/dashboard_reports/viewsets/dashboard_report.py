@@ -26,6 +26,7 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
+from apps.dashboard_reports.config import include_sync_workflow_jobs
 from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
 from apps.dashboard_reports.models import JobData, JobHostSummary, JobLabel, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
@@ -605,6 +606,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
     def _filter_raw_jobdata_queryset(self, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
         """Apply all filter backends except OrderingFilter to the raw JobDataQuerySet."""
+        if not include_sync_workflow_jobs():
+            queryset = queryset.exclude(launch_type__in=["sync", "workflow"])
         for backend in self.filter_backends:
             if backend is AliasedOrderingFilter:
                 continue

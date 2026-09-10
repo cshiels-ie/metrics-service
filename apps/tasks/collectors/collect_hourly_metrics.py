@@ -147,6 +147,7 @@ _DASHBOARD_COLUMNS = [
     "started",
     "finished",
     "status",
+    "launch_type",
     "elapsed",
     "launched_by_id",
     "launched_by_username",
@@ -160,7 +161,15 @@ _DASHBOARD_COLUMNS = [
 
 
 _INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
-_STRING_FIELDS = ("name", "organization_name", "status", "launched_by_username", "project_name", "label_ids")
+_STRING_FIELDS = (
+    "name",
+    "organization_name",
+    "status",
+    "launch_type",
+    "launched_by_username",
+    "project_name",
+    "label_ids",
+)
 
 
 def _serialize_dashboard_record(row: dict) -> None:
@@ -348,7 +357,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         if raw_data is None or raw_data.empty:
             return
 
-        mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
+        mask = raw_data["status"].isin(["failed", "successful"])
         filtered = raw_data[mask]
         if filtered.empty:
             return

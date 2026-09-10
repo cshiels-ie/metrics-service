@@ -7,6 +7,8 @@ Provides five dispatcherd tasks:
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
 - sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
+- sync_dashboard_jobs_manual: operator-triggered historical sync
+- reconcile_dashboard_data: daily gap repair for recent dashboard data
 """
 
 import logging
@@ -139,7 +141,11 @@ def _parse_dt(value: Any) -> datetime | None:
 
 
 def _collect_jobs(
-    db_connection, since: datetime, until: datetime, after_id: int | None = None, batch_size: int | None = None
+    db_connection,
+    since: datetime,
+    until: datetime,
+    after_id: int | None = None,
+    batch_size: int | None = None,
 ) -> DashboardJobsResultType:
     """
     Collect dashboard jobs data from the database for the specified date range.
@@ -149,9 +155,16 @@ def _collect_jobs(
     labels/host-summaries are fetched by the returned job IDs rather than the
     full date range, which is far more efficient for large backfills.
     """
-    return dashboard_jobs(
-        db=db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size, date_field="finished"
-    ).gather()
+    kwargs = {
+        "db": db_connection,
+        "since": since,
+        "until": until,
+        "after_id": after_id,
+        "batch_size": batch_size,
+        "date_field": "finished",
+    }
+    kwargs["include_sync_workflow_jobs"] = True
+    return dashboard_jobs(**kwargs).gather()
 
 
 def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
@@ -160,7 +173,7 @@ def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     # (hello_world, cleanup_old_tasks) can be registered without the dependency installed.
     from metrics_utility.library.collectors.dashboard import get_min_max_job_id_query
 
-    query, params = get_min_max_job_id_query(since, until, date_field="finished")
+    query, params = get_min_max_job_id_query(since, until, date_field="finished", include_sync_workflow_jobs=True)
     with db_connection.cursor() as cursor:
         cursor.execute(query, params)
         row = cursor.fetchone()
@@ -238,13 +251,25 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
 
 
 def _process_batches(
-    db_connection, since: datetime, until: datetime, max_id: int, after_id: int, batch_size: int, task_name: str
+    db_connection,
+    since: datetime,
+    until: datetime,
+    max_id: int,
+    after_id: int,
+    batch_size: int,
+    task_name: str,
 ) -> tuple[int, str | None]:
     """Collect and sync jobs in cursor-paginated batches. Returns (total_synced, error_message_or_None)."""
     total_synced = 0
     while after_id < max_id:
         try:
-            batch = _collect_jobs(db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size)
+            batch = _collect_jobs(
+                db_connection,
+                since=since,
+                until=until,
+                after_id=after_id,
+                batch_size=batch_size,
+            )
         except Exception as e:
             logger.exception(f"Error collecting jobs batch after id {after_id}")
             return total_synced, f"Collecting jobs failed: {str(e)}"
@@ -317,7 +342,15 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         return result
 
     after_id = min_id - 1
-    total_synced, error_msg = _process_batches(db_connection, since, until, max_id, after_id, batch_size, task_name)
+    total_synced, error_msg = _process_batches(
+        db_connection,
+        since,
+        until,
+        max_id,
+        after_id,
+        batch_size,
+        task_name,
+    )
 
     if error_msg:
         result["error"] = True
@@ -420,6 +453,108 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     return create_task_result("success", data=result.get("data", {}))
 
 
+def sync_dashboard_jobs_manual(**kwargs) -> dict[str, Any]:
+    """Synchronize dashboard jobs on demand, using the normal upsert path."""
+    task_name = "sync_dashboard_jobs_manual"
+    start_time = time.monotonic()
+    result = _collect_data(task_name=task_name, **kwargs)
+    error = result.get("error", False)
+    job_count = result.get("data", {}).get("job_count", 0)
+    _save_telemetry_details(
+        task_name=task_name,
+        success=not error,
+        collection_duration_ms=(time.monotonic() - start_time) * 1000,
+        number_of_records_processed=job_count,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
+    if error:
+        return create_task_result("error", error=result.get("message", "Manual dashboard sync failed"))
+    return create_task_result("success", data=result.get("data", {}))
+
+
+def _count_controller_jobs(db_connection, since: datetime, until: datetime) -> int:
+    """Count terminal dashboard jobs using the same inclusion setting as collection."""
+    query = """
+        SELECT COUNT(*)
+        FROM main_unifiedjob uj
+        JOIN main_job mj ON mj.unifiedjob_ptr_id = uj.id
+        WHERE uj.status IN (%s, %s)
+          AND uj.finished >= %s
+          AND uj.finished < %s
+    """
+    params: list[Any] = ["failed", "successful", since.isoformat(), until.isoformat()]
+    with db_connection.cursor() as cursor:
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+    return int(row[0]) if row else 0
+
+
+def reconcile_dashboard_data(**kwargs) -> dict[str, Any]:
+    """Repair recent dashboard gaps caused by failed or raced hourly syncs."""
+    task_name = "reconcile_dashboard_data"
+    start_time = time.monotonic()
+    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
+    reconcile_days = int(kwargs.get("reconcile_days", dashboard_cfg.get("RECONCILE_DAYS", 2)))
+    until = datetime.now(tz=UTC)
+    since = until - timedelta(days=reconcile_days)
+
+    try:
+        db_connection = get_db_connection()
+        min_id, _ = _get_job_id_range(db_connection, since, until)
+        if min_id is None:
+            return create_task_result(
+                "success", data={"task_type": task_name, "job_count": 0, "skipped": True}
+            )
+        controller_count = _count_controller_jobs(db_connection, since, until)
+        local_count = JobData.objects.filter(finished__gte=since, finished__lt=until).count()
+        if local_count >= controller_count:
+            return create_task_result(
+                "success",
+                data={
+                    "task_type": task_name,
+                    "job_count": 0,
+                    "skipped": True,
+                    "local_count": local_count,
+                    "controller_count": controller_count,
+                },
+            )
+        result = _collect_data(task_name=task_name, since=since, until=until)
+    except Exception as exc:
+        logger.exception("Dashboard reconciliation failed")
+        _save_telemetry_details(
+            task_name=task_name,
+            success=False,
+            collection_duration_ms=(time.monotonic() - start_time) * 1000,
+            number_of_records_processed=0,
+            database_query_time_ms=None,
+            cache_hit_rate=None,
+        )
+        return create_task_result("error", error=str(exc))
+
+    error = result.get("error", False)
+    job_count = result.get("data", {}).get("job_count", 0)
+    _save_telemetry_details(
+        task_name=task_name,
+        success=not error,
+        collection_duration_ms=(time.monotonic() - start_time) * 1000,
+        number_of_records_processed=job_count,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
+    if error:
+        return create_task_result("error", error=result.get("message", "Dashboard reconciliation failed"))
+    return create_task_result(
+        "success",
+        data={
+            "task_type": task_name,
+            "job_count": job_count,
+            "since": since.isoformat(),
+            "until": until.isoformat(),
+        },
+    )
+
+
 def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     """
     Write unified_jobs raw data collected during the hourly rollup to the dashboard JobData table.
@@ -463,6 +598,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
                 "started": _parse_dt(row.get("started")),
                 "finished": _parse_dt(row.get("finished")),
                 "status": row["status"],
+                "launch_type": row.get("launch_type"),
                 "elapsed": row["elapsed"],
                 "launched_by_id": row.get("launched_by_id"),
                 "launched_by_username": row.get("launched_by_username"),
