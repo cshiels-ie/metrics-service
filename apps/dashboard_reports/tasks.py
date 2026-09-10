@@ -163,7 +163,6 @@ def _collect_jobs(
         "batch_size": batch_size,
         "date_field": "finished",
     }
-    kwargs["include_sync_workflow_jobs"] = True
     return dashboard_jobs(**kwargs).gather()
 
 
@@ -173,7 +172,7 @@ def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     # (hello_world, cleanup_old_tasks) can be registered without the dependency installed.
     from metrics_utility.library.collectors.dashboard import get_min_max_job_id_query
 
-    query, params = get_min_max_job_id_query(since, until, date_field="finished", include_sync_workflow_jobs=True)
+    query, params = get_min_max_job_id_query(since, until, date_field="finished")
     with db_connection.cursor() as cursor:
         cursor.execute(query, params)
         row = cursor.fetchone()
