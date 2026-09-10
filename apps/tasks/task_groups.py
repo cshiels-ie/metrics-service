@@ -364,9 +364,8 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
 )
 
 # Indirect Node Collection Group - automation-reports integration
-# Feature flag: INDIRECT_NODE_COLLECTION (default: False — customer opt-in)
-# Enable via METRICS_SERVICE_FEATURE__INDIRECT_NODE_COLLECTION, installer top-level
-# FEATURE_INDIRECT_NODE_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+# Feature flag: INDIRECT_NODE_COLLECTION (default: True; enabled by default)
+# Disable with METRICS_SERVICE_FEATURE__INDIRECT_NODE_COLLECTION=false or dynamic_settings.Setting.
 INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     name="indirect_node_collection",
     description="Indirect managed node daily collection (INDIRECT_NODE_COLLECTION feature flag)",

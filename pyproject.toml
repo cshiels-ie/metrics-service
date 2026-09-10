@@ -88,13 +88,11 @@ exclude = ["tests*"]
 
 [dependency-groups]
 dev=[
-    "black>=23.0",
     "coverage>=7.3",
     "django-debug-toolbar>=4.2",
     "django-stubs[compatible-mypy]>=4.2",
     "djangorestframework-stubs[compatible-mypy]>=3.14",
     "factory-boy>=3.3",
-    "isort>=8.0.1",
     "mypy>=1.5",
     "poethepoet>=0.37.0",
     "pre-commit>=3.4",
@@ -103,28 +101,9 @@ dev=[
     "pytest-cov>=4.1",
     "pytest-django>=4.5",
     "pytest>=7.4",
-    "ruff>=0.15.18",
+    "ruff>=0.16.0",
     "openapi-spec-validator>=0.7.2"
 ]
-
-[tool.black]
-line-length = 120
-target-version = ['py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-  | migrations
-)/
-'''
 
 [tool.ruff]
 line-length = 120
@@ -169,7 +148,7 @@ select = [
     "PIE", # flake8-pie (misc linting)
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
+    "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
     "S101",  # use of assert detected
     "S311",  # pseudo-random generators not suitable for security/cryptographic purposes
@@ -207,18 +186,6 @@ max-branches = 15      # Maximum number of branches (matches Sonar S3776)
 max-statements = 50    # Maximum number of statements in function
 max-returns = 6        # Maximum number of return statements
 max-args = 8           # Maximum function arguments (relaxed for complex functions)
-
-[tool.isort]
-profile = "black"
-line_length = 120
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-known_django = "django"
-known_first_party = ["metrics_service", "apps"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "DJANGO", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
 python = "3.12"

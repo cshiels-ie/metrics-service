@@ -126,7 +126,7 @@ flowchart TB
 | `METRICS_COLLECTION_GROUP` | `METRICS_COLLECTION` | `true` | All collectors, `daily_metrics_rollup`, `cleanup_metrics_data` |
 | `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | `true` | `daily_anonymize_and_prepare` |
 | `DASHBOARD_COLLECTION_GROUP` | `DASHBOARD_COLLECTION` | `true` | `collect_dashboard_reports_initial_data`, dashboard cleanup |
-| `INDIRECT_NODE_COLLECTION_GROUP` | `INDIRECT_NODE_COLLECTION` | `false` | `collect_daily_metrics` (indirect nodes) |
+| `INDIRECT_NODE_COLLECTION_GROUP` | `INDIRECT_NODE_COLLECTION` | `true` | `collect_daily_metrics` (indirect nodes) |
 
 `init-system-tasks` registers **all** individually-enabled tasks regardless of
 group enablement settings. The `_feature_flag` key in `task_data` stores the

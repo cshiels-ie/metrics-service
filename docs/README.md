@@ -85,7 +85,7 @@ require a pod restart.
 | `METRICS_COLLECTION` | `true` | Hourly/daily collectors, rollup, metrics cleanup |
 | `ANONYMIZED_DATA_COLLECTION` | `true` | Anonymization and Segment transmission |
 | `DASHBOARD_COLLECTION` | `true` | Dashboard backfill and cleanup |
-| `INDIRECT_NODE_COLLECTION` | `false` | Indirect managed node daily collector (opt-in) |
+| `INDIRECT_NODE_COLLECTION` | `true` | Indirect managed node daily collector |
 
 Details: [dynamic-settings.md](dynamic-settings.md).
 

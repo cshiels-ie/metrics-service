@@ -130,6 +130,8 @@ FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": True,
     # Dashboard data collection for automation-reports — see DASHBOARD_COLLECTION_GROUP.
     "DASHBOARD_COLLECTION": True,
+    # Indirect node collection, enabled by default, see INDIRECT_NODE_COLLECTION_GROUP.
+    "INDIRECT_NODE_COLLECTION": True,
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"

@@ -77,7 +77,7 @@ Defined in `apps/settings/defaults.py` under `FEATURE` and referenced in
 | `METRICS_COLLECTION` | `true` | Hourly/daily collectors, rollup, metrics cleanup |
 | `ANONYMIZED_DATA_COLLECTION` | `true` | `daily_anonymize_and_prepare` |
 | `DASHBOARD_COLLECTION` | `true` | Dashboard backfill and cleanup |
-| `INDIRECT_NODE_COLLECTION` | `false` | Indirect managed node collector (opt-in) |
+| `INDIRECT_NODE_COLLECTION` | `true` | Indirect managed node collector |
 
 ### Resolution order
 

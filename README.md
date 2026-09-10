@@ -167,7 +167,7 @@ feature flags from DAB `AAPFlag` or Controller `feature_flags_service` data):
 |`METRICS_COLLECTION`|true|
 |`ANONYMIZED_DATA_COLLECTION`|true|
 |`DASHBOARD_COLLECTION`|true|
-|`INDIRECT_NODE_COLLECTION`|false (customer opt-in)|
+|`INDIRECT_NODE_COLLECTION`|true|
 
 You can change defaults using `METRICS_SERVICE_FEATURE__` prefixed environment variables.
 
