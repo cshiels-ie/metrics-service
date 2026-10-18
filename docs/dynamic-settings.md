@@ -51,13 +51,21 @@ flowchart TB
 Sensitive keys (`SECRET_KEY`, `PASSWORD`, `DATABASES`, etc.) are redacted as
 `***REDACTED***` when logged via `log_setting_change()`.
 
-There is **no public REST API** for settings today (`apps/dynamic_settings/urls.py`
-is empty). Changes are made via:
+Supported dashboard settings are available through the runtime REST API at
+`/api/v1/settings/dashboard/` (gateway path:
+`/api/metrics/v1/settings/dashboard/`). Other settings remain managed via:
 
 - Environment variables (`METRICS_SERVICE_FEATURE__*`)
 - Django admin (`SettingAdmin`)
 - Direct DB updates (`dbshell`, automation)
 - `rollback_configuration_change()` for audited rollbacks
+
+`DASHBOARD_INCLUDE_SYNC_WORKFLOW_JOBS` defaults to `false`. Platform auditors
+can read it; system administrators can update it with a JSON boolean:
+
+```json
+{"include_sync_workflow_jobs": true}
+```
 
 ## Feature Enablement Settings
 

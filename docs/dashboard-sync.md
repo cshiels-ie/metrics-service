@@ -110,7 +110,9 @@ Implemented in `apps/dashboard_reports/tasks.py`:
    a retention window (default 90 days, or Controller `cleanup_jobs` schedule
    when `DASHBOARD_COLLECTION.USE_CONTROLLER_RETENTION` is enabled).
 2. **Query** — `metrics_utility.library.collectors.dashboard.dashboard_jobs`
-   against the AWX database.
+   against the AWX database. All terminal job types, including `sync` and
+   `workflow`, are retained in `JobData`; report filtering is applied when the
+   dashboard API reads the data.
 3. **Pagination** — cursor batches (`BACKFILL_BATCH_SIZE`, default 5000).
 4. **Write** — `JobData.create_or_update_from_awx()` with labels and host summaries.
 5. **Telemetry** — `DashboardTelemetry` row per run.
@@ -135,7 +137,7 @@ flowchart TD
     subgraph xx05 ["XX:05 - unified_jobs"]
         C1["collect_hourly_metrics\ncollector_type=unified_jobs"]
         G1["unified_jobs_dashboard.gather()"]
-        F1["Filter: status failed/successful\nexclude sync/workflow launch"]
+        F1["Filter: terminal status\nretain all launch types"]
         H1["_build_dashboard_sync_hook"]
         T1["Create pending Tasks:\nsync_dashboard_job_records_{hour}_{chunk}"]
         C1 --> G1 --> F1 --> H1 --> T1
@@ -225,6 +227,25 @@ Retention for job data defaults to Controller `cleanup_jobs` schedule when
 
 Hourly collectors run both paths when flags are enabled: rollup to metrics DB
 and hook-created sync tasks to dashboard tables.
+
+## Sync/workflow job visibility
+
+Dashboard ingestion always stores terminal jobs, including jobs whose
+`launch_type` is `sync` or `workflow`. The dashboard API excludes those two
+launch types by default to preserve the existing report behavior.
+
+Operators can change the global runtime setting through
+`PATCH /api/v1/settings/dashboard/` (gateway path:
+`/api/metrics/v1/settings/dashboard/`):
+
+```json
+{"include_sync_workflow_jobs": true}
+```
+
+The setting is `false` when absent. Disabling it later hides those rows from
+dashboard reports but does not delete the retained data. The daily
+`reconcile_dashboard_data` task and the manual `sync_dashboard_jobs_manual`
+task use the same all-terminal-job collection path and are safe to rerun.
 
 ## Related Documentation
 

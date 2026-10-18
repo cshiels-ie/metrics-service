@@ -85,12 +85,12 @@ class TestBuildDashboardSyncHook:
         mock_task.objects.update_or_create.assert_not_called()
 
     def test_hook_returns_early_when_no_terminal_jobs(self):
-        """If all jobs are pending/running, sync, or workflow launches, no Task is created."""
+        """If all jobs are pending/running, no Task is created."""
         df = _make_df(
             [
                 {"status": "running", "launch_type": "manual"},
-                {"id": 2, "status": "successful", "launch_type": "sync"},
-                {"id": 3, "status": "successful", "launch_type": "workflow"},
+                {"id": 2, "status": "running", "launch_type": "sync"},
+                {"id": 3, "status": "running", "launch_type": "workflow"},
             ]
         )
         hook = self._enabled_hook()
@@ -98,9 +98,8 @@ class TestBuildDashboardSyncHook:
             hook(df)
         mock_task.objects.update_or_create.assert_not_called()
 
-    def test_hook_excludes_workflow_launch_type(self):
-        """Workflow child jobs are excluded — they have NULL launched_by_id and would inflate
-        Successful/Failed counts without appearing in Top 5 Users (AAP-74848)."""
+    def test_hook_retains_sync_and_workflow_launch_types(self):
+        """Terminal sync/workflow jobs are retained for read-time filtering."""
         df = _make_df(
             [
                 {"id": 1, "status": "successful", "launch_type": "manual"},
@@ -115,7 +114,7 @@ class TestBuildDashboardSyncHook:
         mock_task.objects.update_or_create.assert_called_once()
         task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
         synced_ids = [r["id"] for r in task_data["raw_jobs"]]
-        assert synced_ids == [1], "only the manual job should reach sync_dashboard_job_records"
+        assert synced_ids == [1, 2, 3]
 
     def test_hook_creates_task_for_terminal_non_sync_jobs(self):
         """Terminal non-sync jobs cause update_or_create to be called."""

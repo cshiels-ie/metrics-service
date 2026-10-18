@@ -352,6 +352,14 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "enabled": True,
             "description": "Delete DashboardTelemetry rows older than 60 days to prevent unbounded table growth",
         },
+        {
+            "task_id": "daily_reconcile_dashboard_data",
+            "function": "reconcile_dashboard_data",
+            "cron": "0 3 * * *",
+            "args": {},
+            "enabled": True,
+            "description": "Repair recent dashboard gaps caused by failed or raced hourly syncs",
+        },
     ],
 )
 
